@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import PrivyAuthProvider from "@/providers/privy-auth-providers";
+import { AuthProvider } from "@/context/auth-context";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -23,12 +25,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
-    </html>
+    <PrivyAuthProvider>
+      <AuthProvider>
+        <html lang="en">
+          <body
+            className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+          >
+            {children}
+          </body>
+        </html>
+      </AuthProvider>
+    </PrivyAuthProvider>
   );
 }

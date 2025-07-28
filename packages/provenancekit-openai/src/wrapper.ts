@@ -519,8 +519,9 @@ export class OpenAIWithProvenance {
       sessionId
     );
 
+    /* ---------- fetch + clone (new) ---------- */
     const rsp = await this.openai.audio.speech.create(params);
-    const bytes = new Uint8Array(await rsp.arrayBuffer());
+    const bytes = new Uint8Array(await rsp.clone().arrayBuffer()); // ← clone!
 
     const audioRes = await this.storeBinaryOutput(
       bytes,
@@ -535,7 +536,7 @@ export class OpenAIWithProvenance {
       { input: params.input, voice: (params as any).voice }
     );
 
-    return { response: rsp, provenance: audioRes };
+    return { response: rsp, provenance: audioRes }; // rsp body is still readable
   }
 
   async sttWithProvenance(
