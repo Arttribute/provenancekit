@@ -14,7 +14,6 @@ export const pk = new ProvenanceKit({ baseUrl: PROVENANCE_API });
  * For the demo we’ll just hardcode 3 entity ids.
  * (You can persist real ids in DB/user session.)
  */
-export const DEMO_HUMAN_ID = "ent-human-demo";
 export const DEMO_AI_ID = "ent-ai-openai";
 export const DEMO_TOOL_ID = "ent-tool-generic";
 
@@ -22,3 +21,23 @@ export const openaiProv = new OpenAIWithProvenance(
   { apiKey: OPENAI_API_KEY },
   { client: pk }
 );
+
+const cache = new Map<string, string>();
+
+export async function ensureHumanEntity(opts: {
+  privyId: string;
+  wallet?: string | null;
+  name?: string | null;
+}) {
+  const key = opts.privyId;
+  const hit = cache.get(key);
+  if (hit) return hit;
+
+  const entityId = await pk.entity({
+    role: "human",
+    name: opts.name ?? key.slice(0, 8),
+    wallet: opts.wallet ?? undefined,
+  });
+  cache.set(key, entityId);
+  return entityId;
+}

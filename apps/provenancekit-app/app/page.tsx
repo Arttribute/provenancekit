@@ -8,9 +8,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-
+import AccountMenu from "@/components/account/account-menu";
 import { ResultList } from "@/components/provenance/results-list";
-import { jsonFetch } from "@/lib/fetcher";
+import { jsonFetch, authFetch } from "@/lib/fetcher";
 
 /* ---------- tiny helpers ---------- */
 function arrayBufferToBase64(buf: ArrayBuffer) {
@@ -28,6 +28,7 @@ export default function DemoPage() {
       <p className="text-sm text-muted-foreground">
         Try different OpenAI modalities and inspect provenance graphs.
       </p>
+      <AccountMenu />
 
       <Tabs defaultValue="chat" className="w-full">
         <TabsList>
@@ -77,11 +78,7 @@ function ChatTab() {
     setCids([]);
     setError(null);
     try {
-      const res = await jsonFetch<{
-        completion: any;
-        finalOutputCids: string[];
-        sessionId: string;
-      }>("/api/chat", {
+      const response = await authFetch("/api/chat", {
         method: "POST",
         body: JSON.stringify({
           sessionId, // keep in component state if you want
@@ -91,6 +88,9 @@ function ChatTab() {
           ],
         }),
       });
+      console.log("Chat response:", response);
+      const res = await response.json();
+      console.log("Chat res:", res);
       setSessionId(res.sessionId);
       setOutput(res.completion.choices[0].message.content);
       setCids(res.finalOutputCids || []);
@@ -144,19 +144,18 @@ function ImageGenTab() {
     setCids([]);
     setError(null);
     try {
-      const res = await jsonFetch<{
-        data: any[];
-        provenance: any[];
-      }>("/api/image/generate", {
+      const res = await authFetch("/api/image/generate", {
         method: "POST",
         body: JSON.stringify({ prompt }),
       });
 
-      const urls = res.data.map((d: any) =>
+      const data = await res.json();
+
+      const urls = data.data.map((d: any) =>
         d.url ? d.url : `data:image/png;base64,${d.b64_json}`
       );
       setImages(urls);
-      setCids(res.provenance.map((p: any) => p.cid));
+      setCids(data.provenance.map((p: any) => p.cid));
     } catch (e: any) {
       setError(e.message ?? String(e));
     } finally {

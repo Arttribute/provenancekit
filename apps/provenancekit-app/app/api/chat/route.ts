@@ -2,6 +2,10 @@
 import { z } from "zod";
 import { NextResponse } from "next/server";
 import { openaiProv, pk } from "@/lib/provenance";
+import { ensureHumanEntity } from "@/lib/provenance";
+import { getPrivyUser } from "@/lib/privy-server";
+
+export const revalidate = 0; // disable ISR for this route
 
 const BodySchema = z.object({
   sessionId: z.string().uuid().optional().nullable(),
@@ -15,7 +19,24 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { messages, model, sessionId, inputCids } = BodySchema.parse(body);
 
-    const sid = sessionId ?? (await pk.createSession("Chat Demo"));
+    const { user } = await getPrivyUser(
+      req.headers.get("authorization") ?? undefined
+    );
+    //console.log("Privy user:", user);
+    const humanEntityId = await ensureHumanEntity({
+      privyId: user.id,
+      wallet: user.wallet?.address ?? null,
+      name:
+        user.email?.address ??
+        user.google?.email ??
+        user.discord?.username ??
+        undefined,
+    });
+    console.log("Human entity ID:", humanEntityId);
+
+    const sid =
+      sessionId ??
+      (await openaiProv.pk.createSession("Chat", { privyUser: user.id }));
 
     const { completion, actions, finalOutputCids } =
       await openaiProv.chatWithProvenance(
@@ -25,8 +46,9 @@ export async function POST(req: Request) {
         },
         {
           action: { inputCids }, // pass file inputs
-          entity: { role: "human", name: "Demo User" },
+          entity: { id: humanEntityId, role: "human" },
         },
+
         { sessionId: sid }
       );
 

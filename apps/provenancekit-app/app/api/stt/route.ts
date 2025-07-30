@@ -1,7 +1,7 @@
 // app/api/stt/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openaiProv, DEMO_HUMAN_ID, DEMO_AI_ID } from "@/lib/provenance";
+import { openaiProv, DEMO_AI_ID } from "@/lib/provenance";
 
 export const runtime = "nodejs";
 
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const out = await openaiProv.sttWithProvenance(
       { file, model },
       { entity: { role: "ai" } },
-      { sessionId, humanEntityId: DEMO_HUMAN_ID, aiEntityId: DEMO_AI_ID }
+      { sessionId, aiEntityId: DEMO_AI_ID }
     );
 
     return NextResponse.json(out);

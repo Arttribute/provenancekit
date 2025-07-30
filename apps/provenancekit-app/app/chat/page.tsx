@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ResultList } from "@/components/provenance/results-list";
 import { ChatInput } from "@/components/chat/chat-input";
-import { jsonFetch } from "@/lib/fetcher";
+import { authFetch, jsonFetch } from "@/lib/fetcher";
 
 export default function ChatPage() {
   const [messages, setMessages] = useState<
@@ -22,11 +22,7 @@ export default function ChatPage() {
     try {
       // Build request body (attachments are handled in server route if needed;
       // here we just send text messages for simplicity)
-      const res = await jsonFetch<{
-        completion: any;
-        finalOutputCids: string[];
-        sessionId: string;
-      }>("/api/chat", {
+      const response = await authFetch("/api/chat", {
         method: "POST",
         body: JSON.stringify({
           sessionId,
@@ -37,6 +33,8 @@ export default function ChatPage() {
           ],
         }),
       });
+
+      const res = await response.json();
 
       setSessionId(res.sessionId);
       setMessages((m) => [
