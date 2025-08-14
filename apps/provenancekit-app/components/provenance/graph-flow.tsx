@@ -26,7 +26,7 @@ export interface GraphEdge {
 }
 
 const ResourceNodeCmp = ({ data }: any) => (
-  <Card className="min-w-[220px] border-blue-200 bg-blue-50 dark:bg-blue-950">
+  <Card className="min-w-[220px] border-blue-200 ">
     <CardContent className="p-3">
       <div className="flex items-center gap-2 mb-2">
         <Database className="w-4 h-4 text-blue-600" />

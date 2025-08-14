@@ -46,3 +46,14 @@ export async function authFetch(
   const headers = authHeaders(init.headers);
   return fetch(url, { ...init, headers });
 }
+
+/* -------------------------------------------------------------------------- */
+/*  3. authFetchJSON – convenience alias around jsonFetch                      */
+/*     (used by the new Chat layout / sessions list)                           */
+/* -------------------------------------------------------------------------- */
+export function authFetchJSON<T = any>(
+  url: string,
+  init: RequestInit = {}
+): Promise<T> {
+  return jsonFetch<T>(url, init);
+}

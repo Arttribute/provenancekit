@@ -6,8 +6,11 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { ResultList } from "@/components/provenance/results-list";
 import { ChatInput } from "@/components/chat/chat-input";
 import { authFetch, jsonFetch } from "@/lib/fetcher";
+import AssintantMessage from "@/components/chat/assistant-message";
+import { useRouter } from "next/navigation";
 
 export default function ChatPage() {
+  const router = useRouter();
   const [messages, setMessages] = useState<
     { role: "user" | "assistant"; content: string }[]
   >([]);
@@ -22,6 +25,7 @@ export default function ChatPage() {
     try {
       // Build request body (attachments are handled in server route if needed;
       // here we just send text messages for simplicity)
+      setMessages((m) => [...m, { role: "user", content: message }]);
       const response = await authFetch("/api/chat", {
         method: "POST",
         body: JSON.stringify({
@@ -39,13 +43,14 @@ export default function ChatPage() {
       setSessionId(res.sessionId);
       setMessages((m) => [
         ...m,
-        { role: "user", content: message },
         {
           role: "assistant",
           content: res.completion.choices[0].message.content,
         },
       ]);
       setOutputCids(res.finalOutputCids);
+
+      router.replace(`/chat/${res.sessionId}`);
     } catch (e: any) {
       setErr(e.message ?? String(e));
     } finally {
@@ -55,32 +60,30 @@ export default function ChatPage() {
 
   return (
     <main className="px-6 py-8 max-w-4xl mx-auto space-y-6">
-      <h1 className="text-3xl font-bold">Chat (Provenance Enabled)</h1>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Conversation</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-4 border rounded p-4 bg-gray-50 max-h-[400px] overflow-y-auto">
-            {messages.map((m, i) => (
-              <div key={i} className="text-sm whitespace-pre-wrap">
-                <span className="font-semibold mr-2">{m.role}:</span>
-                {m.content}
+      <div className="space-y-4 p-4  h-[400px] overflow-y-auto">
+        {messages.map((m, i) => (
+          <div key={i} className="text-sm whitespace-pre-wrap">
+            {m.role === "assistant" ? (
+              <AssintantMessage content={m.content} />
+            ) : (
+              <div className="flex rounded-xl justify-end">
+                <div className={`rounded-xl bg-indigo-100 my-4 ml-4  p-2`}>
+                  {m.content}
+                </div>
               </div>
-            ))}
-            {loading && <div className="text-xs text-gray-500">…</div>}
+            )}
           </div>
+        ))}
+        {loading && <div className="text-xs text-gray-500">…</div>}
+      </div>
 
-          <ChatInput onSendMessage={onSend} />
+      <ChatInput onSendMessage={onSend} />
 
-          {err && (
-            <div className="text-red-500 text-sm border rounded p-3">{err}</div>
-          )}
+      {err && (
+        <div className="text-red-500 text-sm border rounded p-3">{err}</div>
+      )}
 
-          <ResultList cids={outputCids} />
-        </CardContent>
-      </Card>
+      <ResultList cids={outputCids} />
     </main>
   );
 }

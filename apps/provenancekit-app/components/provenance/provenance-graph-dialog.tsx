@@ -73,7 +73,7 @@ export function ProvenanceGraphDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-[95vw] w-full md:max-w-6xl p-0 bg-gray-950 border-gray-800">
+      <DialogContent className="max-w-[95vw] w-full md:max-w-6xl p-0 ">
         <DialogHeader className="px-6 pt-6 pb-2">
           <DialogTitle className="text-white">{title}</DialogTitle>
         </DialogHeader>

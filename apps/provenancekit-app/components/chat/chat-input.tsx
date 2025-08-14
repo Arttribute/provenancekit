@@ -14,8 +14,9 @@ function uuid() {
   return crypto.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
 
-interface ChatInputProps {
-  onSendMessage: (message: string, attachments: File[]) => void;
+export interface ChatInputProps {
+  onSendMessage: (message: string, attachments: InspectedAttachment[]) => void;
+  disabled?: boolean;
 }
 
 export function ChatInput({ onSendMessage }: ChatInputProps) {
@@ -139,10 +140,7 @@ export function ChatInput({ onSendMessage }: ChatInputProps) {
   /* --------------- Send ---------------------------- */
   const handleSend = useCallback(() => {
     if (message.trim() || attachments.length > 0) {
-      onSendMessage(
-        message,
-        attachments.map((a) => a.file)
-      );
+      onSendMessage(message, attachments); // ◄──── pass full objects
       setMessage("");
       setAttachments([]);
       if (textareaRef.current) textareaRef.current.style.height = "48px";

@@ -329,7 +329,7 @@ export const ProvenanceGraphUI = ({
   };
 
   return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden relative">
+    <div className="border rounded-lg overflow-hidden relative max-w-6xl ">
       <div className="absolute top-4 right-4 z-10 flex gap-2">
         <Button
           variant="secondary"
@@ -359,7 +359,7 @@ export const ProvenanceGraphUI = ({
 
       <div
         ref={containerRef}
-        className="w-full h-[600px] overflow-hidden cursor-grab active:cursor-grabbing"
+        className="max-w-5xl h-[600px] overflow-hidden cursor-grab active:cursor-grabbing"
         onMouseDown={onMouseDownCanvas}
         onMouseMove={onMouseMove}
         onMouseUp={stopDragPan}
