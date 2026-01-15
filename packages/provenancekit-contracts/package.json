@@ -1,0 +1,39 @@
+{
+  "name": "@provenancekit/contracts",
+  "version": "0.0.1",
+  "description": "Solidity smart contracts for on-chain provenance recording. Base implementations following OpenZeppelin patterns.",
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "blockchain",
+    "ethereum",
+    "base",
+    "solidity",
+    "smart-contracts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/provenancekit-contracts"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test",
+    "test:coverage": "forge coverage",
+    "deploy:sepolia": "forge script script/DeployBaseSepolia.s.sol --rpc-url base-sepolia --broadcast --verify",
+    "deploy:base": "forge script script/DeployBase.s.sol --rpc-url base --broadcast --verify",
+    "clean": "forge clean",
+    "fmt": "forge fmt",
+    "snapshot": "forge snapshot"
+  },
+  "devDependencies": {
+    "@openzeppelin/contracts": "^5.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
