@@ -24,8 +24,6 @@
     "build": "forge build",
     "test": "forge test",
     "test:coverage": "forge coverage",
-    "deploy:sepolia": "forge script script/DeployBaseSepolia.s.sol --rpc-url base-sepolia --broadcast --verify",
-    "deploy:base": "forge script script/DeployBase.s.sol --rpc-url base --broadcast --verify",
     "clean": "forge clean",
     "fmt": "forge fmt",
     "snapshot": "forge snapshot"
