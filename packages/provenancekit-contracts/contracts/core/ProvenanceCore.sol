@@ -8,7 +8,6 @@ import {IProvenanceProvider} from "../interfaces/IProvenanceProvider.sol";
  * @author ProvenanceKit
  * @notice Abstract base contract for provenance systems
  * @dev Inherit from this contract to build a ProvenanceKit-compatible provenance system.
- *      This follows the OpenZeppelin pattern of abstract base contracts with hooks.
  *
  *      Features:
  *      - Implements IProvenanceProvider standard

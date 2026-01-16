@@ -2,9 +2,9 @@
 pragma solidity ^0.8.24;
 
 import {Test, console2} from "forge-std/Test.sol";
-import {ProvenanceRegistry} from "../src/ProvenanceRegistry.sol";
-import {ProvenanceVerifiable} from "../src/core/ProvenanceVerifiable.sol";
-import {IProvenanceProvider} from "../src/interfaces/IProvenanceProvider.sol";
+import {ProvenanceRegistry} from "../contracts/ProvenanceRegistry.sol";
+import {ProvenanceVerifiable} from "../contracts/core/ProvenanceVerifiable.sol";
+import {IProvenanceProvider} from "../contracts/interfaces/IProvenanceProvider.sol";
 
 /**
  * @title ProvenanceRegistryTest

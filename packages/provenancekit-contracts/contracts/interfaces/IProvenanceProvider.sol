@@ -13,7 +13,7 @@ pragma solidity ^0.8.24;
  *      - Stable: This interface should rarely change
  *      - Universal: Works for any provenance use case
  *
- *      Following the EAA (Entity-Action-Attribution) model from @provenancekit/eaa-types
+ *      Following the EAA (Entity-Action-Attribution) model from provenancekit/eaa-types
  */
 interface IProvenanceProvider {
     /*//////////////////////////////////////////////////////////////

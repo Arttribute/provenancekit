@@ -1,5 +1,5 @@
 [profile.default]
-src = "src"
+src = "contracts"
 out = "out"
 libs = ["lib"]
 solc_version = "0.8.24"
@@ -19,7 +19,3 @@ base-sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basesca
 # Test configuration
 [profile.default.fuzz]
 runs = 256
-
-# Coverage
-[profile.default.coverage]
-via_ir = false
