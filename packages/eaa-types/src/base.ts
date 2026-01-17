@@ -4,16 +4,7 @@ import { z } from "zod";
  * Context URI for ProvenanceKit bundles
  * Used for versioning and identifying the schema
  */
-export const CONTEXT_URI = "https://provenancekit.org/context/v1" as const;
-
-/**
- * IPFS CID validation pattern for v0 and v1 CIDs.
- *
- * @remarks
- * - CIDv0: Starts with "Qm" (base58, 46 chars)
- * - CIDv1: Starts with "bafy" (base32, 59+ chars)
- */
-const cidRegex = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[1-9A-HJ-NP-Za-km-z]{56,})$/;
+export const CONTEXT_URI = "https://provenancekit.org/context/v2" as const;
 
 /**
  * Extension namespace validation pattern.
@@ -25,6 +16,135 @@ const cidRegex = /^(Qm[1-9A-HJ-NP-Za-km-z]{44}|bafy[1-9A-HJ-NP-Za-km-z]{56,})$/;
  * Valid namespaces: `ext:x402`, `ext:myorg:payments`
  */
 const extensionNamespaceRegex = /^ext:[a-zA-Z]\w*(?::\w+)*$/;
+
+/*─────────────────────────────────────────────────────────────*\
+ | Content Addressing                                            |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Core addressing schemes for content references.
+ *
+ * @remarks
+ * - `cid`: Content Identifier (IPFS CIDv0/v1) - self-verifying
+ * - `ar`: Arweave transaction ID - self-verifying
+ * - `http`: HTTP/HTTPS URL - requires integrity hash for verification
+ * - `hash`: Raw content hash - self-verifying
+ *
+ * Use `ext:namespace` pattern for custom schemes.
+ */
+export const AddressingSchemeCore = ["cid", "ar", "http", "hash"] as const;
+
+/**
+ * Extensible addressing scheme.
+ * Accepts core schemes or custom `ext:namespace` extensions.
+ */
+export const AddressingScheme = z.union([
+  z.enum(AddressingSchemeCore),
+  z.string().regex(extensionNamespaceRegex, {
+    message: 'Custom schemes must use "ext:" prefix (e.g., "ext:filecoin")',
+  }),
+]);
+export type AddressingScheme = z.infer<typeof AddressingScheme>;
+
+/**
+ * Content reference for flexible content addressing.
+ *
+ * @remarks
+ * **RECOMMENDED: Use IPFS CIDs (scheme: "cid") whenever possible.**
+ *
+ * CIDs are strongly recommended because they are:
+ * - Self-verifying (hash is the identifier)
+ * - Immutable (content cannot change)
+ * - Decentralized (no single point of failure)
+ * - Interoperable (supported by many systems)
+ *
+ * Other schemes are supported for flexibility, but may require additional
+ * verification (integrity field) and don't guarantee immutability.
+ *
+ * @example
+ * // IPFS CID (RECOMMENDED - self-verifying, immutable)
+ * { ref: "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi", scheme: "cid" }
+ *
+ * // Arweave (self-verifying, immutable)
+ * { ref: "ar://abc123xyz", scheme: "ar" }
+ *
+ * // HTTP with integrity hash (verifiable, but URL may change)
+ * { ref: "https://example.com/file.png", scheme: "http", integrity: "sha256:abc123..." }
+ *
+ * // Raw hash (self-verifying, requires separate location)
+ * { ref: "sha256:abc123...", scheme: "hash" }
+ */
+export const ContentReference = z.object({
+  /**
+   * The content identifier or locator.
+   * For CIDs: the full CID string (e.g., "bafyabc..." or "Qm...")
+   * For URLs: the full URL
+   * For hashes: "algorithm:hex" format
+   */
+  ref: z.string().min(1),
+
+  /** Addressing scheme used. Use "cid" for IPFS (recommended). */
+  scheme: AddressingScheme,
+
+  /**
+   * Content hash for verification (optional).
+   * Required for non-self-verifying schemes (http).
+   * Not needed for cid, ar, or hash schemes.
+   * Format: "algorithm:hex" (e.g., "sha256:abc123...")
+   */
+  integrity: z.string().optional(),
+
+  /** Size in bytes (optional, useful for resources) */
+  size: z.number().int().min(0).optional(),
+});
+
+export type ContentReference = z.infer<typeof ContentReference>;
+
+/*─────────────────────────────────────────────────────────────*\
+ | Content Reference Helpers                                     |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Create a CID-based content reference (recommended).
+ *
+ * @example
+ * const ref = cidRef("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi");
+ * // { ref: "bafy...", scheme: "cid" }
+ */
+export function cidRef(
+  cid: string,
+  size?: number
+): z.infer<typeof ContentReference> {
+  return { ref: cid, scheme: "cid", size };
+}
+
+/**
+ * Create an HTTP-based content reference.
+ * Requires integrity hash for verification.
+ *
+ * @example
+ * const ref = httpRef("https://example.com/file.png", "sha256:abc123...");
+ */
+export function httpRef(
+  url: string,
+  integrity: string,
+  size?: number
+): z.infer<typeof ContentReference> {
+  return { ref: url, scheme: "http", integrity, size };
+}
+
+/**
+ * Create an Arweave-based content reference.
+ *
+ * @example
+ * const ref = arRef("abc123xyz");
+ */
+export function arRef(
+  txId: string,
+  size?: number
+): z.infer<typeof ContentReference> {
+  return { ref: txId, scheme: "ar", size };
+}
 
 /**
  * Core entity roles defining who can perform actions.
@@ -134,25 +254,6 @@ export type AttributionRole = z.infer<typeof AttributionRole>;
 export const ResourceType = makeExtensibleEnum(z.enum(ResourceTypeCore));
 export type ResourceType = z.infer<typeof ResourceType>;
 
-/**
- * Content-addressed identifier for IPFS resources.
- *
- * @remarks
- * Provides an immutable reference to content using cryptographic hashing.
- * Supports both CIDv0 and CIDv1 formats.
- */
-export const ContentAddress = z.object({
-  /** IPFS Content Identifier */
-  cid: z.string().regex(cidRegex, { message: "Invalid IPFS CID format" }),
-
-  /** Size in bytes */
-  size: z.number().int().min(0),
-
-  /** Hashing algorithm used */
-  algorithm: z.enum(["sha256", "blake3"]).default("sha256"),
-});
-
-export type ContentAddress = z.infer<typeof ContentAddress>;
 
 /**
  * Entity schema representing an agent that performs actions.
@@ -201,17 +302,17 @@ export type Location = z.infer<typeof Location>;
  *
  * @remarks
  * Maps to W3C PROV Entity. Represents any artifact with provenance
- * (files, images, text, models, datasets, etc.) identified by content hash.
+ * (files, images, text, models, datasets, etc.) identified by content reference.
  */
 export const Resource = z.object({
-  /** Content address (primary key, immutable) */
-  address: ContentAddress,
+  /** Content reference (primary identifier) */
+  address: ContentReference,
 
   /** Type classification */
   type: ResourceType,
 
-  /** Where this resource can be accessed (at least one location) */
-  locations: z.array(Location).min(1),
+  /** Where this resource can be accessed (optional, may be derived from address) */
+  locations: z.array(Location).default([]),
 
   /** When created (ISO 8601 timestamp) */
   createdAt: z.string().datetime(),
@@ -236,7 +337,7 @@ export type Resource = z.infer<typeof Resource>;
  * This is the core of provenance tracking.
  */
 export const Action = z.object({
-  /** Unique identifier (UUID, tx hash, CID of action description) */
+  /** Unique identifier (UUID, tx hash, etc.) */
   id: z.string().min(1),
 
   /** Type of action performed */
@@ -248,11 +349,11 @@ export const Action = z.object({
   /** When action occurred (ISO 8601 timestamp) */
   timestamp: z.string().datetime(),
 
-  /** Input resources consumed (CIDs) */
-  inputs: z.array(z.string().regex(cidRegex)).default([]),
+  /** Input resources consumed */
+  inputs: z.array(ContentReference).default([]),
 
-  /** Output resources produced (CIDs) */
-  outputs: z.array(z.string().regex(cidRegex)).default([]),
+  /** Output resources produced */
+  outputs: z.array(ContentReference).default([]),
 
   /** Cryptographic proof (signature, tx hash, etc.) */
   proof: z.string().optional(),
@@ -264,30 +365,176 @@ export const Action = z.object({
 export type Action = z.infer<typeof Action>;
 
 /**
- * Attribution schema linking an entity to a resource.
+ * Attribution schema linking an entity to a resource or action.
  *
  * @remarks
- * Maps to W3C PROV Attribution. Records WHO was involved in creating WHAT.
+ * Maps to W3C PROV Attribution/Association. Records WHO was involved in creating WHAT.
  * Pure attribution with no assumptions about weights or payments.
+ *
+ * Can target either:
+ * - A resource (resourceRef): "Who contributed to this artifact"
+ * - An action (actionId): "Who was involved in this process"
+ *
+ * At least one of resourceRef or actionId must be provided.
+ *
+ * **ID Generation (Optional)**
+ *
+ * The `id` field is optional. If you need IDs, here are recommended approaches:
+ *
+ * 1. **Content-based (recommended)**: Deterministic hash of (target, entityId, role)
+ *    - Provides natural deduplication (same attribution = same ID)
+ *    - Verifiable and reproducible across systems
+ *    - Use `generateAttributionId()` helper
+ *
+ * 2. **UUID**: Random unique identifier
+ *    - Simple, guaranteed unique
+ *    - No deduplication (same attribution can have different IDs)
+ *
+ * 3. **Custom**: Any string format your system requires
+ *    - Database sequences, composite keys, etc.
+ *
+ * Choose based on your needs. Content-based is recommended for provenance systems.
  */
-export const Attribution = z.object({
-  /** The resource being attributed (CID) */
-  resourceCid: z.string().regex(cidRegex),
+export const Attribution = z
+  .object({
+    /**
+     * Optional unique identifier for this attribution record.
+     *
+     * Recommended format: "attr:{hash}" where hash is derived from content.
+     * Use `generateAttributionId()` for the recommended approach.
+     */
+    id: z.string().optional(),
 
-  /** The entity receiving attribution (Entity.id) */
-  entityId: z.string(),
+    /** The resource being attributed (optional if actionId provided) */
+    resourceRef: ContentReference.optional(),
 
-  /** Their role in creating the resource */
-  role: AttributionRole,
+    /** The action being attributed (optional if resourceRef provided) */
+    actionId: z.string().optional(),
 
-  /** Optional note explaining the contribution */
-  note: z.string().optional(),
+    /** The entity receiving attribution (Entity.id) */
+    entityId: z.string(),
 
-  /** Extension data (for weights, payments, etc.) */
-  extensions: z.record(z.unknown()).optional(),
-});
+    /** Their role in the creation */
+    role: AttributionRole,
+
+    /** Optional note explaining the contribution */
+    note: z.string().optional(),
+
+    /** Extension data (for weights, payments, etc.) */
+    extensions: z.record(z.unknown()).optional(),
+  })
+  .refine((data) => data.resourceRef || data.actionId, {
+    message: "Either resourceRef or actionId must be provided",
+  });
 
 export type Attribution = z.infer<typeof Attribution>;
+
+/*─────────────────────────────────────────────────────────────*\
+ | Attribution ID Generation                                     |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Standard attribution ID prefix.
+ * Recommended format: "attr:{hash}"
+ */
+export const ATTRIBUTION_ID_PREFIX = "attr:" as const;
+
+/**
+ * Create a canonical string for attribution ID generation.
+ *
+ * This creates a deterministic string from attribution content that can be hashed.
+ * The same attribution will always produce the same canonical string.
+ *
+ * @param attr - Attribution data (without id)
+ * @returns Canonical string representation
+ *
+ * @example
+ * const canonical = getAttributionCanonical({
+ *   resourceRef: { ref: "bafy...", scheme: "cid" },
+ *   entityId: "user123",
+ *   role: "creator"
+ * });
+ * // "res:bafy...|ent:user123|role:creator"
+ */
+export function getAttributionCanonical(
+  attr: Omit<z.infer<typeof Attribution>, "id">
+): string {
+  // Determine target (resource or action)
+  const target = attr.resourceRef
+    ? `res:${attr.resourceRef.ref}`
+    : `act:${attr.actionId}`;
+
+  // Create canonical string: target|entity|role
+  return `${target}|ent:${attr.entityId}|role:${attr.role}`;
+}
+
+/**
+ * Generate an attribution ID using a simple hash.
+ *
+ * This is a RECOMMENDED approach, not required. Uses a simple
+ * djb2 hash for environments without crypto APIs. For production,
+ * consider using SHA-256 or similar.
+ *
+ * @param attr - Attribution data (without id)
+ * @returns Attribution ID in format "attr:{hash}"
+ *
+ * @example
+ * const id = generateAttributionId({
+ *   resourceRef: { ref: "bafy...", scheme: "cid" },
+ *   entityId: "user123",
+ *   role: "creator"
+ * });
+ * // "attr:a1b2c3d4"
+ */
+export function generateAttributionId(
+  attr: Omit<z.infer<typeof Attribution>, "id">
+): string {
+  const canonical = getAttributionCanonical(attr);
+  const hash = simpleHash(canonical);
+  return `${ATTRIBUTION_ID_PREFIX}${hash}`;
+}
+
+/**
+ * Generate an attribution ID using a custom hash function.
+ *
+ * Use this when you need a specific hash algorithm (SHA-256, etc.)
+ *
+ * @param attr - Attribution data (without id)
+ * @param hashFn - Your hash function (string -> string)
+ * @returns Attribution ID in format "attr:{hash}"
+ *
+ * @example
+ * // Using Web Crypto API
+ * const id = await generateAttributionIdWithHash(attr, async (s) => {
+ *   const bytes = new TextEncoder().encode(s);
+ *   const hash = await crypto.subtle.digest('SHA-256', bytes);
+ *   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+ * });
+ */
+export function generateAttributionIdWithHash(
+  attr: Omit<z.infer<typeof Attribution>, "id">,
+  hashFn: (input: string) => string
+): string {
+  const canonical = getAttributionCanonical(attr);
+  const hash = hashFn(canonical);
+  return `${ATTRIBUTION_ID_PREFIX}${hash}`;
+}
+
+/**
+ * Simple djb2 hash function.
+ * Good enough for deduplication, not for security.
+ * Returns 8 hex characters.
+ *
+ * @internal
+ */
+function simpleHash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash * 33) ^ str.charCodeAt(i);
+  }
+  // Convert to unsigned 32-bit and then to hex
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
 
 /**
  * ProvenanceBundle schema for complete provenance packages.
@@ -323,3 +570,4 @@ export type EntityRoleCore = (typeof EntityRoleCore)[number];
 export type ActionTypeCore = (typeof ActionTypeCore)[number];
 export type AttributionRoleCore = (typeof AttributionRoleCore)[number];
 export type ResourceTypeCore = (typeof ResourceTypeCore)[number];
+export type AddressingSchemeCore = (typeof AddressingSchemeCore)[number];

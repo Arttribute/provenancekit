@@ -1,11 +1,35 @@
 export * from "./base";
 export * from "./extensions";
-export const VERSION = "0.0.2";
+export const VERSION = "0.0.3";
 
 /*─────────────────────────────────────────────────────────────*\
- | Breaking Changes from v1                                      |
+ | Breaking Changes in v2 (Context URI v2)                       |
  |                                                               |
- | The following fields have been REMOVED from base types:       |
+ | CONTENT ADDRESSING (NEW):                                     |
+ |   - ContentAddress type REMOVED                               |
+ |   - ContentReference type ADDED (flexible addressing)         |
+ |   - Supports: cid (IPFS), ar (Arweave), http, hash            |
+ |   - CID scheme is STRONGLY RECOMMENDED (self-verifying)       |
+ |   - Custom schemes via ext:namespace pattern                  |
+ |   - Helper functions: cidRef(), httpRef(), arRef()            |
+ |                                                               |
+ | Resource:                                                     |
+ |   - address: ContentAddress -> ContentReference               |
+ |   - locations: now optional (default [])                      |
+ |                                                               |
+ | Action:                                                       |
+ |   - inputs: string[] (CIDs) -> ContentReference[]             |
+ |   - outputs: string[] (CIDs) -> ContentReference[]            |
+ |                                                               |
+ | Attribution:                                                  |
+ |   - resourceCid: string -> resourceRef: ContentReference      |
+ |   - resourceRef is now OPTIONAL (if actionId provided)        |
+ |   - actionId: string ADDED (for action-level attribution)     |
+ |   - id: string ADDED (optional identifier)                    |
+ |   - At least one of resourceRef or actionId required          |
+ |                                                               |
+ |---------------------------------------------------------------|
+ | Previous Breaking Changes (v1):                               |
  |                                                               |
  | Attribution:                                                  |
  |   - weight (use ext:contrib extension)                        |
@@ -24,21 +48,20 @@ export const VERSION = "0.0.2";
  |   - outputCids renamed to outputs                             |
  |                                                               |
  | ActionType enum simplified:                                   |
- |   - "remix" → "transform"                                     |
-|   - "derive" → "transform"                                    |
- |   - "train" → use "ext:ml:train"                              |
- |   - "review" → "verify"                                       |
- |   - "assign" → removed (use extensions)                       |
- |   - "contribute" → removed (use extensions)                   |
+ |   - "remix" -> "transform"                                    |
+ |   - "derive" -> "transform"                                   |
+ |   - "train" -> use "ext:ml:train"                             |
+ |   - "review" -> "verify"                                      |
+ |   - "assign" -> removed (use extensions)                      |
+ |   - "contribute" -> removed (use extensions)                  |
  |                                                               |
  | AttributionRole enum simplified:                              |
- |   - "sourceMaterial" → "source"                               |
- |   - "reviewer" → removed (use extensions)                     |
+ |   - "sourceMaterial" -> "source"                              |
+ |   - "reviewer" -> removed (use extensions)                    |
  |                                                               |
  | ResourceType enum simplified:                                 |
- |   - "dataset" → "data"                                        |
- |   - "tool" → removed (use extensions)                         |
- |   - "composite" → removed (use extensions)                    |
+ |   - "tool" -> removed (use extensions)                        |
+ |   - "composite" -> removed (use extensions)                   |
  |                                                               |
  | See MIGRATION.md for upgrade guide.                           |
 \*─────────────────────────────────────────────────────────────*/

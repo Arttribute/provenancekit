@@ -1,0 +1,95 @@
+{
+  "name": "@provenancekit/storage",
+  "version": "0.0.1",
+  "description": "Unified storage abstraction for ProvenanceKit - database and file storage",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./db": {
+      "import": "./dist/db/index.js",
+      "types": "./dist/db/index.d.ts"
+    },
+    "./files": {
+      "import": "./dist/files/index.js",
+      "types": "./dist/files/index.d.ts"
+    },
+    "./utils": {
+      "import": "./dist/utils/index.js",
+      "types": "./dist/utils/index.d.ts"
+    },
+    "./adapters/db/memory": {
+      "import": "./dist/adapters/db/memory.js",
+      "types": "./dist/adapters/db/memory.d.ts"
+    },
+    "./adapters/db/postgres": {
+      "import": "./dist/adapters/db/postgres.js",
+      "types": "./dist/adapters/db/postgres.d.ts"
+    },
+    "./adapters/db/mongodb": {
+      "import": "./dist/adapters/db/mongodb.js",
+      "types": "./dist/adapters/db/mongodb.d.ts"
+    },
+    "./adapters/db/supabase": {
+      "import": "./dist/adapters/db/supabase.js",
+      "types": "./dist/adapters/db/supabase.d.ts"
+    },
+    "./adapters/files/memory": {
+      "import": "./dist/adapters/files/memory.js",
+      "types": "./dist/adapters/files/memory.d.ts"
+    },
+    "./adapters/files/ipfs-pinata": {
+      "import": "./dist/adapters/files/ipfs-pinata.js",
+      "types": "./dist/adapters/files/ipfs-pinata.d.ts"
+    },
+    "./adapters/files/ipfs-infura": {
+      "import": "./dist/adapters/files/ipfs-infura.js",
+      "types": "./dist/adapters/files/ipfs-infura.d.ts"
+    },
+    "./adapters/files/ipfs-local": {
+      "import": "./dist/adapters/files/ipfs-local.js",
+      "types": "./dist/adapters/files/ipfs-local.d.ts"
+    },
+    "./adapters/files/web3storage": {
+      "import": "./dist/adapters/files/web3storage.js",
+      "types": "./dist/adapters/files/web3storage.d.ts"
+    },
+    "./adapters/files/arweave": {
+      "import": "./dist/adapters/files/arweave.js",
+      "types": "./dist/adapters/files/arweave.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@arttribute/eaa-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@arttribute/eaa-types": "workspace:*",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "tsup": "^8.0.0"
+  },
+  "keywords": [
+    "provenance",
+    "storage",
+    "database",
+    "ipfs",
+    "files",
+    "pinata",
+    "arweave"
+  ],
+  "license": "MIT"
+}

@@ -195,17 +195,17 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
      * @notice Record attribution for a resource
      * @dev Records who contributed to creating a resource.
      *
-     * @param cid Resource CID being attributed
+     * @param contentRef Content reference being attributed (CID recommended)
      * @param role Attribution role: "creator", "contributor", "source"
      */
     function recordAttribution(
-        string calldata cid,
+        string calldata contentRef,
         string calldata role
     ) external {
-        if (bytes(cid).length == 0) revert EmptyCID();
+        if (bytes(contentRef).length == 0) revert EmptyCID();
 
         emit AttributionRecorded(
-            cid,
+            contentRef,
             msg.sender,
             role,
             block.timestamp
@@ -217,19 +217,64 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
      * @dev Allows recording attribution for a different address.
      *      The caller must be authorized (in production, add access control).
      *
-     * @param cid Resource CID being attributed
+     * @param contentRef Content reference being attributed
      * @param entity Entity receiving attribution
      * @param role Attribution role
      */
     function recordAttributionFor(
-        string calldata cid,
+        string calldata contentRef,
         address entity,
         string calldata role
     ) external {
-        if (bytes(cid).length == 0) revert EmptyCID();
+        if (bytes(contentRef).length == 0) revert EmptyCID();
 
         emit AttributionRecorded(
-            cid,
+            contentRef,
+            entity,
+            role,
+            block.timestamp
+        );
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ACTION ATTRIBUTION FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Record attribution for an action
+     * @dev Records who was involved in performing an action.
+     *      Use this for action-level attribution (W3C PROV Association).
+     *
+     * @param actionId The action being attributed
+     * @param role Attribution role: "creator", "contributor", "source"
+     */
+    function recordActionAttribution(
+        bytes32 actionId,
+        string calldata role
+    ) external {
+        emit ActionAttributionRecorded(
+            actionId,
+            msg.sender,
+            role,
+            block.timestamp
+        );
+    }
+
+    /**
+     * @notice Record action attribution for another entity
+     * @dev Allows recording action attribution for a different address.
+     *
+     * @param actionId The action being attributed
+     * @param entity Entity receiving attribution
+     * @param role Attribution role
+     */
+    function recordActionAttributionFor(
+        bytes32 actionId,
+        address entity,
+        string calldata role
+    ) external {
+        emit ActionAttributionRecorded(
+            actionId,
             entity,
             role,
             block.timestamp
