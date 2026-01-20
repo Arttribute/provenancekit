@@ -35,6 +35,12 @@ import type {
   ActionAttributionRecordedEvent,
   ProvenanceEvent,
 } from "./types.js";
+import {
+  RpcError,
+  DecodeError,
+  StorageError,
+  withRetry,
+} from "./errors.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | Constants                                                    |
@@ -424,7 +430,7 @@ export class ProvenanceIndexer {
   }
 
   /**
-   * Fetch logs for a specific event type
+   * Fetch logs for a specific event type with retry logic
    */
   private async fetchLogs(
     eventName: string,
@@ -440,21 +446,37 @@ export class ProvenanceIndexer {
     }
 
     try {
-      const logs = await this.client.getLogs({
-        address: this.config.chain.contractAddress,
-        event: parseAbiItem(
-          `event ${eventName}(${abiItem.inputs
-            .map((i) => `${i.type}${i.indexed ? " indexed" : ""} ${i.name}`)
-            .join(", ")})`
-        ) as any,
-        fromBlock,
-        toBlock,
+      return await withRetry(
+        async () => {
+          const logs = await this.client.getLogs({
+            address: this.config.chain.contractAddress,
+            event: parseAbiItem(
+              `event ${eventName}(${abiItem.inputs
+                .map((i) => `${i.type}${i.indexed ? " indexed" : ""} ${i.name}`)
+                .join(", ")})`
+            ) as any,
+            fromBlock,
+            toBlock,
+          });
+          return logs;
+        },
+        { maxAttempts: this.config.maxRetries }
+      );
+    } catch (error) {
+      // Wrap and emit the error, but don't throw - allow indexer to continue
+      const rpcError = new RpcError(
+        `Failed to fetch ${eventName} logs (blocks ${fromBlock}-${toBlock})`,
+        "getLogs",
+        error instanceof Error ? error : undefined,
+        { eventName, fromBlock: fromBlock.toString(), toBlock: toBlock.toString() }
+      );
+
+      this.emit({
+        type: "error",
+        error: rpcError,
+        recoverable: rpcError.recoverable,
       });
 
-      return logs;
-    } catch (error) {
-      // Handle RPC errors with retry
-      console.error(`Error fetching ${eventName} logs:`, error);
       return [];
     }
   }
@@ -476,7 +498,8 @@ export class ProvenanceIndexer {
         transactionHash: log.transactionHash!,
         logIndex: log.logIndex!,
       };
-    } catch {
+    } catch (error) {
+      this.emitDecodeError("ActionRecorded", log, error);
       return null;
     }
   }
@@ -497,7 +520,8 @@ export class ProvenanceIndexer {
         transactionHash: log.transactionHash!,
         logIndex: log.logIndex!,
       };
-    } catch {
+    } catch (error) {
+      this.emitDecodeError("ResourceRegistered", log, error);
       return null;
     }
   }
@@ -517,7 +541,8 @@ export class ProvenanceIndexer {
         transactionHash: log.transactionHash!,
         logIndex: log.logIndex!,
       };
-    } catch {
+    } catch (error) {
+      this.emitDecodeError("EntityRegistered", log, error);
       return null;
     }
   }
@@ -537,7 +562,8 @@ export class ProvenanceIndexer {
         transactionHash: log.transactionHash!,
         logIndex: log.logIndex!,
       };
-    } catch {
+    } catch (error) {
+      this.emitDecodeError("AttributionRecorded", log, error);
       return null;
     }
   }
@@ -559,9 +585,28 @@ export class ProvenanceIndexer {
         transactionHash: log.transactionHash!,
         logIndex: log.logIndex!,
       };
-    } catch {
+    } catch (error) {
+      this.emitDecodeError("ActionAttributionRecorded", log, error);
       return null;
     }
+  }
+
+  /**
+   * Emit a decode error event
+   */
+  private emitDecodeError(eventType: string, log: Log, error: unknown): void {
+    const decodeError = new DecodeError(
+      `Failed to decode ${eventType} event`,
+      eventType,
+      log,
+      error instanceof Error ? error : undefined
+    );
+
+    this.emit({
+      type: "error",
+      error: decodeError,
+      recoverable: false, // Decode errors are not recoverable via retry
+    });
   }
 
   /**
@@ -569,6 +614,8 @@ export class ProvenanceIndexer {
    */
   private async processEvents(events: ProvenanceEvent[]): Promise<void> {
     const chainId = this.config.chain.chainId;
+    let successCount = 0;
+    let failureCount = 0;
 
     for (const event of events) {
       try {
@@ -622,16 +669,41 @@ export class ProvenanceIndexer {
           }
         }
 
+        successCount++;
         this.emit({ type: "eventProcessed", event });
       } catch (error) {
-        // Log error but continue processing
-        console.error(`Error processing event:`, event.type, error);
+        failureCount++;
+
+        // Wrap the error with context
+        const storageError = new StorageError(
+          `Failed to store ${event.type} event`,
+          event.type,
+          error instanceof Error ? error : undefined,
+          {
+            blockNumber: event.data.blockNumber.toString(),
+            transactionHash: event.data.transactionHash,
+            logIndex: event.data.logIndex,
+          }
+        );
+
         this.emit({
           type: "error",
-          error: error as Error,
-          recoverable: true,
+          error: storageError,
+          recoverable: storageError.recoverable,
         });
+
+        // Continue processing other events even if one fails
       }
+    }
+
+    // Log summary if there were failures
+    if (failureCount > 0) {
+      this.emit({
+        type: "batchComplete",
+        successCount,
+        failureCount,
+        totalEvents: events.length,
+      } as any); // Type will be extended
     }
   }
 }

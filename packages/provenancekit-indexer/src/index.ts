@@ -100,3 +100,18 @@ export {
   transformEvents,
   type TransformResult,
 } from "./transforms.js";
+
+// Errors
+export {
+  IndexerError,
+  RpcError,
+  DecodeError,
+  StorageError,
+  TransformError,
+  BatchError,
+  wrapError,
+  withRetry,
+  DEFAULT_RETRY_CONFIG,
+  type IndexerErrorCode,
+  type RetryConfig,
+} from "./errors.js";
