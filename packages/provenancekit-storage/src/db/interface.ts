@@ -29,6 +29,10 @@ export interface ResourceFilter {
   type?: string;
   /** Filter by creator entity ID */
   createdBy?: string;
+  /** Filter resources created at or after this timestamp (ISO 8601) */
+  createdAfter?: string;
+  /** Filter resources created at or before this timestamp (ISO 8601) */
+  createdBefore?: string;
   /** Limit number of results */
   limit?: number;
   /** Offset for pagination */
@@ -43,6 +47,10 @@ export interface ActionFilter {
   type?: string;
   /** Filter by performer entity ID */
   performedBy?: string;
+  /** Filter actions at or after this timestamp (ISO 8601) */
+  timestampAfter?: string;
+  /** Filter actions at or before this timestamp (ISO 8601) */
+  timestampBefore?: string;
   /** Limit number of results */
   limit?: number;
   /** Offset for pagination */
@@ -265,6 +273,115 @@ export interface IVectorStorage {
 \*-----------------------------------------------------------------*/
 
 /**
+ * Optional: Blockchain sync tracking.
+ * Implement if your backend needs to track synchronization state with on-chain data.
+ */
+export interface ISyncableStorage {
+  /**
+   * Get the last synced block number for a specific chain.
+   *
+   * @param chainId - The blockchain chain ID
+   * @returns The last synced block number, or 0 if never synced
+   */
+  getLastSyncedBlock(chainId: number): Promise<number>;
+
+  /**
+   * Set the last synced block number for a specific chain.
+   *
+   * @param chainId - The blockchain chain ID
+   * @param blockNumber - The block number that was just synced
+   */
+  setLastSyncedBlock(chainId: number, blockNumber: number): Promise<void>;
+
+  /**
+   * Mark an action as synced to blockchain.
+   *
+   * @param actionId - The action ID
+   * @param txHash - The transaction hash on-chain
+   * @param chainId - The blockchain chain ID
+   */
+  markActionSynced(
+    actionId: string,
+    txHash: string,
+    chainId: number
+  ): Promise<void>;
+
+  /**
+   * Get actions that haven't been synced to blockchain yet.
+   *
+   * @param chainId - Optional chain ID to filter by
+   * @param limit - Maximum number of actions to return
+   */
+  getPendingActions(chainId?: number, limit?: number): Promise<Action[]>;
+
+  /**
+   * Check if an action has been synced to a specific chain.
+   *
+   * @param actionId - The action ID
+   * @param chainId - The blockchain chain ID
+   */
+  isActionSynced(actionId: string, chainId: number): Promise<boolean>;
+}
+
+/**
+ * Callback types for subscription events.
+ */
+export type ResourceCallback = (resource: Resource) => void;
+export type ActionCallback = (action: Action) => void;
+export type AttributionCallback = (attribution: Attribution) => void;
+
+/**
+ * Unsubscribe function returned by subscription methods.
+ */
+export type Unsubscribe = () => void;
+
+/**
+ * Optional: Real-time subscription support.
+ * Implement if your backend supports watching for changes.
+ */
+export interface ISubscribableStorage {
+  /**
+   * Subscribe to new resources.
+   *
+   * @param callback - Called when a new resource is created
+   * @param filter - Optional filter to limit which resources trigger the callback
+   * @returns Unsubscribe function
+   */
+  subscribeToResources(
+    callback: ResourceCallback,
+    filter?: ResourceFilter
+  ): Unsubscribe;
+
+  /**
+   * Subscribe to new actions.
+   *
+   * @param callback - Called when a new action is created
+   * @param filter - Optional filter to limit which actions trigger the callback
+   * @returns Unsubscribe function
+   */
+  subscribeToActions(
+    callback: ActionCallback,
+    filter?: ActionFilter
+  ): Unsubscribe;
+
+  /**
+   * Subscribe to new attributions.
+   *
+   * @param callback - Called when a new attribution is created
+   * @param filter - Optional filter to limit which attributions trigger the callback
+   * @returns Unsubscribe function
+   */
+  subscribeToAttributions(
+    callback: AttributionCallback,
+    filter?: AttributionFilter
+  ): Unsubscribe;
+}
+
+/*-----------------------------------------------------------------*\
+ | Type Guards                                                       |
+\*-----------------------------------------------------------------*/
+
+/**
  * Type guard to check if storage supports transactions.
  */
 export function supportsTransactions(
@@ -283,5 +400,31 @@ export function supportsVectors(
     "storeEmbedding" in storage &&
     "findSimilar" in storage &&
     typeof storage.storeEmbedding === "function"
+  );
+}
+
+/**
+ * Type guard to check if storage supports blockchain sync tracking.
+ */
+export function supportsSync(
+  storage: IProvenanceStorage
+): storage is IProvenanceStorage & ISyncableStorage {
+  return (
+    "getLastSyncedBlock" in storage &&
+    "markActionSynced" in storage &&
+    typeof storage.getLastSyncedBlock === "function"
+  );
+}
+
+/**
+ * Type guard to check if storage supports subscriptions.
+ */
+export function supportsSubscriptions(
+  storage: IProvenanceStorage
+): storage is IProvenanceStorage & ISubscribableStorage {
+  return (
+    "subscribeToResources" in storage &&
+    "subscribeToActions" in storage &&
+    typeof storage.subscribeToResources === "function"
   );
 }

@@ -158,12 +158,16 @@ abstract contract ProvenanceCore is IProvenanceProvider {
     /**
      * @notice Generate a unique action ID
      * @dev Override to customize ID generation strategy.
-     *      Default uses: performer + type + timestamp + nonce
+     *      Default uses: chainId + performer + type + inputs + outputs + timestamp + nonce
+     *
+     *      The chainId is included to ensure action IDs are globally unique across
+     *      different blockchain networks, preventing collisions when the same
+     *      provenance system is deployed on multiple chains.
      *
      * @param actionType Type of action
      * @param inputs Input CIDs (included in hash for uniqueness)
      * @param outputs Output CIDs (included in hash for uniqueness)
-     * @return Unique action ID
+     * @return Unique action ID (globally unique across chains)
      */
     function _generateActionId(
         string calldata actionType,
@@ -176,6 +180,7 @@ abstract contract ProvenanceCore is IProvenanceProvider {
 
         return keccak256(
             abi.encodePacked(
+                block.chainid,  // Include chain ID for cross-chain uniqueness
                 msg.sender,
                 actionType,
                 keccak256(abi.encode(inputs)),

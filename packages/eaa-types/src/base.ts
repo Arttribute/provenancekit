@@ -150,7 +150,14 @@ export function arRef(
  * Core entity roles defining who can perform actions.
  *
  * @remarks
+ * Maps to **W3C PROV Agent types**.
  * This is a minimal set. Use the `ext:namespace` pattern for domain-specific roles.
+ *
+ * | EAA Role       | W3C PROV Equivalent |
+ * |----------------|---------------------|
+ * | `human`        | prov:Person         |
+ * | `ai`           | prov:SoftwareAgent  |
+ * | `organization` | prov:Organization   |
  */
 export const EntityRoleCore = ["human", "ai", "organization"] as const;
 
@@ -158,12 +165,20 @@ export const EntityRoleCore = ["human", "ai", "organization"] as const;
  * Core action types defining what operations can be performed.
  *
  * @remarks
+ * Maps to **W3C PROV Activity patterns**.
  * Keep minimal and generic. Extend for specific domains using extensions.
  *
- * - `create`: Created from scratch
- * - `transform`: Transformed from inputs
- * - `aggregate`: Combined multiple inputs
- * - `verify`: Verified/validated
+ * | EAA Action   | W3C PROV Equivalent    | Description                          |
+ * |--------------|------------------------|--------------------------------------|
+ * | `create`     | prov:Generation        | Create new resource from scratch     |
+ * | `transform`  | prov:Derivation        | Transform input(s) into output(s)    |
+ * | `aggregate`  | prov:Derivation        | Combine multiple inputs into one     |
+ * | `verify`     | (extension)            | Attestation/validation of content    |
+ *
+ * For domain-specific actions, use extensions:
+ * - `ext:ml:train` - Machine learning training
+ * - `ext:code:commit` - Code commit
+ * - `ext:media:remix` - Media remix
  */
 export const ActionTypeCore = [
   "create",
@@ -176,11 +191,19 @@ export const ActionTypeCore = [
  * Core attribution roles defining how entities relate to resources.
  *
  * @remarks
+ * Maps to **W3C PROV Attribution/Association**.
  * Minimal set for general attribution. Use extensions for domain-specific roles.
  *
- * - `creator`: Primary creator
- * - `contributor`: Contributed to creation
- * - `source`: Provided source material
+ * | EAA Role      | W3C PROV Equivalent       | Description                     |
+ * |---------------|---------------------------|---------------------------------|
+ * | `creator`     | prov:wasAttributedTo      | Primary creator of the resource |
+ * | `contributor` | prov:wasAssociatedWith    | Contributed to the action       |
+ * | `source`      | prov:wasDerivedFrom       | Provided source material        |
+ *
+ * For domain-specific roles, use extensions:
+ * - `ext:media:editor` - Media editor
+ * - `ext:code:reviewer` - Code reviewer
+ * - `ext:ai:prompter` - AI prompt author
  */
 export const AttributionRoleCore = [
   "creator",
@@ -259,8 +282,13 @@ export type ResourceType = z.infer<typeof ResourceType>;
  * Entity schema representing an agent that performs actions.
  *
  * @remarks
- * Maps to W3C PROV Agent. Represents humans, AI systems, organizations,
+ * Maps to **W3C PROV Agent**. Represents humans, AI systems, organizations,
  * or any actor that can create, modify, or verify resources.
+ *
+ * | W3C PROV Relation      | EAA Equivalent                     |
+ * |------------------------|------------------------------------|
+ * | prov:wasAssociatedWith | Action.performedBy → Entity.id     |
+ * | prov:actedOnBehalfOf   | Use extensions for delegation      |
  */
 export const Entity = z.object({
   /** Unique identifier (DID, wallet address, UUID, etc.) */
@@ -301,17 +329,52 @@ export type Location = z.infer<typeof Location>;
  * Resource schema for content-addressed artifacts.
  *
  * @remarks
- * Maps to W3C PROV Entity. Represents any artifact with provenance
+ * Maps to **W3C PROV Entity**. Represents any artifact with provenance
  * (files, images, text, models, datasets, etc.) identified by content reference.
+ *
+ * **Identity vs Storage**
+ *
+ * The `address` field is the **identity** - it uniquely identifies WHAT the resource IS.
+ * The `locations` field is optional **storage hints** - WHERE the resource CAN BE FOUND.
+ *
+ * - `address`: Immutable identifier (CID recommended). This IS the resource.
+ * - `locations`: Mutable access points. These may change, expire, or be added.
+ *
+ * For complex storage needs (pinning status, replication, etc.), use extensions:
+ * - `ext:storage@1.0.0` - Storage metadata extension
+ *
+ * @example
+ * // Minimal resource (identity only)
+ * {
+ *   address: { ref: "bafyabc...", scheme: "cid" },
+ *   type: "image",
+ *   createdAt: "2024-01-01T00:00:00Z",
+ *   createdBy: "did:key:abc",
+ *   rootAction: "action-123"
+ * }
+ *
+ * // With optional storage hints
+ * {
+ *   address: { ref: "bafyabc...", scheme: "cid" },
+ *   type: "image",
+ *   locations: [{ uri: "https://gateway.ipfs.io/ipfs/bafyabc..." }],
+ *   // ...
+ * }
  */
 export const Resource = z.object({
-  /** Content reference (primary identifier) */
+  /** Content reference - the immutable identity of this resource */
   address: ContentReference,
 
   /** Type classification */
   type: ResourceType,
 
-  /** Where this resource can be accessed (optional, may be derived from address) */
+  /**
+   * Optional storage location hints.
+   *
+   * These are convenience pointers for WHERE to find the resource.
+   * They are NOT part of the resource identity and may change over time.
+   * The `address` field is the authoritative identifier.
+   */
   locations: z.array(Location).default([]),
 
   /** When created (ISO 8601 timestamp) */
@@ -323,7 +386,7 @@ export const Resource = z.object({
   /** Root action that created this resource (Action.id) */
   rootAction: z.string(),
 
-  /** Extension data (for licensing, NFTs, etc.) */
+  /** Extension data (for licensing, NFTs, storage metadata, etc.) */
   extensions: z.record(z.unknown()).optional(),
 });
 
@@ -333,8 +396,16 @@ export type Resource = z.infer<typeof Resource>;
  * Action schema representing an activity performed by an entity.
  *
  * @remarks
- * Maps to W3C PROV Activity. Represents a transformation: inputs → process → outputs.
+ * Maps to **W3C PROV Activity**. Represents a transformation: inputs → process → outputs.
  * This is the core of provenance tracking.
+ *
+ * | W3C PROV Relation    | EAA Equivalent                              |
+ * |----------------------|---------------------------------------------|
+ * | prov:used            | Action.inputs (resources consumed)          |
+ * | prov:wasGeneratedBy  | Action.outputs (resources produced)         |
+ * | prov:wasAssociatedWith | Action.performedBy (agent responsible)    |
+ * | prov:startedAtTime   | Action.timestamp                            |
+ * | prov:wasInformedBy   | Use extensions for action-to-action links   |
  */
 export const Action = z.object({
   /** Unique identifier (UUID, tx hash, etc.) */
@@ -368,12 +439,26 @@ export type Action = z.infer<typeof Action>;
  * Attribution schema linking an entity to a resource or action.
  *
  * @remarks
- * Maps to W3C PROV Attribution/Association. Records WHO was involved in creating WHAT.
- * Pure attribution with no assumptions about weights or payments.
+ * Maps to **W3C PROV Attribution/Association**. Records WHO was involved in creating WHAT.
+ * Pure attribution with no assumptions about weights or payments - those belong in extensions.
  *
- * Can target either:
- * - A resource (resourceRef): "Who contributed to this artifact"
- * - An action (actionId): "Who was involved in this process"
+ * **Choosing Between resourceRef and actionId**
+ *
+ * | Target        | Use When                                       | Example                          |
+ * |---------------|------------------------------------------------|----------------------------------|
+ * | `resourceRef` | Attributing the **artifact itself**            | "Alice created this image"       |
+ * | `actionId`    | Attributing the **process/activity**           | "Bob reviewed this transformation" |
+ *
+ * **resourceRef (Artifact-focused)**
+ * Use when you want to say "this entity contributed to this specific output":
+ * - Creator attribution: "Alice is the creator of image X"
+ * - Source attribution: "Image Y was used to create image X"
+ *
+ * **actionId (Process-focused)**
+ * Use when you want to say "this entity was involved in this activity":
+ * - Multi-contributor actions: "Alice and Bob collaborated on this transformation"
+ * - Reviewer attribution: "Carol verified this action"
+ * - When the same action produces multiple outputs
  *
  * At least one of resourceRef or actionId must be provided.
  *
@@ -394,6 +479,13 @@ export type Action = z.infer<typeof Action>;
  *    - Database sequences, composite keys, etc.
  *
  * Choose based on your needs. Content-based is recommended for provenance systems.
+ *
+ * **Extensions for Domain-Specific Data**
+ *
+ * Use extensions for weights, payments, and other domain-specific data:
+ * - `ext:contrib@1.0.0` - Contribution weights
+ * - `ext:x402@1.0.0` - Payment configuration
+ * - `ext:license@1.0.0` - License terms
  */
 export const Attribution = z
   .object({
