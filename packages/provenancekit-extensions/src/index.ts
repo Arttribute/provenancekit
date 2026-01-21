@@ -143,6 +143,7 @@ export {
   mergeDistributions,
   type Distribution,
   type DistributionEntry,
+  type SplitResult,
 } from "./distribution";
 
 /**

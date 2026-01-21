@@ -102,32 +102,102 @@ export interface SerializedCommitment {
 const G = secp256k1.ProjectivePoint.BASE;
 
 /**
- * Second generator H (derived from G via hash-to-curve)
- * H = hash_to_point("ProvenanceKit-Pedersen-H")
- * This ensures nobody knows the discrete log of H w.r.t. G
+ * Second generator H (derived via hash-to-curve).
+ *
+ * IMPORTANT: H is derived using the "try-and-increment" hash-to-curve method,
+ * which produces a curve point where NOBODY knows the discrete log with respect to G.
+ * This is essential for the hiding property of Pedersen commitments.
+ *
+ * The derivation:
+ * 1. Hash the seed to get candidate x-coordinate
+ * 2. Check if x³ + 7 (mod p) is a quadratic residue
+ * 3. If yes, compute y = sqrt(x³ + 7) and return point (x, y)
+ * 4. If no, hash again and repeat
+ * 5. Always select the even y for determinism
  */
-const H_SEED = "ProvenanceKit-Pedersen-H-v1";
+const H_SEED = "ProvenanceKit-Pedersen-H-v2"; // Bumped version for new derivation
 
-function deriveH(): typeof G {
-  // Hash the seed to get a scalar, then multiply G
-  // This is a simplified approach - full hash-to-curve is more complex
-  // but this is sufficient for our use case
-  let hash = sha256(new TextEncoder().encode(H_SEED));
-
-  // Keep hashing until we get a valid x-coordinate
-  for (let i = 0; i < 256; i++) {
-    try {
-      // Try to create a point with this x-coordinate
-      const x = BigInt("0x" + bytesToHex(hash)) % secp256k1.CURVE.n;
-      // Multiply base point by this scalar to get H
-      return G.multiply(x === 0n ? 1n : x);
-    } catch {
-      // Hash again if failed
-      hash = sha256(hash);
-    }
+/**
+ * Compute modular square root using Tonelli-Shanks for p ≡ 3 (mod 4).
+ * secp256k1's p satisfies this, so sqrt(a) = a^((p+1)/4) mod p
+ */
+function modSqrt(a: bigint, p: bigint): bigint | null {
+  // Check if a is a quadratic residue using Euler's criterion
+  // a^((p-1)/2) ≡ 1 (mod p) means a is a QR
+  const exp = (p - 1n) / 2n;
+  const legendre = modPow(a, exp, p);
+  if (legendre !== 1n) {
+    return null; // Not a quadratic residue
   }
 
-  throw new Error("Failed to derive H generator");
+  // For p ≡ 3 (mod 4), sqrt(a) = a^((p+1)/4) mod p
+  const sqrtExp = (p + 1n) / 4n;
+  return modPow(a, sqrtExp, p);
+}
+
+/**
+ * Modular exponentiation: base^exp mod m
+ */
+function modPow(base: bigint, exp: bigint, m: bigint): bigint {
+  let result = 1n;
+  base = base % m;
+  while (exp > 0n) {
+    if (exp % 2n === 1n) {
+      result = (result * base) % m;
+    }
+    exp = exp / 2n;
+    base = (base * base) % m;
+  }
+  return result;
+}
+
+function deriveH(): typeof G {
+  // secp256k1 field prime: 2^256 - 2^32 - 977
+  const p = 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffefffffc2fn;
+  let hash = sha256(new TextEncoder().encode(H_SEED));
+
+  // Try up to 256 times to find a valid curve point
+  for (let i = 0; i < 256; i++) {
+    // Interpret hash as x-coordinate candidate
+    const x = BigInt("0x" + bytesToHex(hash)) % p;
+
+    if (x === 0n) {
+      hash = sha256(hash);
+      continue;
+    }
+
+    // secp256k1 curve: y² = x³ + 7
+    const x3 = (x * x * x) % p;
+    const rhs = (x3 + 7n) % p;
+
+    // Try to find y such that y² = x³ + 7
+    const y = modSqrt(rhs, p);
+
+    if (y !== null) {
+      // Select the even y for determinism
+      const yEven = y % 2n === 0n ? y : p - y;
+
+      try {
+        // Construct the point from affine coordinates
+        const point = secp256k1.ProjectivePoint.fromAffine({
+          x: x,
+          y: yEven,
+        });
+
+        // Verify it's a valid point on the curve (not identity)
+        point.assertValidity();
+
+        return point;
+      } catch {
+        // Invalid point, try next hash
+      }
+    }
+
+    // Hash again for next attempt
+    hash = sha256(hash);
+  }
+
+  throw new Error("Failed to derive H generator after 256 attempts");
 }
 
 const H = deriveH();

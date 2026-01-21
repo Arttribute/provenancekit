@@ -36,6 +36,7 @@
  */
 
 import { sha256 } from "@noble/hashes/sha256";
+import { hmac } from "@noble/hashes/hmac";
 import { randomBytes } from "@noble/ciphers/webcrypto";
 
 import { toBase64, fromBase64 } from "./ciphers.js";
@@ -193,7 +194,10 @@ function calculateDigest(disclosure: Disclosure): string {
 }
 
 /**
- * Create HMAC signature over document
+ * Create HMAC-SHA256 signature over document.
+ *
+ * Uses proper HMAC construction: H((K ⊕ opad) || H((K ⊕ ipad) || m))
+ * which is resistant to length extension attacks.
  */
 function signDocument(
   document: Omit<SelectiveDisclosureDocument, "signature">,
@@ -209,14 +213,10 @@ function signDocument(
     claims: document.claims,
   });
 
-  // HMAC-SHA256
   const messageBytes = new TextEncoder().encode(message);
-  const combined = new Uint8Array(secret.length + messageBytes.length);
-  combined.set(secret);
-  combined.set(messageBytes, secret.length);
-  const hash = sha256(combined);
+  const signature = hmac(sha256, secret, messageBytes);
 
-  return bytesToHex(hash);
+  return bytesToHex(signature);
 }
 
 /**

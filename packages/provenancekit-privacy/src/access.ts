@@ -297,7 +297,27 @@ export function contractCondition(
 }
 
 /**
- * Build a SIWE authentication condition
+ * Build a SIWE authentication condition.
+ *
+ * @remarks
+ * When converting to Lit Protocol format via `toLitCondition()`, only the first
+ * address in `allowedAddresses` is used. For multiple allowed addresses, use
+ * `anyOf()` to combine multiple SIWE conditions, or use `allowAddresses()` helper.
+ *
+ * @example
+ * ```ts
+ * // Single address
+ * siweCondition(["0x123..."]);
+ *
+ * // Multiple addresses - use anyOf
+ * anyOf(
+ *   siweCondition(["0x123..."]),
+ *   siweCondition(["0x456..."])
+ * );
+ *
+ * // Or use helper
+ * allowAddresses("0x123...", "0x456...");
+ * ```
  */
 export function siweCondition(allowedAddresses?: string[]): SIWECondition {
   return {
@@ -402,6 +422,7 @@ export function toLitCondition(
 
     case AccessConditionType.SIWE:
       // SIWE in Lit is handled differently - return a basic wallet check
+      // NOTE: Only first address is used. For multiple addresses, use anyOf() combinator.
       return {
         contractAddress: "",
         standardContractType: "",

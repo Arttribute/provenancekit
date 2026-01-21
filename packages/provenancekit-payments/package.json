@@ -1,0 +1,96 @@
+{
+  "name": "@provenancekit/payments",
+  "version": "0.1.0",
+  "description": "Payment distribution adapters for ProvenanceKit - Direct transfers, 0xSplits, Superfluid streaming",
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "payments",
+    "distribution",
+    "splits",
+    "superfluid",
+    "streaming",
+    "royalties",
+    "ethereum"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/provenancekit-payments"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./adapters/direct": {
+      "types": "./dist/adapters/direct.d.ts",
+      "require": "./dist/adapters/direct.cjs",
+      "import": "./dist/adapters/direct.mjs"
+    },
+    "./adapters/splits": {
+      "types": "./dist/adapters/splits.d.ts",
+      "require": "./dist/adapters/splits.cjs",
+      "import": "./dist/adapters/splits.mjs"
+    },
+    "./adapters/superfluid": {
+      "types": "./dist/adapters/superfluid.d.ts",
+      "require": "./dist/adapters/superfluid.cjs",
+      "import": "./dist/adapters/superfluid.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@provenancekit/extensions": "workspace:*"
+  },
+  "peerDependencies": {
+    "viem": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "viem": {
+      "optional": false
+    },
+    "@0xsplits/splits-sdk": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.0",
+    "viem": "^2.0.0",
+    "vitest": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
