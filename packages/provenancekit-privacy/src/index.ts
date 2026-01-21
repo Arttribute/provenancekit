@@ -148,3 +148,135 @@ export {
   encryptAndUpload,
   downloadAndDecrypt,
 } from "./storage.js";
+
+/*─────────────────────────────────────────────────────────────*\
+ | Access Control Exports                                       |
+\*─────────────────────────────────────────────────────────────*/
+
+export type {
+  SupportedChain,
+  Comparator,
+  LogicalOperator,
+  BaseAccessCondition,
+  ERC20Condition,
+  ERC721Condition,
+  ERC1155Condition,
+  ContractCondition,
+  SIWECondition,
+  PublicCondition,
+  AccessCondition,
+  CombinedConditions,
+  AccessControlSpec,
+  LitAccessControlCondition,
+  LitOperator,
+  LitUnifiedConditions,
+  AccessControlledEncryptionResult,
+  IAccessControlProvider,
+} from "./access.js";
+
+export {
+  // Enums and constants
+  AccessConditionType,
+  CHAIN_IDS,
+
+  // Condition builders
+  erc20Condition,
+  erc721Condition,
+  erc1155Condition,
+  contractCondition,
+  siweCondition,
+  publicCondition,
+
+  // Combinators
+  allOf,
+  anyOf,
+
+  // Lit Protocol conversion
+  toLitCondition,
+  toLitUnifiedConditions,
+
+  // Common access patterns
+  requireNFT,
+  requireTokens,
+  requireDAOMembership,
+  requireNFTOwner,
+  allowAddresses,
+} from "./access.js";
+
+/*─────────────────────────────────────────────────────────────*\
+ | Selective Disclosure Exports                                 |
+\*─────────────────────────────────────────────────────────────*/
+
+export type {
+  Disclosure,
+  DisclosureDigest,
+  SelectiveDisclosureDocument,
+  EncodedDisclosure,
+  SelectiveDisclosure,
+  SelectiveDisclosurePresentation,
+  VerificationResult,
+  CreateSelectiveDisclosureOptions,
+} from "./disclosure.js";
+
+export {
+  // Core API
+  createSelectiveDisclosure,
+  createPresentation,
+  verifyPresentation,
+
+  // Utilities
+  getClaimKeys,
+  isExpired,
+
+  // Provenance helpers
+  createAttributionDisclosure,
+  createResourceDisclosure,
+
+  // Serialization
+  serializeSelectiveDisclosure,
+  deserializeSelectiveDisclosure,
+  serializePresentation,
+  deserializePresentation,
+} from "./disclosure.js";
+
+/*─────────────────────────────────────────────────────────────*\
+ | Commitment Scheme Exports                                    |
+\*─────────────────────────────────────────────────────────────*/
+
+export type {
+  Commitment,
+  CommitmentResult,
+  CommitmentOpening,
+  SerializedCommitment,
+  WeightCommitment,
+  WeightOpening,
+} from "./commitments.js";
+
+export {
+  // Core commitment functions
+  generateBlinding,
+  commit,
+  verify,
+
+  // Homomorphic operations
+  addCommitments,
+  subtractCommitments,
+  sumCommitments,
+  sumBlindings,
+
+  // Contribution weight helpers
+  commitContributionWeights,
+  verifyWeightSum,
+  verifyWeightOpening,
+
+  // Serialization
+  serializeCommitment,
+  deserializeCommitment,
+  serializeWeightOpening,
+  deserializeWeightOpening,
+
+  // Contract integration
+  commitmentToBytes,
+  commitmentFromBytes,
+  commitmentHash,
+} from "./commitments.js";
