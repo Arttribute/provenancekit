@@ -32,9 +32,9 @@ This document details the implementation plan for ProvenanceKit - a universal pr
 │  │                          EXTENSION LAYER                                      │
 │  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────┐               │
 │  │  │ extensions  │ │  payments   │ │   privacy   │ │   git   │               │
-│  │  │ ✅ COMPLETE │ │ 📋 PLANNED  │ │ ✅ COMPLETE │ │📋 PLANNED│               │
-│  │  │ - contrib   │ │ - superfluid│ │ - zk proofs │ │ - hooks │               │
-│  │  │ - license   │ │ - x402      │ │ - commitments│ │- blame  │               │
+│  │  │ ✅ COMPLETE │ │ ✅ COMPLETE │ │ ✅ COMPLETE │ │✅ COMPLETE│               │
+│  │  │ - contrib   │ │ - direct    │ │ - zk proofs │ │ - hooks │               │
+│  │  │ - license   │ │ - superfluid│ │ - commitments│ │- blame  │               │
 │  │  │ - payment   │ │ - splits    │ │ - encryption│ │ - track │               │
 │  │  │ - ai        │ │             │ │             │ │         │               │
 │  │  │ - onchain   │ │             │ │             │ │         │               │
@@ -128,49 +128,77 @@ const { shares, dust } = splitAmount(1000000n, dist);
 
 ---
 
-## Package 2: @provenancekit/payments 📋 PLANNED
+## Package 2: @provenancekit/payments ✅ COMPLETE
 
-**Status:** Not yet implemented
+**Status:** Implemented with 3 adapters (Direct, 0xSplits, Superfluid)
 
 **Purpose:** Payment distribution based on provenance data. Supports multiple payment methods.
 
 ### 2.1 Design Approach
 
-The payments package should:
-- Provide **adapters** for payment methods (Superfluid, 0xSplits, x402, direct)
-- Use the distribution calculator from extensions
-- Keep adapters **optional** - don't force specific dependencies
-- Be composable - applications choose which adapters they need
+The payments package:
+- Provides **adapters** for payment methods (Direct, 0xSplits, Superfluid)
+- Uses the distribution calculator from extensions (`splitAmount`)
+- Keeps adapters **optional** - import only what you need
+- Is composable - applications choose which adapters they need
 
-### 2.2 Planned Adapters
+### 2.2 Implemented Adapters
 
-| Adapter | Purpose | Chains |
-|---------|---------|--------|
-| **Superfluid** | Real-time token streaming | ETH, Polygon, Arbitrum, Base, etc. |
-| **0xSplits** | On-chain split contracts | Most EVM chains |
-| **x402** | HTTP micropayments | Base (primary) |
-| **Direct** | One-time transfers | Any EVM |
+| Adapter | Purpose | Model | Chains |
+|---------|---------|-------|--------|
+| **DirectTransferAdapter** | One-time ETH/ERC-20 transfers | one-time | All EVM |
+| **SplitsAdapter** | 0xSplits automatic revenue splitting | split-contract | ETH, Polygon, Arbitrum, Optimism, Base, Gnosis |
+| **SuperfluidAdapter** | Real-time token streaming | streaming | ETH, Polygon, Arbitrum, Optimism, Base, Avalanche, BSC, Gnosis |
 
-### 2.3 Core Interface (Draft)
+**Note:** x402 adapter deferred for API layer integration.
+
+### 2.3 Core Interface
 
 ```typescript
 interface IPaymentAdapter {
-  name: string;
-  supportedChains: number[];
+  readonly name: string;
+  readonly description: string;
+  readonly supportedChains: number[];
+  readonly model: PaymentModel;  // "one-time" | "streaming" | "split-contract"
 
-  initialize(config: unknown): Promise<void>;
-  createPayment(params: CreatePaymentParams): Promise<PaymentResult>;
-  getPaymentStatus(paymentId: string): Promise<PaymentStatus>;
-  cancelPayment?(paymentId: string): Promise<void>;
+  distribute(params: DistributeParams): Promise<PaymentResult>;
+  estimateFees?(params: DistributeParams): Promise<FeeEstimate>;
+  supportsToken?(token: Address, chainId: number): Promise<boolean>;
 }
 
-interface CreatePaymentParams {
+interface DistributeParams {
   distribution: Distribution;  // From @provenancekit/extensions
   amount: bigint;
-  currency: string;
-  payer: string;
-  metadata?: Record<string, unknown>;
+  token: Address;             // Token address (zeroAddress for native)
+  chainId: number;
+  walletClient: WalletClient; // viem wallet client
+  publicClient: PublicClient; // viem public client
+  options?: AdapterOptions;
 }
+```
+
+### 2.4 Usage Example
+
+```typescript
+import { DirectTransferAdapter } from "@provenancekit/payments/adapters/direct";
+import { calculateDistribution } from "@provenancekit/extensions";
+import { parseEther, zeroAddress } from "viem";
+
+// Calculate distribution from attributions
+const distribution = calculateDistribution(resourceRef, attributions);
+
+// Execute payment
+const adapter = new DirectTransferAdapter();
+const result = await adapter.distribute({
+  distribution,
+  amount: parseEther("10"),
+  token: zeroAddress,  // Native ETH
+  chainId: 8453,       // Base
+  walletClient,
+  publicClient,
+});
+
+console.log(`Paid ${result.payments.length} recipients`);
 ```
 
 ---
@@ -484,33 +512,190 @@ Arweave stores data **permanently**. Encrypted files could theoretically be crac
 
 ---
 
-## Package 4: @provenancekit/git 📋 PLANNED
+## Package 4: @provenancekit/git ✅ COMPLETE
 
-**Status:** Not yet implemented
+**Status:** Implemented and tested (71 tests passing)
 
 **Purpose:** Git integration for tracking code contributions including AI assistance.
 
-### 4.1 Core Features (Draft)
+### 4.1 Core Use Cases
 
-- **Post-commit hook**: Record provenance for each commit
-- **AI detection**: Detect AI co-authors from commit messages, IDE telemetry
-- **Blame analysis**: Calculate contribution weights from git blame
-- **GitHub integration**: Track PRs, reviews, issues
+1. **Track commits as Actions** - Each commit creates provenance records
+2. **Detect AI assistance** - Parse commit messages, IDE telemetry for AI co-authors
+3. **Calculate contributions** - Use git blame to determine who wrote what
+4. **GitHub integration** - Track PRs, reviews, issues as provenance events
 
-### 4.2 ext:git@1.0.0 Extension (Draft)
+### 4.2 Package Structure
+
+```
+@provenancekit/git/
+├── src/
+│   ├── index.ts              # Main exports
+│   ├── types.ts              # Git-specific types
+│   │
+│   ├── tracker/
+│   │   ├── commit.ts         # Commit tracking & provenance creation
+│   │   ├── blame.ts          # Git blame analysis for weights
+│   │   └── hooks.ts          # Git hook generators
+│   │
+│   ├── ai/
+│   │   ├── detector.ts       # AI co-author detection
+│   │   └── patterns.ts       # Known AI patterns (Copilot, Claude, etc.)
+│   │
+│   ├── extensions/
+│   │   └── git.ts            # ext:git@1.0.0 extension schema
+│   │
+│   └── integrations/
+│       ├── github.ts         # GitHub API integration
+│       └── gitlab.ts         # GitLab API integration (future)
+│
+├── cli/
+│   └── index.ts              # CLI for git hooks setup
+│
+└── tests/
+```
+
+### 4.3 ext:git@1.0.0 Extension
 
 ```typescript
 // Attached to Action representing a commit
-{
-  "ext:git@1.0.0": {
-    repository: "https://github.com/org/repo",
-    branch: "main",
-    commit: "abc123...",
-    message: "feat: add feature X",
-    filesChanged: 5,
-    linesAdded: 100,
-    linesRemoved: 20,
+interface GitExtension {
+  repository: string;           // e.g., "github.com/org/repo"
+  branch: string;
+  commit: string;               // SHA
+  message: string;
+  parent?: string;              // Parent commit SHA
+
+  // Statistics
+  filesChanged: number;
+  linesAdded: number;
+  linesRemoved: number;
+
+  // AI assistance (if detected)
+  aiAssisted?: {
+    tool: string;               // "github-copilot", "claude", "cursor", etc.
+    confidence: number;         // 0-1
+    indicators: string[];       // What triggered detection
+  };
+
+  // Signature verification
+  signature?: {
+    type: "gpg" | "ssh";
+    verified: boolean;
+    signer?: string;
+  };
+}
+```
+
+### 4.4 AI Detection Patterns
+
+```typescript
+// Detect AI co-authorship from various signals
+const AI_PATTERNS = {
+  // Commit message patterns
+  commitMessage: [
+    /Co-authored-by:.*(?:GitHub Copilot|Copilot)/i,
+    /Co-authored-by:.*(?:Claude|Anthropic)/i,
+    /Co-authored-by:.*(?:ChatGPT|OpenAI)/i,
+    /\[AI-assisted\]/i,
+    /Generated (?:by|with|using) (?:AI|LLM|GPT|Claude)/i,
+  ],
+
+  // File patterns that suggest AI generation
+  filePatterns: [
+    /\.cursor\//,           // Cursor AI
+    /\.github\/copilot/,    // GitHub Copilot config
+    /\.aider/,              // Aider AI
+  ],
+};
+```
+
+### 4.5 Blame Analysis
+
+```typescript
+interface BlameAnalysis {
+  // Per-file breakdown
+  files: Map<string, FileBlame>;
+
+  // Aggregated by author
+  byAuthor: Map<string, {
+    linesAuthored: number;
+    filesContributed: number;
+    percentage: number;
+  }>;
+
+  // Ready for distribution calculation
+  toDistribution(): Distribution;
+}
+
+// Calculate contributions from git blame
+async function analyzeBlame(
+  repoPath: string,
+  options?: {
+    branch?: string;
+    paths?: string[];      // Filter to specific paths
+    since?: Date;          // Only consider commits since
+    ignorePatterns?: string[]; // Ignore generated files
   }
+): Promise<BlameAnalysis>;
+```
+
+### 4.6 Git Hooks
+
+```typescript
+// Generate post-commit hook that records provenance
+function generatePostCommitHook(config: {
+  storageUrl?: string;     // Where to send provenance
+  contractAddress?: string; // On-chain registration
+  aiDetection?: boolean;   // Enable AI detection
+}): string;
+```
+
+### 4.7 CLI Commands
+
+```bash
+# Setup git hooks in a repo
+npx @provenancekit/git init
+
+# Record provenance for the last commit
+npx @provenancekit/git record-commit
+
+# Analyze blame and output contribution weights
+npx @provenancekit/git blame-analysis --format=json
+
+# Detect AI assistance in commit history
+npx @provenancekit/git detect-ai --since="2024-01-01"
+```
+
+### 4.8 Integration Example
+
+```typescript
+import { createAction, createAttribution } from "@arttribute/eaa-types";
+import { withContrib, withAITool } from "@provenancekit/extensions";
+import { recordCommit, analyzeBlame } from "@provenancekit/git";
+
+// Record a commit with full provenance
+const { action, attributions } = await recordCommit({
+  repoPath: ".",
+  commitSha: "HEAD",
+  detectAI: true,
+});
+
+// action has ext:git@1.0.0 extension
+// attributions have contribution weights from blame
+// AI attribution added if detected
+
+// Calculate payment distribution from blame
+const blame = await analyzeBlame(".", { branch: "main" });
+const distribution = blame.toDistribution();
+```
+
+### 4.9 Dependencies
+
+```json
+{
+  "simple-git": "^3.20.0",
+  "@octokit/rest": "^20.0.0"
 }
 ```
 
@@ -578,21 +763,22 @@ Arweave stores data **permanently**. Encrypted files could theoretically be crac
 - Selective Disclosure: SD-JWT-like pattern for provenance claims
 - Commitments: Pedersen scheme for private contribution weights
 
-## Phase 3: Payment Infrastructure
+## Phase 3: Payment Infrastructure ✅ COMPLETE
 
 | Task | Status |
 |------|--------|
-| Design IPaymentAdapter interface | 📋 Pending |
-| Implement Superfluid adapter | 📋 Pending |
-| Implement 0xSplits adapter | 📋 Pending |
-| Implement x402 adapter + middleware | 📋 Pending |
+| Design IPaymentAdapter interface | ✅ Complete |
+| Implement DirectTransfer adapter | ✅ Complete |
+| Implement Superfluid adapter | ✅ Complete |
+| Implement 0xSplits adapter | ✅ Complete |
+| Implement x402 adapter + middleware | 📋 Deferred (API layer) |
 | Integration tests on testnet | 📋 Pending |
 
 ## Phase 4: Domain Packages
 
 | Package | Status |
 |---------|--------|
-| @provenancekit/git | 📋 Planned |
+| @provenancekit/git | ✅ Complete (71 tests) |
 | @provenancekit/media (C2PA) | 📋 Planned |
 
 ## Phase 5: Platform Layer
@@ -637,4 +823,4 @@ Arweave stores data **permanently**. Encrypted files could theoretically be crac
 
 ---
 
-*This document is updated as implementation progresses. Last updated: 2026-01-21*
+*This document is updated as implementation progresses. Last updated: 2026-02-02*
