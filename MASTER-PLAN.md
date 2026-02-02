@@ -30,17 +30,17 @@ This document details the implementation plan for ProvenanceKit - a universal pr
 │             ▼                                     ▼                              │
 │  ┌──────────────────────────────────────────────────────────────────────────────┐
 │  │                          EXTENSION LAYER                                      │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────┐               │
-│  │  │ extensions  │ │  payments   │ │   privacy   │ │   git   │               │
-│  │  │ ✅ COMPLETE │ │ ✅ COMPLETE │ │ ✅ COMPLETE │ │✅ COMPLETE│               │
-│  │  │ - contrib   │ │ - direct    │ │ - zk proofs │ │ - hooks │               │
-│  │  │ - license   │ │ - superfluid│ │ - commitments│ │- blame  │               │
-│  │  │ - payment   │ │ - splits    │ │ - encryption│ │ - track │               │
-│  │  │ - ai        │ │             │ │             │ │         │               │
-│  │  │ - onchain   │ │             │ │             │ │         │               │
-│  │  │ - storage   │ │             │ │             │ │         │               │
-│  │  │ - distrib.  │ │             │ │             │ │         │               │
-│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────┘               │
+│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────┐ ┌─────────┐  │
+│  │  │ extensions  │ │  payments   │ │   privacy   │ │   git   │ │  media  │  │
+│  │  │ ✅ COMPLETE │ │ ✅ COMPLETE │ │ ✅ COMPLETE │ │✅ COMPLETE│ │✅ COMPLETE│  │
+│  │  │ - contrib   │ │ - direct    │ │ - zk proofs │ │ - hooks │ │ - C2PA  │  │
+│  │  │ - license   │ │ - superfluid│ │ - commitments│ │- blame  │ │ - read  │  │
+│  │  │ - payment   │ │ - splits    │ │ - encryption│ │ - track │ │ - write │  │
+│  │  │ - ai        │ │             │ │             │ │         │ │ - conv. │  │
+│  │  │ - onchain   │ │             │ │             │ │         │ │         │  │
+│  │  │ - storage   │ │             │ │             │ │         │ │         │  │
+│  │  │ - distrib.  │ │             │ │             │ │         │ │         │  │
+│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────┘ └─────────┘  │
 │  └──────────────────────────────────────────────────────────────────────────────┘
 │                                      │                                           │
 └──────────────────────────────────────┼───────────────────────────────────────────┘
@@ -701,6 +701,241 @@ const distribution = blame.toDistribution();
 
 ---
 
+## Package 5: @provenancekit/media ✅ COMPLETE
+
+**Status:** Implemented and tested (157 tests passing)
+
+**Purpose:** C2PA (Coalition for Content Provenance and Authenticity) media provenance integration for reading and writing content credentials in images and videos.
+
+### 5.1 Core Use Cases
+
+1. **Read C2PA manifests** - Extract provenance data from media files
+2. **Write C2PA manifests** - Embed provenance credentials in media files
+3. **AI disclosure detection** - Detect AI-generated content from C2PA metadata
+4. **Convert C2PA ↔ EAA** - Bidirectional conversion between C2PA and EAA types
+
+### 5.2 Package Structure
+
+```
+@provenancekit/media/
+├── src/
+│   ├── index.ts              # Main exports
+│   ├── types.ts              # C2PA types & schemas
+│   ├── extension.ts          # ext:c2pa@1.0.0 helpers
+│   │
+│   ├── reader/
+│   │   └── index.ts          # Read C2PA manifests from files
+│   │
+│   ├── writer/
+│   │   └── index.ts          # Write C2PA manifests to files
+│   │
+│   └── converter/
+│       └── index.ts          # C2PA ↔ EAA type conversion
+│
+└── tests/
+```
+
+### 5.3 ext:c2pa@1.0.0 Extension
+
+```typescript
+// C2PA extension data attached to Resource
+interface C2PAExtension {
+  manifestLabel: string;        // Unique manifest identifier
+  claimGenerator: string;       // Tool that created the manifest
+  claimGeneratorVersion?: string;
+  title?: string;               // Asset title
+  format?: string;              // MIME type
+  instanceId?: string;          // Instance identifier
+
+  // Actions performed on the asset
+  actions?: Array<{
+    action: C2PAActionType;     // e.g., "c2pa.created", "c2pa.edited"
+    when?: string;
+    softwareAgent?: { name: string; version?: string };
+    digitalSourceType?: string;
+  }>;
+
+  // Source materials used
+  ingredients?: Array<{
+    title: string;
+    format?: string;
+    hash?: string;
+    relationship?: "parentOf" | "componentOf" | "inputTo";
+  }>;
+
+  // Signature info
+  signature?: {
+    algorithm: string;
+    issuer?: string;
+    timestamp?: string;
+  };
+
+  // Validation
+  validationStatus?: {
+    isValid: boolean;
+    errors?: string[];
+    warnings?: string[];
+  };
+
+  // AI disclosure
+  aiDisclosure?: {
+    isAIGenerated: boolean;
+    aiTool?: string;
+    trainingDataUsed?: boolean;
+  };
+
+  // Creative work info
+  creativeWork?: {
+    author?: string[];
+    dateCreated?: string;
+    copyright?: string;
+  };
+}
+```
+
+### 5.4 Reader API
+
+```typescript
+import { readManifest, hasManifest, isC2PAAvailable } from "@provenancekit/media";
+
+// Check if c2pa-node is available
+const available = await isC2PAAvailable();
+
+// Read C2PA manifest from file
+const result = await readManifest("./photo.jpg");
+
+console.log("Title:", result.c2pa.title);
+console.log("Creator:", result.c2pa.creativeWork?.author?.[0]);
+console.log("Is AI generated:", result.c2pa.aiDisclosure?.isAIGenerated);
+console.log("Actions:", result.actions.length);
+console.log("Attributions:", result.attributions.length);
+
+// Quick check if file has manifest
+const hasC2PA = await hasManifest("./photo.jpg");
+```
+
+### 5.5 Writer API
+
+```typescript
+import { writeManifest, writeManifestFromEAA } from "@provenancekit/media";
+
+// Write C2PA manifest to file
+const result = await writeManifest("./input.jpg", "./output.jpg", {
+  signer: {
+    certificate: fs.readFileSync("cert.pem"),
+    privateKey: fs.readFileSync("key.pem"),
+    algorithm: "es256",
+  },
+  title: "My Photo",
+  actions: [
+    { action: "c2pa.created", softwareAgent: { name: "My App" } }
+  ],
+  creativeWork: {
+    author: ["John Doe"],
+    copyright: "© 2025 John Doe",
+  },
+  aiDisclosure: {
+    isAIGenerated: false,
+  },
+});
+
+// Write from existing EAA provenance data
+const result = await writeManifestFromEAA(
+  "./input.jpg", "./output.jpg",
+  { resource, actions, attributions, entities },
+  signerConfig
+);
+```
+
+### 5.6 Extension Helpers
+
+```typescript
+import {
+  withC2PA, hasC2PA, getC2PA,
+  isAIGenerated, getAITool,
+  getC2PAActions, getC2PAIngredients,
+  isC2PAValid, getValidationErrors,
+} from "@provenancekit/media";
+
+// Add C2PA to a resource
+const resource = withC2PA(baseResource, {
+  manifestLabel: "urn:uuid:...",
+  claimGenerator: "ProvenanceKit/1.0",
+  title: "My Photo",
+});
+
+// Check for C2PA data
+if (hasC2PA(resource)) {
+  const c2pa = getC2PA(resource);
+
+  // Check AI disclosure
+  if (isAIGenerated(resource)) {
+    console.log("AI tool:", getAITool(resource));
+  }
+
+  // Get actions and ingredients
+  const actions = getC2PAActions(resource);
+  const ingredients = getC2PAIngredients(resource);
+
+  // Check validation
+  if (!isC2PAValid(resource)) {
+    console.log("Errors:", getValidationErrors(resource));
+  }
+}
+```
+
+### 5.7 Type Converters
+
+```typescript
+import {
+  convertC2PAToEAA,
+  actorToEntity,
+  c2paActionToEAAAction,
+  createAttributionsFromC2PA,
+  ingredientToResource,
+} from "@provenancekit/media";
+
+// Full conversion from C2PA to EAA types
+const { resource, actions, attributions, entities } = convertC2PAToEAA(c2paData, {
+  resourceId: "custom-id",
+  filePath: "./photo.jpg",
+});
+
+// Individual conversions
+const entity = actorToEntity({ type: "human", name: "Alice" });
+const { action, entities } = c2paActionToEAAAction(c2paAction, contentRef);
+const attributions = createAttributionsFromC2PA(c2pa, contentRef);
+```
+
+### 5.8 Supported Formats
+
+| Format | MIME Type |
+|--------|-----------|
+| JPEG | image/jpeg |
+| PNG | image/png |
+| HEIC | image/heic |
+| HEIF | image/heif |
+| AVIF | image/avif |
+| WebP | image/webp |
+| MP4 | video/mp4 |
+| MOV | video/quicktime |
+| MP3 | audio/mpeg |
+| M4A | audio/mp4 |
+| PDF | application/pdf |
+
+### 5.9 Dependencies
+
+```json
+{
+  "@contentauth/c2pa-node": "^0.5.0",  // Optional peer dependency
+  "zod": "^3.23.8"
+}
+```
+
+**Note:** `@contentauth/c2pa-node` is an optional peer dependency. The package gracefully degrades when it's not available, allowing users to use the type conversion and extension helpers without native C2PA reading/writing.
+
+---
+
 # PART 2: BASE LAYER REFERENCE
 
 ## Completed Packages Summary
@@ -779,7 +1014,7 @@ const distribution = blame.toDistribution();
 | Package | Status |
 |---------|--------|
 | @provenancekit/git | ✅ Complete (71 tests) |
-| @provenancekit/media (C2PA) | 📋 Planned |
+| @provenancekit/media (C2PA) | ✅ Complete (157 tests) |
 
 ## Phase 5: Platform Layer
 

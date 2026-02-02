@@ -1,0 +1,95 @@
+{
+  "name": "@provenancekit/media",
+  "version": "0.1.0",
+  "description": "C2PA media provenance integration for ProvenanceKit - Read and write content credentials for images and videos",
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "c2pa",
+    "content-credentials",
+    "media",
+    "images",
+    "authenticity",
+    "attribution",
+    "cai"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/provenancekit-media"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./reader": {
+      "types": "./dist/reader/index.d.ts",
+      "require": "./dist/reader/index.cjs",
+      "import": "./dist/reader/index.mjs"
+    },
+    "./writer": {
+      "types": "./dist/writer/index.d.ts",
+      "require": "./dist/writer/index.cjs",
+      "import": "./dist/writer/index.mjs"
+    },
+    "./converter": {
+      "types": "./dist/converter/index.d.ts",
+      "require": "./dist/converter/index.cjs",
+      "import": "./dist/converter/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/extensions": "workspace:*",
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "@contentauth/c2pa-node": "^0.5.0"
+  },
+  "peerDependenciesMeta": {
+    "@contentauth/c2pa-node": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@contentauth/c2pa-node": "^0.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
