@@ -1,12 +1,14 @@
 // app/api/image/generate/route.ts
-// app/api/image/generate/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openaiProv } from "@/lib/provenance";
+import OpenAI from "openai";
+import { pk } from "@/lib/provenance";
 import { ensureHumanEntity } from "@/lib/provenance";
 import { getPrivyUser } from "@/lib/privy-server";
 
 export const revalidate = 0;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const BodySchema = z.object({
   prompt: z.string(),
@@ -35,7 +37,6 @@ export async function POST(req: Request) {
     const { user } = await getPrivyUser(
       req.headers.get("authorization") ?? undefined
     );
-    //console.log("Privy user:", user);
     const humanEntityId = await ensureHumanEntity({
       privyId: user.id,
       wallet: user.wallet?.address ?? null,
@@ -45,18 +46,33 @@ export async function POST(req: Request) {
         user.discord?.username ??
         undefined,
     });
-    console.log("Human entity ID:", humanEntityId);
 
-    const out = await openaiProv.generateImageWithProvenance(
-      { model, prompt, n, size },
-      {
-        entity: { id: humanEntityId, role: "human" },
-        action: { type: "ext:generate_image" },
+    // Call OpenAI directly
+    const response = await openai.images.generate({
+      model,
+      prompt,
+      n,
+      size: size as any,
+      response_format: "b64_json",
+    });
+
+    // Record provenance for each generated image
+    const results = [];
+    for (const img of response.data ?? []) {
+      if (img.b64_json) {
+        const buffer = Buffer.from(img.b64_json, "base64");
+        const blob = new Blob([buffer], { type: "image/png" });
+        const result = await pk.file(blob, {
+          entity: { id: humanEntityId, role: "human" },
+          action: { type: "create" },
+          resourceType: "image",
+          sessionId,
+        });
+        results.push({ ...result, url: img.url, revisedPrompt: img.revised_prompt });
       }
-      //{ sessionId, humanEntityId: DEMO_HUMAN_ID, aiEntityId: DEMO_AI_ID }
-    );
+    }
 
-    return NextResponse.json(out);
+    return NextResponse.json({ images: results });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

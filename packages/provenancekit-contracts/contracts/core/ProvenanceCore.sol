@@ -61,7 +61,7 @@ abstract contract ProvenanceCore is IProvenanceProvider {
         string calldata actionType,
         string[] calldata inputs,
         string[] calldata outputs
-    ) external virtual returns (bytes32 actionId) {
+    ) public virtual returns (bytes32 actionId) {
         // Validate
         if (bytes(actionType).length == 0) revert EmptyActionType();
 

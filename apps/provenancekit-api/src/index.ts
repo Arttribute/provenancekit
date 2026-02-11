@@ -11,6 +11,7 @@ import { cors } from "hono/cors";
 import { config } from "./config.js";
 import { initializeContext, closeContext } from "./context.js";
 import { toProvenanceKitError } from "./errors.js";
+import { authMiddleware } from "./middleware/auth.js";
 
 // Handlers
 import health from "./handlers/health.js";
@@ -33,6 +34,7 @@ const app = new Hono();
 
 // Middleware
 app.use("*", cors());
+app.use("*", authMiddleware);
 
 // Routes
 app.route("/", health);
@@ -46,6 +48,14 @@ app.route("/", searchRoute);
 app.route("/", session);
 app.route("/", payments);
 app.route("/", media);
+
+// 404 handler for unknown routes
+app.notFound((c) =>
+  c.json(
+    { error: { code: "NotFound", message: `Route not found: ${c.req.method} ${c.req.path}` } },
+    404
+  )
+);
 
 // Central error handler
 app.onError((err, c) => {

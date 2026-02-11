@@ -1,9 +1,12 @@
 // app/api/stt/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openaiProv, DEMO_AI_ID } from "@/lib/provenance";
+import OpenAI from "openai";
+import { pk } from "@/lib/provenance";
 
 export const runtime = "nodejs";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const BodySchema = z.object({
   base64Audio: z.string(),
@@ -20,13 +23,25 @@ export async function POST(req: Request) {
     const bytes = Uint8Array.from(Buffer.from(base64Audio, "base64"));
     const file = new File([bytes], "audio.wav", { type: mime });
 
-    const out = await openaiProv.sttWithProvenance(
-      { file, model },
-      { entity: { role: "ai" } },
-      { sessionId, aiEntityId: DEMO_AI_ID }
-    );
+    // Call OpenAI directly
+    const transcription = await openai.audio.transcriptions.create({
+      file,
+      model,
+    });
 
-    return NextResponse.json(out);
+    // Record provenance for the transcription output
+    const textBlob = new Blob([transcription.text], { type: "text/plain" });
+    const result = await pk.file(textBlob, {
+      entity: { role: "ai" },
+      action: { type: "transform" },
+      resourceType: "text",
+      sessionId,
+    });
+
+    return NextResponse.json({
+      text: transcription.text,
+      cid: result.cid,
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

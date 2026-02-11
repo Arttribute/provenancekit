@@ -31,7 +31,6 @@ export interface FileOpts {
     id?: string;
     role: string;
     name?: string;
-    wallet?: string;
     publicKey?: string;
   };
   action?: {
@@ -42,7 +41,7 @@ export interface FileOpts {
     extensions?: Record<string, any>;
   };
   resourceType?: string;
-  sessionId?: string; // NEW
+  sessionId?: string;
 }
 
 export interface UploadOptions {
@@ -102,8 +101,7 @@ export class ProvenanceKit {
 
   async file(
     file: Blob | File | Buffer | Uint8Array,
-    opts: FileOpts,
-    dedup: { type?: string; minScore?: number } = {}
+    opts: FileOpts
   ): Promise<FileResult> {
     try {
       const res = await this.api.postForm<{
@@ -135,7 +133,7 @@ export class ProvenanceKit {
   ) {
     const res = await this.file(spec, {
       entity: { role: "organization", name: meta.name ?? "Tool Publisher" },
-      resourceType: "tool",
+      resourceType: "data",
       sessionId: meta.sessionId,
     });
     return res.cid;
@@ -148,7 +146,6 @@ export class ProvenanceKit {
   async entity(e: {
     role: string;
     name?: string;
-    wallet?: string;
     publicKey?: string;
   }) {
     const r = await this.api.postJSON<{ id: string }>("/entity", e);

@@ -2,7 +2,7 @@ import path from "path";
 
 /** @type {import('next').NextConfig} */
 export default {
-  transpilePackages: ["@provenancekit/sdk", "@provenancekit/openai"],
+  transpilePackages: ["@provenancekit/sdk"],
   experimental: {
     externalDir: true, // if not already set
   },

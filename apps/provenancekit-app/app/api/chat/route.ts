@@ -1,17 +1,20 @@
 // app/api/chat/route.ts
 import { z } from "zod";
 import { NextResponse } from "next/server";
-import { openaiProv, pk } from "@/lib/provenance";
+import OpenAI from "openai";
+import { pk } from "@/lib/provenance";
 import { ensureHumanEntity } from "@/lib/provenance";
 import { getPrivyUser } from "@/lib/privy-server";
 
 export const revalidate = 0; // disable ISR for this route
 
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+
 const BodySchema = z.object({
   sessionId: z.string().uuid().optional().nullable(),
   messages: z.array(z.any()),
   model: z.string().default("gpt-4.1-mini"),
-  inputCids: z.array(z.string()).default([]), // NEW
+  inputCids: z.array(z.string()).default([]),
 });
 
 export async function POST(req: Request) {
@@ -22,7 +25,6 @@ export async function POST(req: Request) {
     const { user } = await getPrivyUser(
       req.headers.get("authorization") ?? undefined
     );
-    //console.log("Privy user:", user);
     const humanEntityId = await ensureHumanEntity({
       privyId: user.id,
       wallet: user.wallet?.address ?? null,
@@ -32,31 +34,27 @@ export async function POST(req: Request) {
         user.discord?.username ??
         undefined,
     });
-    console.log("Human entity ID:", humanEntityId);
 
-    const sid =
-      sessionId ??
-      (await openaiProv.pk.createSession("Chat", { privyUser: user.id }));
+    // Call OpenAI directly
+    const completion = await openai.chat.completions.create({
+      model,
+      messages,
+    });
 
-    const { completion, actions, finalOutputCids } =
-      await openaiProv.chatWithProvenance(
-        { model, messages },
-        async () => {
-          throw new Error("No tools in this demo");
-        },
-        {
-          action: { inputCids }, // pass file inputs
-          entity: { id: humanEntityId, role: "human" },
-        },
-
-        { sessionId: sid }
-      );
+    // Record provenance for the output
+    const outputText = completion.choices[0]?.message?.content ?? "";
+    const outputBlob = new Blob([outputText], { type: "text/plain" });
+    const result = await pk.file(outputBlob, {
+      entity: { id: humanEntityId, role: "human" },
+      action: { type: "create", inputCids },
+      resourceType: "text",
+      sessionId: sessionId ?? undefined,
+    });
 
     return NextResponse.json({
       completion,
-      actions,
-      finalOutputCids,
-      sessionId: sid,
+      cid: result.cid,
+      sessionId,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });

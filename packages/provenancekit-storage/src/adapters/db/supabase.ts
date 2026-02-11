@@ -28,7 +28,6 @@ import type {
 
 import type {
   IProvenanceStorage,
-  ITransactionalStorage,
   IVectorStorage,
   ResourceFilter,
   ActionFilter,
@@ -110,8 +109,17 @@ export interface SupabaseStorageConfig {
  | Supabase Storage Implementation                                   |
 \*-----------------------------------------------------------------*/
 
+/**
+ * Supabase storage adapter.
+ *
+ * Note: The Supabase JS client does not expose PostgreSQL transaction
+ * primitives, so `ITransactionalStorage` is not implemented. If you need
+ * real transactions, use the PostgreSQL adapter with a direct connection
+ * or create a Supabase Edge Function that wraps operations in a
+ * BEGIN/COMMIT block.
+ */
 export class SupabaseStorage
-  implements IProvenanceStorage, ITransactionalStorage, IVectorStorage
+  implements IProvenanceStorage, IVectorStorage
 {
   private client: SupabaseClient;
   private prefix: string;
@@ -285,6 +293,7 @@ export class SupabaseStorage
 
     if (filter?.type) query = query.eq("type", filter.type);
     if (filter?.createdBy) query = query.eq("created_by", filter.createdBy);
+    if (filter?.extensions) query = query.contains("extensions", filter.extensions);
 
     query = query.order("created_at", { ascending: false });
 
@@ -374,6 +383,7 @@ export class SupabaseStorage
     if (filter?.type) query = query.eq("type", filter.type);
     if (filter?.performedBy)
       query = query.eq("performed_by", filter.performedBy);
+    if (filter?.extensions) query = query.contains("extensions", filter.extensions);
 
     query = query.order("timestamp", { ascending: false });
 
@@ -463,19 +473,6 @@ export class SupabaseStorage
 
     const rows = (result.data as AttributionRow[] | null) ?? [];
     return rows.map((r) => this.rowToAttribution(r));
-  }
-
-  /*--------------------------------------------------------------
-   | Transaction Support
-   --------------------------------------------------------------*/
-
-  async transaction<T>(
-    fn: (storage: IProvenanceStorage) => Promise<T>
-  ): Promise<T> {
-    this.ensureInitialized();
-    // Supabase doesn't expose direct transaction control
-    // Run directly (no isolation)
-    return fn(this);
   }
 
   /*--------------------------------------------------------------

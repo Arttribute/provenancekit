@@ -16,6 +16,10 @@ const ConfigSchema = z.object({
   port: z.coerce.number().default(3001),
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
 
+  // Authentication
+  /** API keys (comma-separated). When set, all non-health endpoints require a Bearer token. */
+  apiKeys: z.string().optional(),
+
   // Supabase (PostgreSQL + Vectors)
   supabaseUrl: z.string().url(),
   supabaseAnonKey: z.string().min(1),
@@ -53,6 +57,7 @@ export function loadConfig(): Config {
     duplicateThreshold: process.env.DUPLICATE_THRESHOLD,
     matchThreshold: process.env.MATCH_THRESHOLD,
     openaiApiKey: process.env.OPENAI_API_KEY,
+    apiKeys: process.env.API_KEYS,
   });
 
   if (!result.success) {

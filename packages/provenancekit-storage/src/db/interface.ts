@@ -33,6 +33,8 @@ export interface ResourceFilter {
   createdAfter?: string;
   /** Filter resources created at or before this timestamp (ISO 8601) */
   createdBefore?: string;
+  /** Filter by extension key-value pairs (JSONB contains — supports nested objects) */
+  extensions?: Record<string, unknown>;
   /** Limit number of results */
   limit?: number;
   /** Offset for pagination */
@@ -51,6 +53,8 @@ export interface ActionFilter {
   timestampAfter?: string;
   /** Filter actions at or before this timestamp (ISO 8601) */
   timestampBefore?: string;
+  /** Filter by extension key-value pairs (JSONB contains — supports nested objects) */
+  extensions?: Record<string, unknown>;
   /** Limit number of results */
   limit?: number;
   /** Offset for pagination */

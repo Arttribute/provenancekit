@@ -1,11 +1,14 @@
 // app/api/tts/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { openaiProv, DEMO_HUMAN_ID, DEMO_AI_ID } from "@/lib/provenance";
+import OpenAI from "openai";
+import { pk } from "@/lib/provenance";
 
 export const runtime = "nodejs"; // Buffer is needed
 export const revalidate = 0;
-export const maxDuration = 60; // (optional) long‑running call
+export const maxDuration = 60;
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 /* ---------- request schema ---------- */
 const BodySchema = z.object({
@@ -23,34 +26,30 @@ export async function POST(req: Request) {
       await req.json()
     );
 
-    /* -------------------------------------------------------------
-     * openaiProv already clones the response and persists provenance
-     * ----------------------------------------------------------- */
-    const { response, provenance } = await openaiProv.ttsWithProvenance(
-      { model, voice, input: text },
-      {
-        entity: {
-          id: "6339682a-7f3d-4fae-a086-e959bfda6a85",
-          role: "human",
-          name: "Alice",
-        },
-        action: { type: "ext:generate_audio" },
-      }
-      //{ sessionId, humanEntityId: DEMO_HUMAN_ID, aiEntityId: DEMO_AI_ID, format }
-    );
+    // Call OpenAI directly
+    const response = await openai.audio.speech.create({
+      model,
+      voice: voice as any,
+      input: text,
+      response_format: format,
+    });
 
-    /* ---------- pipe the OpenAI audio back to the client ---------- */
-    // If you prefer streaming you can just `return response`
+    // Record provenance for the audio output
     const buffer = Buffer.from(await response.arrayBuffer());
+    const audioBlob = new Blob([buffer], { type: `audio/${format}` });
+    const result = await pk.file(audioBlob, {
+      entity: { role: "human", name: "Alice" },
+      action: { type: "create" },
+      resourceType: "audio",
+      sessionId,
+    });
 
     return new NextResponse(buffer, {
       status: 200,
       headers: {
         "Content-Type": `audio/${format}`,
         "Content-Disposition": `inline; filename="speech.${format}"`,
-        ...(provenance && "cid" in provenance
-          ? { "X-Provenance-CID": provenance.cid }
-          : {}),
+        "X-Provenance-CID": result.cid,
       },
     });
   } catch (err: any) {

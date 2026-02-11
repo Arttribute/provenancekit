@@ -32,43 +32,27 @@ r.get("/session/:id/provenance", async (c) => {
   }
 
   const projectId = c.req.query("projectId");
+  const { dbStorage } = getContext();
 
-  const { supabase, dbStorage } = getContext();
-
-  // Build the extensions filter — always includes sessionId,
-  // and includes projectId when provided (for multi-tenant isolation)
-  const extensionsFilter: Record<string, string> = { sessionId };
+  // Build the extensions filter using the namespaced key
+  // that matches how activity.service.ts stores session context
+  const sessionData: Record<string, string> = { sessionId };
   if (projectId) {
-    extensionsFilter.projectId = projectId;
+    sessionData.projectId = projectId;
   }
+  const extensionsFilter = { "ext:session@1.0.0": sessionData };
 
-  // Query actions that match the extensions filter
-  const { data: actionRows, error: actionsErr } = await supabase
-    .from("pk_action")
-    .select("*")
-    .contains("extensions", extensionsFilter);
-
-  if (actionsErr) {
-    throw new ProvenanceKitError("Internal", `Failed to query actions: ${actionsErr.message}`);
-  }
-
-  // Query resources that match the extensions filter
-  const { data: resourceRows, error: resourcesErr } = await supabase
-    .from("pk_resource")
-    .select("*")
-    .contains("extensions", extensionsFilter);
-
-  if (resourcesErr) {
-    throw new ProvenanceKitError("Internal", `Failed to query resources: ${resourcesErr.message}`);
-  }
+  // Query actions and resources via storage interface
+  const actions = await dbStorage.listActions({ extensions: extensionsFilter });
+  const resources = await dbStorage.listResources({ extensions: extensionsFilter });
 
   // Collect unique entity IDs from actions and resources
   const entityIds = new Set<string>();
-  for (const row of actionRows ?? []) {
-    if (row.performed_by) entityIds.add(row.performed_by);
+  for (const action of actions) {
+    if (action.performedBy) entityIds.add(action.performedBy);
   }
-  for (const row of resourceRows ?? []) {
-    if (row.created_by) entityIds.add(row.created_by);
+  for (const resource of resources) {
+    if (resource.createdBy) entityIds.add(resource.createdBy);
   }
 
   // Fetch entities
@@ -80,36 +64,13 @@ r.get("/session/:id/provenance", async (c) => {
 
   // Collect attributions for these resources
   const attributions = [];
-  for (const row of resourceRows ?? []) {
-    const ref = row.ref;
+  for (const resource of resources) {
+    const ref = resource.address?.ref;
     if (ref) {
       const attrs = await dbStorage.getAttributionsByResource(ref);
       attributions.push(...attrs);
     }
   }
-
-  // Map action rows to Action shape
-  const actions = (actionRows ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    type: row.type as string,
-    performedBy: row.performed_by as string,
-    timestamp: row.timestamp as string,
-    inputs: (row.inputs as unknown[]) ?? [],
-    outputs: (row.outputs as unknown[]) ?? [],
-    proof: (row.proof as string) ?? undefined,
-    extensions: (row.extensions as Record<string, unknown>) ?? undefined,
-  }));
-
-  // Map resource rows to Resource shape
-  const resources = (resourceRows ?? []).map((row: Record<string, unknown>) => ({
-    address: row.address as { ref: string; scheme: string },
-    type: (row.type as string) ?? undefined,
-    locations: (row.locations as unknown[]) ?? [],
-    createdAt: row.created_at as string,
-    createdBy: row.created_by as string,
-    rootAction: (row.root_action as string) ?? undefined,
-    extensions: (row.extensions as Record<string, unknown>) ?? undefined,
-  }));
 
   return c.json({
     sessionId,

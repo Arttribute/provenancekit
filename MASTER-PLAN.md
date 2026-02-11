@@ -1183,4 +1183,204 @@ const aiCheck = await pk.aiCheck(result.cid);
 
 ---
 
-*This document is updated as implementation progresses. Last updated: 2026-02-03*
+# PART 5: NEXT STEPS — CRITICAL EVALUATION & REMEDIATION
+
+Based on a comprehensive audit of the entire codebase against this plan and the broader vision, these are the prioritized next steps organized by severity.
+
+## Priority 0: Critical Bugs (Data Loss / Security)
+
+These must be fixed before any production use.
+
+### 0.1 Encryption Key Discarded — Data Loss Bug
+
+**File:** `apps/provenancekit-api/src/services/activity.service.ts:191-200`
+
+When `encrypt=true`, a key is generated and used to encrypt before IPFS upload, but the key is never returned to the caller or stored anywhere. The encrypted data on IPFS is permanently unrecoverable.
+
+**Fix:**
+- Return the encryption key (or a key reference) in the activity response
+- Or store it in a key management system (e.g., `IKeyManager` from privacy package)
+- The privacy package already has `KeyRing` — wire it into the API context
+- Add the key reference to the `ext:storage@1.0.0` extension on the resource
+
+### 0.2 Smart Contract External Self-Call
+
+**File:** `packages/provenancekit-contracts/contracts/ProvenanceRegistry.sol:305`
+
+```solidity
+// BUG: this.recordAction() is an external call — changes msg.sender to the contract itself
+actionId = this.recordAction(actionType, inputs, outputs);
+```
+
+This means `msg.sender` inside `recordAction` becomes the contract address instead of the original caller. All `performedBy` fields will be wrong.
+
+**Fix:** Remove `this.` to make it an internal call:
+```solidity
+actionId = recordAction(actionType, inputs, outputs);
+```
+
+### 0.3 Unprotected Attribution Recording
+
+**File:** `packages/provenancekit-contracts/contracts/ProvenanceRegistry.sol`
+
+`recordAttributionFor()` has no access control — anyone can create arbitrary attributions for any resource/action. This undermines the integrity of the provenance graph.
+
+**Fix:** Add access control — only the action performer or resource creator should be able to record attributions, or require a governance/owner role.
+
+---
+
+## Priority 1: Architectural Gaps
+
+These affect the framework's viability as a generalizable, database-agnostic system.
+
+### 1.1 No Database Schema / Migration Story
+
+The storage abstraction (`IProvenanceStorage`) is excellent, but there is no way for consumers to create the required tables/collections. The Supabase adapter assumes tables (`pk_entity`, `pk_resource`, `pk_action`, etc.) already exist.
+
+**Action items:**
+- Add an `initialize()` implementation to each DB adapter that creates the schema
+- Or provide SQL migration files / setup scripts per adapter
+- Document the expected schema clearly
+- Consider a `createSchema()` or `migrate()` method on the interface
+
+### 1.2 Fake Transaction Support
+
+**File:** `packages/provenancekit-storage/src/adapters/db/supabase.ts`
+
+`ITransactionalStorage.transaction()` is implemented but just runs the function directly — no actual transaction semantics. If a multi-step operation partially fails, the database is left in an inconsistent state.
+
+**Action items:**
+- Either implement real transactions using Supabase RPC / PostgreSQL functions
+- Or remove `ITransactionalStorage` from the Supabase adapter's implements list and document the limitation
+- The PostgreSQL adapter should use actual `BEGIN/COMMIT/ROLLBACK`
+
+### 1.3 Session Handler Bypasses Storage Abstraction
+
+**File:** `apps/provenancekit-api/src/handlers/session.ts`
+
+This handler queries Supabase directly (`supabase.from("pk_action").select("*")`) instead of using `IProvenanceStorage`. This defeats the purpose of the storage abstraction and will break if the backend changes.
+
+**Action items:**
+- Add `listActions(filter)` and `listResources(filter)` with extension-based filtering to `IProvenanceStorage`
+- Or add a `findByExtensions(table, filter)` method
+- Rewrite the session handler to use the storage interface exclusively
+
+### 1.4 No API Authentication / Authorization
+
+The API has zero auth — no API keys, no JWT verification, no rate limiting. Any caller can create entities, upload files, and read all provenance data.
+
+**Action items:**
+- Add API key or Bearer token authentication middleware
+- Add per-project isolation (projectId already exists in extensions but isn't enforced)
+- Add rate limiting
+- Consider RBAC: who can create vs. read vs. administer
+
+---
+
+## Priority 2: Code Quality & Correctness
+
+### 2.1 Hand-Rolled ECDSA in ProvenanceVerifiable
+
+**File:** `packages/provenancekit-contracts/contracts/core/ProvenanceVerifiable.sol`
+
+Uses raw `ecrecover` without signature malleability protection. This is a known vulnerability class — signatures can be replayed with the alternate `s` value.
+
+**Fix:** Replace with OpenZeppelin's `ECDSA.recover()` which includes malleability checks.
+
+### 2.2 SDK Legacy / Stale Fields
+
+**File:** `packages/provenancekit-sdk/src/client.ts`
+
+- `entity.wallet` field — not part of EAA types, leftover from an earlier design
+- `file()` accepts a `dedup` parameter that's never sent to the API
+- `tool()` method uses `resourceType: "tool"` which was removed from the core type system
+
+**Fix:** Clean up the SDK to match the current EAA types and API contract. Remove dead code paths.
+
+### 2.3 Extension Keys Not Namespaced
+
+**File:** `apps/provenancekit-api/src/services/activity.service.ts`
+
+`sessionId` and `projectId` are stored as bare keys in the `extensions` object instead of using the `ext:namespace@version` pattern that the entire extension system is built around.
+
+**Fix:** Define an `ext:session@1.0.0` extension schema and use `setExtension()` from eaa-types. This ensures consistency and allows validation.
+
+### 2.4 Zero Tests in Payments Package
+
+The payments package has 3 adapter implementations but no tests. The distribution calculator is well-tested in extensions, but the adapter layer (viem interactions, error handling, dust calculation) is untested.
+
+**Action items:**
+- Add unit tests with mocked viem clients for each adapter
+- Add integration tests against a local testnet (Hardhat/Anvil)
+- Test edge cases: zero amounts, single recipient, max recipients, native ETH vs ERC-20
+
+---
+
+## Priority 3: Polish & Completeness
+
+### 3.1 Remove provenancekit-openai Package
+
+Per prior decision, this package is being removed. Clean it out of the monorepo.
+
+### 3.2 Improve Error Handling Consistency
+
+The API uses `ProvenanceKitError` in some handlers but not all. Standardize error handling across all endpoints.
+
+### 3.3 Add API Documentation
+
+No OpenAPI/Swagger docs exist. Consider adding `@hono/zod-openapi` for auto-generated API documentation.
+
+### 3.4 Package Publishing Setup
+
+None of the packages have been published to npm yet. Set up:
+- Package.json `publishConfig` for each package
+- CI/CD for automated publishing
+- Changelogs / versioning strategy (changesets recommended for monorepos)
+
+---
+
+## Revised Phase Plan
+
+### Phase 6: Hardening & Bug Fixes (NEXT)
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Fix encryption key loss in activity service | P0 | Small |
+| Fix `this.recordAction()` external call in Registry | P0 | Tiny |
+| Add access control to `recordAttributionFor()` | P0 | Small |
+| Implement real transactions or remove claim | P1 | Medium |
+| Rewrite session handler to use storage interface | P1 | Small |
+| Add API authentication middleware | P1 | Medium |
+| Replace hand-rolled ECDSA with OpenZeppelin | P2 | Small |
+| Clean up SDK legacy fields | P2 | Small |
+| Namespace session/project extension keys | P2 | Small |
+
+### Phase 7: Testing & Schema
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Add DB schema creation to adapter `initialize()` | P1 | Medium |
+| Write payment adapter tests | P2 | Medium |
+| Integration tests for API endpoints | P2 | Medium |
+| Testnet integration tests for contracts | P2 | Large |
+
+### Phase 8: Production Readiness
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Remove provenancekit-openai | P3 | Tiny |
+| Add OpenAPI documentation | P3 | Medium |
+| Package publishing setup (npm) | P3 | Medium |
+| Standardize error handling | P3 | Small |
+| x402 adapter implementation | P3 | Medium |
+
+### Phase 9: Platform Layer (provenancekit-app)
+
+| Task | Priority | Effort |
+|------|----------|--------|
+| Design app architecture | — | Medium |
+| Implement with all hardening fixes in place | — | Large |
+
+---
+
+*This document is updated as implementation progresses. Last updated: 2026-02-11*

@@ -119,6 +119,9 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     if (filter?.createdBy) {
       results = results.filter((r) => r.createdBy === filter.createdBy);
     }
+    if (filter?.extensions) {
+      results = results.filter((r) => matchExtensions(r.extensions, filter.extensions!));
+    }
 
     const offset = filter?.offset ?? 0;
     const limit = filter?.limit ?? results.length;
@@ -170,6 +173,9 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     }
     if (filter?.performedBy) {
       results = results.filter((a) => a.performedBy === filter.performedBy);
+    }
+    if (filter?.extensions) {
+      results = results.filter((a) => matchExtensions(a.extensions, filter.extensions!));
     }
 
     const offset = filter?.offset ?? 0;
@@ -274,4 +280,28 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
       attributions: this.attributions.length,
     };
   }
+}
+
+/**
+ * Check if an object's extensions contain all expected key-value pairs.
+ * Supports nested objects for namespaced extensions like:
+ *   { "ext:session@1.0.0": { sessionId: "abc" } }
+ */
+function matchExtensions(
+  extensions: Record<string, unknown> | undefined,
+  expected: Record<string, unknown>
+): boolean {
+  if (!extensions) return false;
+  return Object.entries(expected).every(([k, v]) => {
+    const actual = extensions[k];
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      // Deep contains check for nested objects
+      if (actual === null || typeof actual !== "object" || Array.isArray(actual)) return false;
+      return matchExtensions(
+        actual as Record<string, unknown>,
+        v as Record<string, unknown>
+      );
+    }
+    return actual === v;
+  });
 }

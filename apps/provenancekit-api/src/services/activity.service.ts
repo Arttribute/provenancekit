@@ -18,6 +18,7 @@ import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import {
   cidRef,
+  setExtension,
   type Resource,
   type Action,
   type Attribution,
@@ -145,6 +146,8 @@ export interface ActivityResult {
   entityId: string;
   resourceType: string;
   encrypted: boolean;
+  /** Base64-encoded encryption key — only present when encrypt=true. Caller MUST store this to decrypt later. */
+  encryptionKey?: string;
 }
 
 /*─────────────────────────────────────────────────────────────*\
@@ -187,11 +190,12 @@ export async function createActivity(
   let cid: string;
   let size: number;
   let encrypted = false;
+  let encryptionKey: Uint8Array | undefined;
 
   if (encrypt) {
-    const key = getContext().generateKey();
+    encryptionKey = getContext().generateKey();
     const result = await encryptedStorage.uploadEncrypted(bytes, {
-      key,
+      key: encryptionKey,
       filename: file.name || "file.bin",
       contentType: mime,
     });
@@ -255,10 +259,16 @@ export async function createActivity(
     extensions: {
       ...act.extensions,
       ...(act.toolCid ? { toolCid: act.toolCid } : {}),
-      ...(projectId ? { projectId } : {}),
-      ...(sessionId ? { sessionId } : {}),
     },
   };
+
+  // Add session context as namespaced extension
+  if (sessionId || projectId) {
+    const sessionData: Record<string, string> = {};
+    if (sessionId) sessionData.sessionId = sessionId;
+    if (projectId) sessionData.projectId = projectId;
+    setExtension(action, "ext:session@1.0.0", sessionData);
+  }
 
   // Add AI tool extension if provided
   if (act.aiTool) {
@@ -286,10 +296,15 @@ export async function createActivity(
     createdAt: timestamp,
     createdBy: entityId,
     rootAction: actionId,
-    extensions: (projectId || sessionId)
-      ? { ...(projectId ? { projectId } : {}), ...(sessionId ? { sessionId } : {}) }
-      : undefined,
   };
+
+  // Add session context as namespaced extension on resource too
+  if (sessionId || projectId) {
+    const sessionData: Record<string, string> = {};
+    if (sessionId) sessionData.sessionId = sessionId;
+    if (projectId) sessionData.projectId = projectId;
+    setExtension(resource, "ext:session@1.0.0", sessionData);
+  }
 
   resource = withStorage(resource, {
     pinned: true,
@@ -357,6 +372,9 @@ export async function createActivity(
     entityId,
     resourceType: kind,
     encrypted,
+    ...(encryptionKey
+      ? { encryptionKey: Buffer.from(encryptionKey).toString("base64") }
+      : {}),
   };
 }
 

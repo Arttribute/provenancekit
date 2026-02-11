@@ -24,14 +24,8 @@ r.get("/graph/:cid", async (c) => {
       "`depth` must be a positive number"
     );
 
-  try {
-    const graph = await buildProvenanceGraph(cid, depth);
-    return c.json(graph);
-  } catch (e: any) {
-    if (e.message === "resource not found")
-      throw new ProvenanceKitError("NotFound", "Resource not found");
-    throw e;
-  }
+  const graph = await buildProvenanceGraph(cid, depth);
+  return c.json(graph);
 });
 
 export default r;

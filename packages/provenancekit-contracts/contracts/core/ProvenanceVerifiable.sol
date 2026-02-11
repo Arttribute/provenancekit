@@ -2,6 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {ProvenanceCore} from "./ProvenanceCore.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
 /**
  * @title ProvenanceVerifiable
@@ -133,8 +135,8 @@ abstract contract ProvenanceVerifiable is ProvenanceCore {
         // Verify proof before recording
         _verifyProof(actionType, inputs, outputs, proof);
 
-        // Record the action using parent
-        actionId = this.recordAction(actionType, inputs, outputs);
+        // Record the action using parent (internal call preserves msg.sender)
+        actionId = recordAction(actionType, inputs, outputs);
 
         // Store proof reference
         bytes32 proofHash = keccak256(proof.data);
@@ -168,8 +170,8 @@ abstract contract ProvenanceVerifiable is ProvenanceCore {
         string[] calldata outputs,
         bytes32 commitment
     ) external virtual returns (bytes32 actionId) {
-        // Record the action
-        actionId = this.recordAction(actionType, inputs, outputs);
+        // Record the action (internal call preserves msg.sender)
+        actionId = recordAction(actionType, inputs, outputs);
 
         // Store commitment
         _actionProofs[actionId] = commitment;
@@ -287,10 +289,10 @@ abstract contract ProvenanceVerifiable is ProvenanceCore {
         }
 
         if (proof.proofType == ProofType.SIGNATURE) {
-            // Verify ECDSA signature
+            // Verify ECDSA signature using OpenZeppelin (includes malleability protection)
             bytes32 messageHash = _hashActionData(actionType, inputs, outputs);
-            bytes32 ethSignedHash = _toEthSignedMessageHash(messageHash);
-            address recovered = _recoverSigner(ethSignedHash, proof.data);
+            bytes32 ethSignedHash = MessageHashUtils.toEthSignedMessageHash(messageHash);
+            address recovered = ECDSA.recover(ethSignedHash, proof.data);
 
             if (recovered != proof.signer) {
                 revert InvalidSignature();
@@ -322,51 +324,5 @@ abstract contract ProvenanceVerifiable is ProvenanceCore {
                 keccak256(abi.encode(outputs))
             )
         );
-    }
-
-    /**
-     * @notice Convert to Ethereum signed message hash
-     * @param messageHash The message hash
-     * @return The Ethereum signed message hash
-     */
-    function _toEthSignedMessageHash(bytes32 messageHash) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash)
-        );
-    }
-
-    /**
-     * @notice Recover signer from signature
-     * @param hash The signed hash
-     * @param signature The signature bytes
-     * @return The recovered signer address
-     */
-    function _recoverSigner(
-        bytes32 hash,
-        bytes memory signature
-    ) internal pure returns (address) {
-        if (signature.length != 65) {
-            revert InvalidSignature();
-        }
-
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        assembly {
-            r := mload(add(signature, 32))
-            s := mload(add(signature, 64))
-            v := byte(0, mload(add(signature, 96)))
-        }
-
-        if (v < 27) {
-            v += 27;
-        }
-
-        if (v != 27 && v != 28) {
-            revert InvalidSignature();
-        }
-
-        return ecrecover(hash, v, r, s);
     }
 }

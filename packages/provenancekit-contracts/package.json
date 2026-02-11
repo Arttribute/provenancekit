@@ -3,6 +3,10 @@
   "version": "0.0.1",
   "description": "Solidity smart contracts for on-chain provenance recording. Base implementations following OpenZeppelin patterns.",
   "license": "MIT",
+  "files": [
+    "src",
+    "out"
+  ],
   "keywords": [
     "provenance",
     "blockchain",

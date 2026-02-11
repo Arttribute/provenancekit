@@ -226,6 +226,14 @@ export class PostgresStorage
     await this.query(`
       CREATE INDEX IF NOT EXISTS idx_${this.prefix}attribution_entity ON ${this.t.attribution}(entity_id)
     `);
+
+    // GIN indexes for JSONB extension queries
+    await this.query(`
+      CREATE INDEX IF NOT EXISTS idx_${this.prefix}resource_extensions ON ${this.t.resource} USING GIN (extensions)
+    `);
+    await this.query(`
+      CREATE INDEX IF NOT EXISTS idx_${this.prefix}action_extensions ON ${this.t.action} USING GIN (extensions)
+    `);
   }
 
   /*--------------------------------------------------------------
@@ -361,6 +369,10 @@ export class PostgresStorage
       sql += ` AND created_by = $${paramIdx++}`;
       params.push(filter.createdBy);
     }
+    if (filter?.extensions) {
+      sql += ` AND extensions @> $${paramIdx++}::jsonb`;
+      params.push(JSON.stringify(filter.extensions));
+    }
 
     sql += ` ORDER BY created_at DESC`;
 
@@ -468,6 +480,10 @@ export class PostgresStorage
     if (filter?.performedBy) {
       sql += ` AND performed_by = $${paramIdx++}`;
       params.push(filter.performedBy);
+    }
+    if (filter?.extensions) {
+      sql += ` AND extensions @> $${paramIdx++}::jsonb`;
+      params.push(JSON.stringify(filter.extensions));
     }
 
     sql += ` ORDER BY timestamp DESC`;

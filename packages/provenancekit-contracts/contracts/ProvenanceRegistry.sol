@@ -70,6 +70,12 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     /// @notice Thrown when entity ID is empty
     error EmptyEntityId();
 
+    /// @notice Thrown when caller is not authorized for the operation
+    error Unauthorized();
+
+    /// @notice Thrown when referencing a non-existent action
+    error ActionNotFound(bytes32 actionId);
+
     /*//////////////////////////////////////////////////////////////
                          ENTITY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
@@ -214,8 +220,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
 
     /**
      * @notice Record attribution for another entity
-     * @dev Allows recording attribution for a different address.
-     *      The caller must be authorized (in production, add access control).
+     * @dev Only the resource creator can record attributions on behalf of others.
      *
      * @param contentRef Content reference being attributed
      * @param entity Entity receiving attribution
@@ -227,6 +232,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         string calldata role
     ) external {
         if (bytes(contentRef).length == 0) revert EmptyCID();
+        if (_resourceCreator[contentRef] != msg.sender) revert Unauthorized();
 
         emit AttributionRecorded(
             contentRef,
@@ -262,7 +268,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
 
     /**
      * @notice Record action attribution for another entity
-     * @dev Allows recording action attribution for a different address.
+     * @dev Only callable when the action exists. The caller must be a registered entity.
      *
      * @param actionId The action being attributed
      * @param entity Entity receiving attribution
@@ -273,6 +279,9 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         address entity,
         string calldata role
     ) external {
+        if (!_actionExists(actionId)) revert ActionNotFound(actionId);
+        if (!_entities[msg.sender]) revert Unauthorized();
+
         emit ActionAttributionRecorded(
             actionId,
             entity,
@@ -301,8 +310,8 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         string[] calldata outputs,
         string calldata resourceType
     ) external returns (bytes32 actionId) {
-        // Record the action
-        actionId = this.recordAction(actionType, inputs, outputs);
+        // Record the action (internal call preserves msg.sender)
+        actionId = recordAction(actionType, inputs, outputs);
 
         // Register each output as a resource
         for (uint256 i = 0; i < outputs.length; i++) {
