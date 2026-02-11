@@ -1,5 +1,6 @@
 /* Re‑export the canonical bundle / entity / resource types */
-export type { Entity, Resource, Action } from "@arttribute/eaa-types";
+import type { Entity, Resource, Action } from "@arttribute/eaa-types";
+export type { Entity, Resource, Action };
 
 /*───────────────────────────────────────────────────────────*\
  | 1.  Duplicate‑handling helper                              |
@@ -47,24 +48,208 @@ export interface ProvenanceGraph {
 }
 
 export interface Session {
-  sessionId: string;
-  title?: string | null;
-  metadata?: any;
-  startedAt: string;
-  endedAt?: string | null;
+  id: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  endedAt?: string;
 }
 
 export interface SessionMessage {
-  messageId: string;
+  id: string;
   sessionId: string;
-  entityId?: string | null;
-  content: any;
+  entityId?: string;
+  content: unknown;
   createdAt: string;
 }
 
 export interface SessionBundle {
   session: Session;
   messages: SessionMessage[];
-  actions: any[];
-  resources: any[];
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 5.  Provenance Bundle                                      |
+\*───────────────────────────────────────────────────────────*/
+
+export interface ProvenanceBundle {
+  context?: string;
+  resources: Resource[];
+  actions: Action[];
+  entities: Entity[];
+  attributions: Attribution[];
+}
+
+export interface Attribution {
+  resourceRef?: { ref: string; scheme: string };
+  actionId?: string;
+  entityId: string;
+  role?: string;
+  note?: string;
+  extensions?: Record<string, unknown>;
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 6.  Distribution / Payments                                |
+\*───────────────────────────────────────────────────────────*/
+
+export interface DistributionEntry {
+  entityId: string;
+  bps: number;
+  percentage: string;
+  payment?: {
+    address?: string;
+    chainId?: number;
+  };
+}
+
+export interface Distribution {
+  resourceRef: { ref: string; scheme: string };
+  entries: DistributionEntry[];
+  totalBps: number;
+  metadata: {
+    attributionsProcessed: number;
+    attributionsFiltered: number;
+    normalized: boolean;
+    algorithmVersion: string;
+  };
+}
+
+export interface DistributionPreviewItem {
+  cid: string;
+  entries: { entityId: string; bps: number; percentage: string }[];
+  totalBps: number;
+}
+
+export interface DistributionPreviewResult {
+  distributions: DistributionPreviewItem[];
+  summary: {
+    resourcesProcessed: number;
+    uniqueContributors: number;
+  };
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 7.  Media / C2PA                                           |
+\*───────────────────────────────────────────────────────────*/
+
+export interface C2PAAction {
+  action: string;
+  when?: string;
+  softwareAgent?: {
+    name: string;
+    version?: string;
+  };
+  digitalSourceType?: string;
+}
+
+export interface C2PAIngredient {
+  title: string;
+  format?: string;
+  hash?: string;
+  relationship?: "parentOf" | "componentOf" | "inputTo";
+}
+
+export interface C2PAManifest {
+  manifestLabel: string;
+  claimGenerator: string;
+  claimGeneratorVersion?: string;
+  title?: string;
+  format?: string;
+  instanceId?: string;
+  actions?: C2PAAction[];
+  ingredients?: C2PAIngredient[];
+  signature?: {
+    algorithm: string;
+    issuer?: string;
+    timestamp?: string;
+  };
+  validationStatus?: {
+    isValid: boolean;
+    errors?: string[];
+    warnings?: string[];
+  };
+  aiDisclosure?: {
+    isAIGenerated: boolean;
+    aiTool?: string;
+    trainingDataUsed?: boolean;
+  };
+  creativeWork?: {
+    author?: string[];
+    dateCreated?: string;
+    copyright?: string;
+  };
+}
+
+export interface MediaReadResult {
+  hasManifest: boolean;
+  message?: string;
+  c2pa?: C2PAManifest;
+  resource?: Resource;
+  actions?: Action[];
+  entities?: Entity[];
+  attributions?: Attribution[];
+  isAIGenerated?: boolean;
+  validationStatus?: {
+    isValid: boolean;
+    errors?: string[];
+    warnings?: string[];
+  };
+}
+
+export interface MediaVerifyResult {
+  verified: boolean;
+  signature?: {
+    algorithm?: string;
+    issuer?: string;
+    timestamp?: string;
+  };
+  issuer?: string;
+  signedAt?: string;
+  errors?: string[];
+  warnings?: string[];
+  error?: string;
+}
+
+export interface MediaImportResult {
+  success: boolean;
+  cid: string;
+  imported: {
+    entities: number;
+    actions: number;
+    resource: number;
+    attributions: number;
+  };
+  c2pa?: {
+    title?: string;
+    isAIGenerated?: boolean;
+    creator?: string[];
+  };
+}
+
+export interface AICheckResult {
+  hasC2PA: boolean;
+  isAIGenerated: boolean | null;
+  message?: string;
+  aiTool?: string;
+  disclosure?: {
+    isAIGenerated?: boolean;
+    aiTool?: string;
+    trainingDataUsed?: boolean;
+  };
+}
+
+export interface SupportedFormat {
+  mimeType: string;
+  extensions: string[];
+  canRead: boolean;
+  canWrite: boolean;
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 8.  Text Search                                            |
+\*───────────────────────────────────────────────────────────*/
+
+export interface TextSearchResult {
+  matches: Match[];
 }

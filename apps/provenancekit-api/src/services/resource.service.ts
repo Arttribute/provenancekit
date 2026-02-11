@@ -1,35 +1,38 @@
-import { pinBytes } from "../ipfs/pinata.js";
-import { EmbeddingService } from "../embedding/service.js";
-import { db } from "../../db/client.js";
-import { resource } from "../../db/schema.js";
-import { toDataURI } from "../utils.js";
+/**
+ * Resource Service
+ *
+ * Resource operations using @provenancekit/storage.
+ * Note: Resource creation is primarily handled by activity.service.
+ */
 
-const embedder = new EmbeddingService();
+import type { Resource } from "@arttribute/eaa-types";
+import { getContext } from "../context.js";
 
-export async function insertResource(opts: {
-  bytes: Uint8Array;
-  mime: string;
-  filename: string;
-  creator: string;
-  actionId: string;
-  kind: "image" | "text" | "audio" | "video";
-}) {
-  const { cid, size } = await pinBytes(opts.bytes, opts.filename, opts.mime);
-  const vec = await embedder.vector(
-    opts.kind,
-    toDataURI(opts.bytes, opts.mime)
-  );
+/**
+ * Get a resource by its CID.
+ */
+export async function getResource(cid: string): Promise<Resource | null> {
+  const { dbStorage } = getContext();
+  return dbStorage.getResource(cid);
+}
 
-  await db.insert(resource).values({
-    cid,
-    size,
-    algorithm: "sha256",
-    type: opts.kind,
-    locations: [{ uri: `ipfs://${cid}`, provider: "ipfs", verified: true }],
-    createdBy: opts.creator,
-    rootAction: opts.actionId,
-    embedding: vec,
-  });
+/**
+ * Check if a resource exists.
+ */
+export async function resourceExists(cid: string): Promise<boolean> {
+  const { dbStorage } = getContext();
+  return dbStorage.resourceExists(cid);
+}
 
-  return cid;
+/**
+ * List resources with optional filters.
+ */
+export async function listResources(filter?: {
+  type?: string;
+  createdBy?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<Resource[]> {
+  const { dbStorage } = getContext();
+  return dbStorage.listResources(filter);
 }

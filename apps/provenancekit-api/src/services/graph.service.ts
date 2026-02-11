@@ -1,17 +1,28 @@
-import { db } from "../../db/client.js";
-import { entity, resource, action } from "../../db/schema.js";
-import { sql } from "drizzle-orm";
+/**
+ * Graph Service
+ *
+ * Builds provenance graphs for visualization.
+ *
+ * Uses BFS traversal to build a graph from inputs to outputs,
+ * showing how resources were created and transformed.
+ *
+ * Uses:
+ * - @provenancekit/storage: Database queries
+ */
 
-/* ------------------------------------------------------------------ */
-/*  public graph types                                                 */
-/* ------------------------------------------------------------------ */
+import { getContext } from "../context.js";
+
+/*─────────────────────────────────────────────────────────────*\
+ | Graph Types                                                  |
+\*─────────────────────────────────────────────────────────────*/
+
 export type NodeType = "resource" | "action" | "entity";
 
 export interface GraphNode {
-  id: string; // "res:CID", "act:UUID", "ent:DID"
+  id: string;
   type: NodeType;
   label: string;
-  data: Record<string, any>; // resource / action / entity row (sans embedding)
+  data: Record<string, unknown>;
 }
 
 export interface GraphEdge {
@@ -25,98 +36,131 @@ export interface ProvenanceGraph {
   edges: GraphEdge[];
 }
 
-/* ------------------------------------------------------------------ */
-/*  helper: strip embedding column from a resource row                 */
-/* ------------------------------------------------------------------ */
-function stripEmbedding(row: typeof resource.$inferSelect) {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { embedding, ...rest } = row;
-  return rest;
-}
+/*─────────────────────────────────────────────────────────────*\
+ | Graph Building                                               |
+\*─────────────────────────────────────────────────────────────*/
 
-/* ------------------------------------------------------------------ */
-/*  buildProvenanceGraph                                               */
-/* ------------------------------------------------------------------ */
+/**
+ * Build a provenance graph starting from a resource CID.
+ *
+ * Uses BFS to traverse the provenance chain:
+ * - For each resource, finds actions that produced it
+ * - For each action, adds input resources to the queue
+ * - Continues until maxDepth or no more inputs
+ *
+ * @param rootCid - Starting resource CID
+ * @param maxDepth - Maximum traversal depth (default: 10)
+ */
 export async function buildProvenanceGraph(
   rootCid: string,
   maxDepth = 10
 ): Promise<ProvenanceGraph> {
-  const nodeMap = new Map<string, GraphNode>();
+  const { dbStorage } = getContext();
+
+  const nodes = new Map<string, GraphNode>();
   const edges: GraphEdge[] = [];
-  const queue: { cid: string; depth: number }[] = [{ cid: rootCid, depth: 0 }];
-  const seen = new Set<string>();
+  const queue: Array<{ cid: string; depth: number }> = [{ cid: rootCid, depth: 0 }];
+  const visited = new Set<string>();
 
-  while (queue.length) {
-    const { cid, depth } = queue.shift()!;
-    if (seen.has(cid) || depth > maxDepth) continue;
-    seen.add(cid);
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+    const { cid, depth } = item;
 
-    /* ── Resource node ──────────────────────────────────────────── */
-    const [res] = await db
-      .select()
-      .from(resource)
-      .where(sql`cid = ${cid}`)
-      .limit(1);
-    if (!res) continue;
+    if (visited.has(cid) || depth > maxDepth) continue;
+    visited.add(cid);
 
-    const resNodeId = `res:${res.cid}`;
-    nodeMap.set(resNodeId, {
-      id: resNodeId,
-      type: "resource",
-      label: res.cid.slice(0, 8) + "…",
-      data: stripEmbedding(res),
-    });
+    // Get the resource
+    const resource = await dbStorage.getResource(cid);
+    if (!resource) continue;
 
-    /* ── Actions that produced it ──────────────────────────────── */
-    const acts = await db
-      .select()
-      .from(action)
-      .where(sql`${action.outputCids} @> ${JSON.stringify([cid])}`);
+    const resourceRef = resource.address?.ref;
+    if (!resourceRef) continue;
 
-    for (const a of acts) {
-      const actNodeId = `act:${a.actionId}`;
-      if (!nodeMap.has(actNodeId)) {
-        nodeMap.set(actNodeId, {
+    // Add resource node
+    const resNodeId = `res:${resourceRef}`;
+    if (!nodes.has(resNodeId)) {
+      nodes.set(resNodeId, {
+        id: resNodeId,
+        type: "resource",
+        label: resourceRef.slice(0, 8) + "…",
+        data: {
+          ref: resourceRef,
+          type: resource.type ?? "unknown",
+          createdAt: resource.createdAt,
+          createdBy: resource.createdBy,
+        },
+      });
+    }
+
+    // Get actions that produced this resource
+    const actions = await dbStorage.getActionsByOutput(cid);
+
+    for (const action of actions) {
+      if (!action.id) continue;
+
+      const actNodeId = `act:${action.id}`;
+
+      // Add action node
+      if (!nodes.has(actNodeId)) {
+        nodes.set(actNodeId, {
           id: actNodeId,
           type: "action",
-          label: a.type,
-          data: a,
+          label: action.type ?? "action",
+          data: {
+            id: action.id,
+            type: action.type,
+            timestamp: action.timestamp,
+            performedBy: action.performedBy,
+          },
         });
       }
 
-      // action → produced resource
+      // Edge: action → resource (produces)
       edges.push({ from: actNodeId, to: resNodeId, type: "produces" });
 
-      /* performer entity ----------------------------------------- */
-      const entNodeId = `ent:${a.performedBy}`;
-      if (!nodeMap.has(entNodeId)) {
-        const [ent] = await db
-          .select()
-          .from(entity)
-          .where(sql`entity_id = ${a.performedBy}`)
-          .limit(1);
-        nodeMap.set(entNodeId, {
-          id: entNodeId,
-          type: "entity",
-          label: ent?.name ?? a.performedBy.slice(0, 6) + "…",
-          data: ent ?? { entityId: a.performedBy },
-        });
-      }
-      edges.push({ from: entNodeId, to: actNodeId, type: "performedBy" });
+      // Add performer entity
+      const performerId = action.performedBy;
+      if (performerId) {
+        const entNodeId = `ent:${performerId}`;
 
-      /* input resources ------------------------------------------ */
-      for (const input of a.inputCids ?? []) {
-        edges.push({ from: `res:${input}`, to: actNodeId, type: "consumes" });
-        queue.push({ cid: input, depth: depth + 1 });
+        if (!nodes.has(entNodeId)) {
+          const entity = await dbStorage.getEntity(performerId);
+          nodes.set(entNodeId, {
+            id: entNodeId,
+            type: "entity",
+            label: entity?.name ?? performerId.slice(0, 6) + "…",
+            data: entity ?? { id: performerId },
+          });
+        }
+
+        // Edge: entity → action (performedBy)
+        edges.push({ from: entNodeId, to: actNodeId, type: "performedBy" });
       }
 
-      /* tool resource (optional) --------------------------------- */
-      if (a.toolUsed) {
-        edges.push({ from: `res:${a.toolUsed}`, to: actNodeId, type: "tool" });
-        queue.push({ cid: a.toolUsed, depth: depth + 1 });
+      // Process input resources
+      const inputs = action.inputs ?? [];
+      for (const input of inputs) {
+        const inputRef = input.ref;
+        if (!inputRef) continue;
+
+        // Edge: input resource → action (consumes)
+        edges.push({ from: `res:${inputRef}`, to: actNodeId, type: "consumes" });
+
+        // Add to queue for traversal
+        queue.push({ cid: inputRef, depth: depth + 1 });
+      }
+
+      // Process tool reference (from extensions)
+      const toolCid = action.extensions?.toolCid as string | undefined;
+      if (toolCid) {
+        edges.push({ from: `res:${toolCid}`, to: actNodeId, type: "tool" });
+        queue.push({ cid: toolCid, depth: depth + 1 });
       }
     }
   }
 
-  return { nodes: [...nodeMap.values()], edges };
+  return {
+    nodes: Array.from(nodes.values()),
+    edges,
+  };
 }

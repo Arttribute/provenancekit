@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/sdk",
-  "version": "0.0.3",
+  "version": "0.1.0",
   "description": "Framework-agnostic SDK for capturing, persisting, and querying provenance of AI actions and resources.",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
@@ -23,7 +23,9 @@
     "LLM",
     "audit",
     "traceability",
-    "observability"
+    "observability",
+    "c2pa",
+    "payments"
   ],
   "author": "bashy@arttribute.io",
   "license": "MIT",
@@ -35,6 +37,6 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "^0.0.1"
+    "@arttribute/eaa-types": "workspace:*"
   }
 }

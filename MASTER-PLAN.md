@@ -21,10 +21,11 @@ This document details the implementation plan for ProvenanceKit - a universal pr
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              PLATFORM LAYER (📋 PLANNED)                         │
+│                              PLATFORM LAYER                                      │
 │  ┌──────────────────────┐              ┌──────────────────────┐                 │
 │  │   provenancekit-app  │◄────────────►│   provenancekit-api  │                 │
-│  │   (Next.js Frontend) │              │   (API Server)       │                 │
+│  │   (Next.js Frontend) │              │   ✅ COMPLETE        │                 │
+│  │   📋 PLANNED         │              │   (Hono + Storage)   │                 │
 │  └──────────┬───────────┘              └──────────┬───────────┘                 │
 │             │                                     │                              │
 │             ▼                                     ▼                              │
@@ -1020,8 +1021,132 @@ const attributions = createAttributionsFromC2PA(c2pa, contentRef);
 
 | Package | Status |
 |---------|--------|
-| @provenancekit/api | 📋 Planned |
-| @provenancekit/app | 📋 Planned |
+| provenancekit-api (apps/) | ✅ Complete |
+| @provenancekit/sdk | ✅ Complete |
+| provenancekit-app (apps/) | 📋 Planned |
+
+### provenancekit-api ✅ COMPLETE
+
+**Location:** `apps/provenancekit-api/`
+
+The API has been completely rewritten to use the new core packages as the foundation while maintaining SDK compatibility.
+
+**Architecture:**
+- **Framework:** Hono + @hono/node-server
+- **Database:** Supabase (PostgreSQL + pgvector)
+- **File Storage:** Pinata (IPFS)
+- **Embeddings:** Xenova/transformers (768-dim CLIP/CLAP)
+
+**Core Packages Integrated:**
+- `@provenancekit/storage` - Supabase + Pinata adapters
+- `@provenancekit/extensions` - Distribution calculator
+- `@provenancekit/media` - C2PA reading for images
+
+**SDK-Compatible Endpoints (Maintained):**
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | Health check |
+| `/entity` | POST | Create entity |
+| `/activity` | POST | Upload file with provenance |
+| `/bundle/:cid` | GET | Get provenance bundle |
+| `/provenance/:cid` | GET | Get provenance chain |
+| `/graph/:cid` | GET | Get provenance graph |
+| `/similar/:cid` | GET | Find similar resources |
+| `/search/file` | POST | Search by file upload |
+| `/search/text` | POST | Search by text |
+| `/session` | POST | Create session |
+| `/session/:id` | GET | Get session bundle |
+| `/session/:id/message` | POST | Add message |
+| `/session/:id/close` | POST | Close session |
+
+**New Endpoints (Using Extension Packages):**
+
+| Endpoint | Method | Description | Package |
+|----------|--------|-------------|---------|
+| `/distribution/:cid` | GET | Calculate payment distribution | extensions |
+| `/distribution/preview` | POST | Preview distribution for multiple resources | extensions |
+| `/media/formats` | GET | List supported C2PA formats | media |
+| `/media/read` | POST | Extract C2PA manifest from file | media |
+| `/media/verify` | POST | Verify C2PA manifest | media |
+| `/media/import` | POST | Import C2PA provenance as EAA records | media |
+| `/media/ai-check/:cid` | GET | Check if resource was AI-generated | media |
+
+**Key Files:**
+- `src/config.ts` - Zod-validated environment config
+- `src/context.ts` - Initialize Supabase + Pinata from @provenancekit/storage
+- `src/index.ts` - Hono app entry with routes
+- `src/services/*.ts` - Business logic using storage interfaces
+- `src/handlers/*.ts` - Route handlers
+- `src/embedding/service.ts` - Xenova embedding generation
+
+**Migration Pattern:**
+```typescript
+// Before (Direct Drizzle)
+await db.insert(entity).values({ entityId, role, name });
+
+// After (@provenancekit/storage)
+await dbStorage.upsertEntity({ id: entityId, role, name });
+```
+
+### @provenancekit/sdk ✅ COMPLETE
+
+**Location:** `packages/provenancekit-sdk/`
+
+The SDK has been reworked to support all new API endpoints while maintaining backwards compatibility.
+
+**New Methods Added:**
+
+| Method | Description |
+|--------|-------------|
+| `bundle(cid)` | Get full provenance bundle for a resource |
+| `provenance(cid)` | Get provenance chain (alias for bundle) |
+| `similar(cid, topK)` | Find similar resources |
+| `searchText(query, opts)` | Search by text query |
+| `distribution(cid)` | Calculate payment distribution |
+| `distributionPreview(cids, combine)` | Preview distribution for multiple resources |
+| `mediaFormats()` | List supported C2PA formats |
+| `mediaRead(file)` | Read C2PA manifest from file |
+| `mediaVerify(file)` | Verify C2PA manifest |
+| `mediaImport(file, opts)` | Import C2PA as EAA records |
+| `aiCheck(cid)` | Check if resource was AI-generated |
+
+**New Types Added:**
+
+- `ProvenanceBundle` - Full bundle with resource, actions, entities, attributions
+- `Attribution` - Attribution record with weights
+- `Distribution`, `DistributionShare` - Payment distribution types
+- `C2PAManifest`, `C2PAAction`, `C2PAIngredient` - C2PA types
+- `MediaReadResult`, `MediaVerifyResult`, `MediaImportResult` - Media operation results
+- `AICheckResult` - AI detection result
+- `SupportedFormat` - Media format info
+- `TextSearchResult` - Text search results
+
+**Usage Example:**
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+const pk = new ProvenanceKit({ baseUrl: "http://localhost:3001" });
+
+// Upload file with provenance
+const result = await pk.file(imageBuffer, {
+  entity: { role: "human", name: "Alice" },
+  resourceType: "image",
+});
+
+// Get provenance bundle
+const bundle = await pk.bundle(result.cid);
+
+// Calculate payment distribution
+const distribution = await pk.distribution(result.cid);
+
+// Check C2PA manifest
+const c2pa = await pk.mediaRead(imageBuffer);
+
+// Check if AI-generated
+const aiCheck = await pk.aiCheck(result.cid);
+```
 
 ---
 
@@ -1058,4 +1183,4 @@ const attributions = createAttributionsFromC2PA(c2pa, contentRef);
 
 ---
 
-*This document is updated as implementation progresses. Last updated: 2026-02-02*
+*This document is updated as implementation progresses. Last updated: 2026-02-03*

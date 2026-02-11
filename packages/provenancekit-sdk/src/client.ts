@@ -6,8 +6,17 @@ import type {
   DuplicateDetails,
   ProvenanceGraph,
   Match,
+  ProvenanceBundle,
+  Distribution,
+  DistributionPreviewResult,
+  MediaReadResult,
+  MediaVerifyResult,
+  MediaImportResult,
+  AICheckResult,
+  SupportedFormat,
+  TextSearchResult,
 } from "./types";
-import { Session, SessionBundle } from "./types";
+import { SessionBundle } from "./types";
 
 function asBlob(input: Blob | File | Buffer | Uint8Array): Blob {
   if (input instanceof Blob) return input;
@@ -158,5 +167,120 @@ export class ProvenanceKit {
 
   getSession(id: string) {
     return this.api.get<SessionBundle>(`/session/${id}`);
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Provenance Bundle & Chain                                    |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Get the full provenance bundle for a resource.
+   * Includes resource, actions, entities, attributions, and lineage.
+   */
+  bundle(cid: string) {
+    return this.api.get<ProvenanceBundle>(`/bundle/${cid}`);
+  }
+
+  /**
+   * Get the provenance chain for a resource.
+   * Returns the same data as bundle() - alias for compatibility.
+   */
+  provenance(cid: string) {
+    return this.api.get<ProvenanceBundle>(`/provenance/${cid}`);
+  }
+
+  /**
+   * Find resources similar to the given resource.
+   */
+  similar(cid: string, topK = 5) {
+    return this.api.get<Match[]>(`/similar/${cid}?topK=${topK}`);
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Search                                                       |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Search for similar resources by text query.
+   */
+  searchText(query: string, opts: { topK?: number; type?: string } = {}) {
+    return this.api.postJSON<TextSearchResult>("/search/text", {
+      query,
+      topK: opts.topK ?? 5,
+      type: opts.type,
+    });
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Distribution / Payments                                      |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Calculate payment distribution for a resource based on its attributions.
+   */
+  distribution(cid: string) {
+    return this.api.get<Distribution>(`/distribution/${cid}`);
+  }
+
+  /**
+   * Preview distribution for multiple resources.
+   * Optionally combine them into a single distribution.
+   */
+  distributionPreview(cids: string[], combine = false) {
+    return this.api.postJSON<DistributionPreviewResult>("/distribution/preview", {
+      cids,
+      combine,
+    });
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Media / C2PA                                                 |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Get list of supported media formats for C2PA operations.
+   */
+  mediaFormats() {
+    return this.api.get<SupportedFormat[]>("/media/formats");
+  }
+
+  /**
+   * Read C2PA manifest from a media file.
+   */
+  mediaRead(file: Blob | File | Buffer | Uint8Array) {
+    const form = new FormData();
+    form.append("file", asBlob(file), (file as any).name ?? "file.bin");
+    return this.api.postForm<MediaReadResult>("/media/read", form);
+  }
+
+  /**
+   * Verify C2PA manifest in a media file.
+   */
+  mediaVerify(file: Blob | File | Buffer | Uint8Array) {
+    const form = new FormData();
+    form.append("file", asBlob(file), (file as any).name ?? "file.bin");
+    return this.api.postForm<MediaVerifyResult>("/media/verify", form);
+  }
+
+  /**
+   * Import C2PA provenance from a media file as EAA records.
+   */
+  mediaImport(
+    file: Blob | File | Buffer | Uint8Array,
+    opts: { sessionId?: string } = {}
+  ) {
+    const form = new FormData();
+    form.append("file", asBlob(file), (file as any).name ?? "file.bin");
+    if (opts.sessionId) {
+      form.append("sessionId", opts.sessionId);
+    }
+    return this.api.postForm<MediaImportResult>("/media/import", form);
+  }
+
+  /**
+   * Check if a resource was AI-generated based on C2PA or extension data.
+   */
+  aiCheck(cid: string) {
+    return this.api.get<AICheckResult>(`/media/ai-check/${cid}`);
   }
 }
