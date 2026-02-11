@@ -47,25 +47,26 @@ export interface ProvenanceGraph {
   edges: GraphEdge[];
 }
 
-export interface Session {
-  id: string;
-  title?: string;
-  metadata?: Record<string, unknown>;
-  createdAt: string;
-  endedAt?: string;
-}
+/*───────────────────────────────────────────────────────────*\
+ | 4.  Session Provenance                                     |
+ |                                                             |
+ | Sessions are managed by the consuming application.          |
+ | The provenance API links records to a session via           |
+ | the sessionId extension on actions and resources.           |
+\*───────────────────────────────────────────────────────────*/
 
-export interface SessionMessage {
-  id: string;
+export interface SessionProvenance {
   sessionId: string;
-  entityId?: string;
-  content: unknown;
-  createdAt: string;
-}
-
-export interface SessionBundle {
-  session: Session;
-  messages: SessionMessage[];
+  actions: Action[];
+  resources: Resource[];
+  entities: Entity[];
+  attributions: Attribution[];
+  summary: {
+    actions: number;
+    resources: number;
+    entities: number;
+    attributions: number;
+  };
 }
 
 /*───────────────────────────────────────────────────────────*\

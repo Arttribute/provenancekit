@@ -15,8 +15,8 @@ import type {
   AICheckResult,
   SupportedFormat,
   TextSearchResult,
+  SessionProvenance,
 } from "./types";
-import { SessionBundle } from "./types";
 
 function asBlob(input: Blob | File | Buffer | Uint8Array): Blob {
   if (input instanceof Blob) return input;
@@ -59,18 +59,32 @@ export interface FileResult {
   matched?: Match;
 }
 
+export interface ProvenanceKitOptions extends ApiClientOptions {
+  /**
+   * Project ID for multi-tenant isolation.
+   * All activities will be tagged with this ID,
+   * and session queries will be scoped to it.
+   */
+  projectId?: string;
+}
+
 export class ProvenanceKit {
   private readonly api: Api;
+  private readonly projectId?: string;
   readonly unclaimed = "ent:unclaimed";
 
-  constructor(opts: ApiClientOptions = {}) {
+  constructor(opts: ProvenanceKitOptions = {}) {
     this.api = new Api(opts);
+    this.projectId = opts.projectId;
   }
 
   private form(file: Blob | File | Buffer | Uint8Array, json: unknown) {
     const f = new FormData();
     f.append("file", asBlob(file), (file as any).name ?? "file.bin");
-    f.append("json", JSON.stringify(json));
+    // Auto-inject projectId if set on the client
+    const base = (typeof json === "object" && json !== null) ? json : {};
+    const payload = this.projectId ? { ...base, projectId: this.projectId } : base;
+    f.append("json", JSON.stringify(payload));
     return f;
   }
 
@@ -141,32 +155,24 @@ export class ProvenanceKit {
     return r.id;
   }
 
-  /* -------- NEW: sessions ---------- */
-  async createSession(title?: string, metadata?: any) {
-    const r = await this.api.postJSON<{ id: string }>("/session", {
-      title,
-      metadata,
-    });
-    return r.id;
-  }
+  /*─────────────────────────────────────────────────────────────*\
+   | Session Provenance                                          |
+   |                                                              |
+   | Sessions are managed by the consuming app. Pass sessionId    |
+   | when creating activities to link them. Query provenance      |
+   | for a session using this method.                             |
+  \*─────────────────────────────────────────────────────────────*/
 
-  closeSession(id: string) {
-    return this.api.postJSON<{ ok: true }>(`/session/${id}/close`, {});
-  }
-
-  async addSessionMessage(sessionId: string, content: any, entityId?: string) {
-    const r = await this.api.postJSON<{ messageId: string }>(
-      `/session/${sessionId}/message`,
-      {
-        content,
-        entityId,
-      }
-    );
-    return r.messageId;
-  }
-
-  getSession(id: string) {
-    return this.api.get<SessionBundle>(`/session/${id}`);
+  /**
+   * Get all provenance records linked to an app-managed session.
+   * Returns actions, resources, entities, and attributions
+   * that were created with the given sessionId.
+   *
+   * Automatically scoped by projectId if set on the client.
+   */
+  sessionProvenance(sessionId: string) {
+    const qs = this.projectId ? `?projectId=${encodeURIComponent(this.projectId)}` : "";
+    return this.api.get<SessionProvenance>(`/session/${sessionId}/provenance${qs}`);
   }
 
   /*─────────────────────────────────────────────────────────────*\

@@ -114,8 +114,11 @@ export const ActivityPayload = z.object({
   /** Resource type (inferred from MIME if not provided) */
   resourceType: z.string().optional(),
 
-  /** Session ID for grouping activities */
-  sessionId: z.string().uuid().optional(),
+  /** Project ID — identifies the app/project (required for multi-tenant isolation) */
+  projectId: z.string().optional(),
+
+  /** Session ID for grouping activities (app-provided, any format) */
+  sessionId: z.string().optional(),
 
   /** Attribution configuration */
   attribution: z
@@ -169,7 +172,7 @@ export async function createActivity(
     throw ProvenanceKitError.fromZod(parsed.error);
   }
 
-  const { entity: ent, action: act, resourceType, sessionId, attribution: attr, encrypt } = parsed.data;
+  const { entity: ent, action: act, resourceType, projectId, sessionId, attribution: attr, encrypt } = parsed.data;
 
   if (!ent.role?.trim()) {
     throw new ProvenanceKitError("MissingField", "entity.role is required");
@@ -252,6 +255,7 @@ export async function createActivity(
     extensions: {
       ...act.extensions,
       ...(act.toolCid ? { toolCid: act.toolCid } : {}),
+      ...(projectId ? { projectId } : {}),
       ...(sessionId ? { sessionId } : {}),
     },
   };
@@ -282,7 +286,9 @@ export async function createActivity(
     createdAt: timestamp,
     createdBy: entityId,
     rootAction: actionId,
-    extensions: sessionId ? { sessionId } : undefined,
+    extensions: (projectId || sessionId)
+      ? { ...(projectId ? { projectId } : {}), ...(sessionId ? { sessionId } : {}) }
+      : undefined,
   };
 
   resource = withStorage(resource, {

@@ -18,7 +18,7 @@ import entity from "./handlers/entity.js";
 import activity from "./handlers/activity.js";
 import bundle from "./handlers/bundle.js";
 import similar from "./handlers/similar.js";
-import sessionRoutes from "./handlers/session.js";
+import session from "./handlers/session.js";
 import { provenanceRoute } from "./handlers/provenance.js";
 import graph from "./handlers/graph.js";
 import { searchRoute } from "./handlers/search.js";
@@ -43,7 +43,7 @@ app.route("/", similar);
 app.route("/", provenanceRoute);
 app.route("/", graph);
 app.route("/", searchRoute);
-app.route("/", sessionRoutes);
+app.route("/", session);
 app.route("/", payments);
 app.route("/", media);
 
