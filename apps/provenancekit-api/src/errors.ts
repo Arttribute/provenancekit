@@ -7,6 +7,7 @@ export type ErrorCode =
   | "InvalidField" // type/format wrong
   | "ValidationError" // Zod aggregated errors
   | "Unauthorized" // missing or invalid API key
+  | "Forbidden" // valid credentials but lacking permission
   | "Duplicate" // conflict / already exists
   | "Unsupported" // unsupported media or operation
   | "NotFound" // resource not found
@@ -39,6 +40,7 @@ export class ProvenanceKitError extends Error {
         InvalidField: 400,
         ValidationError: 422,
         Unauthorized: 401,
+        Forbidden: 403,
         Duplicate: 409,
         Unsupported: 415,
         NotFound: 404,

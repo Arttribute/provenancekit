@@ -258,6 +258,8 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         bytes32 actionId,
         string calldata role
     ) external {
+        if (!_actionExists(actionId)) revert ActionNotFound(actionId);
+
         emit ActionAttributionRecorded(
             actionId,
             msg.sender,

@@ -20,6 +20,15 @@ import {
   generateKey,
   type MinimalFileStorage,
 } from "@provenancekit/privacy";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  type PublicClient,
+  type WalletClient,
+  type Chain,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { config } from "./config.js";
 
 /*─────────────────────────────────────────────────────────────*\
@@ -44,6 +53,15 @@ export interface AppContext {
 
   /** Generate a new encryption key */
   generateKey: () => Uint8Array;
+
+  /** Optional blockchain clients for on-chain provenance recording */
+  blockchain?: {
+    publicClient: PublicClient;
+    walletClient: WalletClient;
+    contractAddress: `0x${string}`;
+    chainId: number;
+    chainName: string;
+  };
 }
 
 /*─────────────────────────────────────────────────────────────*\
@@ -90,6 +108,52 @@ export async function initializeContext(): Promise<AppContext> {
   );
   console.log("✓ Encrypted storage ready");
 
+  // 5. Initialize blockchain client (optional)
+  let blockchain: AppContext["blockchain"];
+
+  if (
+    config.blockchainRpcUrl &&
+    config.blockchainChainId &&
+    config.blockchainContractAddress &&
+    config.blockchainPrivateKey
+  ) {
+    const chain: Chain = {
+      id: config.blockchainChainId,
+      name: config.blockchainChainName ?? `Chain ${config.blockchainChainId}`,
+      nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+      rpcUrls: {
+        default: { http: [config.blockchainRpcUrl] },
+      },
+    };
+
+    const account = privateKeyToAccount(
+      config.blockchainPrivateKey as `0x${string}`
+    );
+
+    const publicClient = createPublicClient({
+      chain,
+      transport: http(config.blockchainRpcUrl),
+    });
+
+    const walletClient = createWalletClient({
+      account,
+      chain,
+      transport: http(config.blockchainRpcUrl),
+    });
+
+    blockchain = {
+      publicClient,
+      walletClient,
+      contractAddress: config.blockchainContractAddress as `0x${string}`,
+      chainId: config.blockchainChainId,
+      chainName: chain.name,
+    };
+
+    console.log(
+      `✓ Blockchain client ready (${chain.name}, contract: ${config.blockchainContractAddress})`
+    );
+  }
+
   ctx = {
     dbStorage,
     fileStorage,
@@ -97,6 +161,7 @@ export async function initializeContext(): Promise<AppContext> {
     ipfsGateway: config.pinataGateway,
     supabase: supabaseClient,
     generateKey,
+    blockchain,
   };
 
   console.log("ProvenanceKit API context initialized");

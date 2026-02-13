@@ -150,8 +150,26 @@ export class ExtensionRegistry {
 }
 
 /**
- * Global extension registry instance
- * Import and use this to register extensions
+ * Create a new, isolated extension registry.
+ *
+ * Use this in multi-tenant environments where different
+ * contexts need different extension sets.
+ *
+ * @returns A new ExtensionRegistry instance
+ *
+ * @example
+ * ```typescript
+ * const myRegistry = createRegistry();
+ * myRegistry.register(myCustomExtension);
+ * ```
+ */
+export function createRegistry(): ExtensionRegistry {
+  return new ExtensionRegistry();
+}
+
+/**
+ * Global extension registry instance.
+ * Convenience default — use createRegistry() for isolated instances.
  */
 export const registry = new ExtensionRegistry();
 
@@ -248,7 +266,10 @@ export function getExtensionKeys(obj: Extensible): string[] {
  * @param obj Object with extensions
  * @returns Array of validation errors (empty if all valid)
  */
-export function validateExtensions(obj: Extensible): Array<{
+export function validateExtensions(
+  obj: Extensible,
+  reg: ExtensionRegistry = registry
+): Array<{
   key: string;
   error: z.ZodError | string;
 }> {
@@ -259,14 +280,14 @@ export function validateExtensions(obj: Extensible): Array<{
   }
 
   for (const [key, data] of Object.entries(obj.extensions)) {
-    const ext = registry.get(key);
+    const ext = reg.get(key);
 
     if (!ext) {
       // Extension not registered - could be warning or error depending on policy
       continue;
     }
 
-    const validationError = registry.getErrors(key, data);
+    const validationError = reg.getErrors(key, data);
     if (validationError) {
       errors.push({ key, error: validationError });
     }

@@ -1,6 +1,6 @@
-/* Re‑export the canonical bundle / entity / resource types */
-import type { Entity, Resource, Action } from "@arttribute/eaa-types";
-export type { Entity, Resource, Action };
+/* Re‑export the canonical types from eaa-types */
+import type { Entity, Resource, Action, Attribution } from "@arttribute/eaa-types";
+export type { Entity, Resource, Action, Attribution };
 
 /*───────────────────────────────────────────────────────────*\
  | 1.  Duplicate‑handling helper                              |
@@ -73,20 +73,19 @@ export interface SessionProvenance {
  | 5.  Provenance Bundle                                      |
 \*───────────────────────────────────────────────────────────*/
 
+/**
+ * Provenance bundle as returned by the API.
+ *
+ * This is a relaxed version of the canonical ProvenanceBundle from eaa-types
+ * where `context` is optional (may not be set by all API versions).
+ * For strict validation, use ProvenanceBundle from @arttribute/eaa-types.
+ */
 export interface ProvenanceBundle {
   context?: string;
   resources: Resource[];
   actions: Action[];
   entities: Entity[];
   attributions: Attribution[];
-}
-
-export interface Attribution {
-  resourceRef?: { ref: string; scheme: string };
-  actionId?: string;
-  entityId: string;
-  role?: string;
-  note?: string;
   extensions?: Record<string, unknown>;
 }
 

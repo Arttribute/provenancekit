@@ -59,6 +59,7 @@ export {
   withLicense,
   getLicense,
   hasLicense,
+  isLicenseActive,
   Licenses,
   type LicensePreset,
 } from "./license";
@@ -121,6 +122,16 @@ export {
   setAgentSession,
 } from "./ai";
 
+// Action proof extension
+export {
+  PROOF_NAMESPACE,
+  ProofExtension,
+  type ActionProof,
+  withProof,
+  getProof,
+  hasProof,
+} from "./proof";
+
 // Generic utilities
 export {
   withExtension,
@@ -156,4 +167,5 @@ export const NAMESPACES = {
   ONCHAIN: "ext:onchain@1.0.0",
   STORAGE: "ext:storage@1.0.0",
   AI: "ext:ai@1.0.0",
+  PROOF: "ext:proof@1.0.0",
 } as const;

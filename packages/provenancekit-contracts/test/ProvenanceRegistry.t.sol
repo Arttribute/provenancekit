@@ -339,6 +339,13 @@ contract ProvenanceRegistryTest is Test {
     function test_RecordAttributionFor() public {
         vm.startPrank(alice);
 
+        // Alice must first register the resource so she is the creator
+        string[] memory inputs = new string[](0);
+        string[] memory outputs = new string[](1);
+        outputs[0] = CID_IMAGE;
+        bytes32 actionId = registry.recordAction(ACTION_CREATE, inputs, outputs);
+        registry.registerResource(CID_IMAGE, RESOURCE_TYPE_IMAGE, actionId);
+
         vm.expectEmit(true, true, false, true);
         emit AttributionRecorded(
             CID_IMAGE,
@@ -357,6 +364,41 @@ contract ProvenanceRegistryTest is Test {
 
         vm.expectRevert(ProvenanceRegistry.EmptyCID.selector);
         registry.recordAttribution("", ATTRIBUTION_ROLE_CREATOR);
+
+        vm.stopPrank();
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                    ACTION ATTRIBUTION TESTS
+    //////////////////////////////////////////////////////////////*/
+
+    function test_RecordActionAttribution() public {
+        vm.startPrank(alice);
+
+        // First record an action
+        string[] memory inputs = new string[](0);
+        string[] memory outputs = new string[](1);
+        outputs[0] = CID_IMAGE;
+        bytes32 actionId = registry.recordAction(ACTION_CREATE, inputs, outputs);
+
+        // Should succeed for existing action
+        registry.recordActionAttribution(actionId, ATTRIBUTION_ROLE_CREATOR);
+
+        vm.stopPrank();
+    }
+
+    function test_RevertWhen_RecordActionAttributionForNonexistentAction() public {
+        vm.startPrank(alice);
+
+        bytes32 fakeActionId = keccak256("nonexistent");
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ProvenanceRegistry.ActionNotFound.selector,
+                fakeActionId
+            )
+        );
+        registry.recordActionAttribution(fakeActionId, ATTRIBUTION_ROLE_CREATOR);
 
         vm.stopPrank();
     }

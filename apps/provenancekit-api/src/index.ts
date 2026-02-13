@@ -11,7 +11,12 @@ import { cors } from "hono/cors";
 import { config } from "./config.js";
 import { initializeContext, closeContext } from "./context.js";
 import { toProvenanceKitError } from "./errors.js";
-import { authMiddleware } from "./middleware/auth.js";
+import {
+  authMiddleware,
+  createAuthMiddleware,
+  createAPIKeyProvider,
+  type AuthProvider,
+} from "./middleware/auth.js";
 
 // Handlers
 import health from "./handlers/health.js";
@@ -27,51 +32,80 @@ import payments from "./handlers/payments.js";
 import media from "./handlers/media.js";
 
 /*─────────────────────────────────────────────────────────────*\
- | App Setup                                                     |
+ | App Factory                                                   |
 \*─────────────────────────────────────────────────────────────*/
 
-const app = new Hono();
+export interface CreateAppOptions {
+  /** Custom auth providers. Defaults to API key provider from config. */
+  authProviders?: AuthProvider[];
+}
 
-// Middleware
-app.use("*", cors());
-app.use("*", authMiddleware);
+/**
+ * Create a configured Hono app instance.
+ *
+ * Use this to embed the ProvenanceKit API in your own server
+ * with custom auth providers:
+ *
+ * ```typescript
+ * import { createApp } from "@provenancekit/api";
+ * const app = createApp({ authProviders: [myJwtProvider] });
+ * ```
+ */
+export function createApp(opts?: CreateAppOptions) {
+  const app = new Hono();
 
-// Routes
-app.route("/", health);
-app.route("/", entity);
-app.route("/", activity);
-app.route("/", bundle);
-app.route("/", similar);
-app.route("/", provenanceRoute);
-app.route("/", graph);
-app.route("/", searchRoute);
-app.route("/", session);
-app.route("/", payments);
-app.route("/", media);
+  // Middleware
+  app.use("*", cors());
 
-// 404 handler for unknown routes
-app.notFound((c) =>
-  c.json(
-    { error: { code: "NotFound", message: `Route not found: ${c.req.method} ${c.req.path}` } },
-    404
-  )
-);
+  if (opts?.authProviders) {
+    app.use("*", createAuthMiddleware(opts.authProviders));
+  } else {
+    app.use("*", authMiddleware);
+  }
 
-// Central error handler
-app.onError((err, c) => {
-  const e = toProvenanceKitError(err);
-  return c.json(
-    {
-      error: {
-        code: e.code,
-        message: e.message,
-        recovery: e.recovery,
-        details: e.details,
-      },
-    },
-    e.status as any
+  // Routes
+  app.route("/", health);
+  app.route("/", entity);
+  app.route("/", activity);
+  app.route("/", bundle);
+  app.route("/", similar);
+  app.route("/", provenanceRoute);
+  app.route("/", graph);
+  app.route("/", searchRoute);
+  app.route("/", session);
+  app.route("/", payments);
+  app.route("/", media);
+
+  // 404 handler for unknown routes
+  app.notFound((c) =>
+    c.json(
+      { error: { code: "NotFound", message: `Route not found: ${c.req.method} ${c.req.path}` } },
+      404
+    )
   );
-});
+
+  // Central error handler
+  app.onError((err, c) => {
+    const e = toProvenanceKitError(err);
+    return c.json(
+      {
+        error: {
+          code: e.code,
+          message: e.message,
+          recovery: e.recovery,
+          details: e.details,
+        },
+      },
+      e.status as any
+    );
+  });
+
+  return app;
+}
+
+// Re-export for programmatic consumers
+export { createAuthMiddleware, createAPIKeyProvider, type AuthProvider };
+export type { AuthIdentity, AuthMiddlewareOptions } from "./middleware/auth.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | Server Startup                                                |
@@ -81,6 +115,8 @@ async function main() {
   try {
     // Initialize storage adapters
     await initializeContext();
+
+    const app = createApp();
 
     // Start HTTP server
     serve({ fetch: app.fetch, port: config.port }, ({ port }) =>

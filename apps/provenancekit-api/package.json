@@ -12,6 +12,7 @@
     "@img/sharp-libvips-linux-x64": "1.0.6",
     "@img/sharp-linux-x64": "0.33.5",
     "@provenancekit/extensions": "workspace:*",
+    "@provenancekit/sdk": "workspace:*",
     "@provenancekit/media": "workspace:*",
     "@provenancekit/payments": "workspace:*",
     "@provenancekit/privacy": "workspace:*",
@@ -26,6 +27,7 @@
     "sharp": "^0.34.2",
     "uint8arrays": "^5.1.0",
     "uuid": "^11.1.0",
+    "viem": "^2.45.3",
     "wavefile": "^11.0.0",
     "zod": "^3.25.69"
   },

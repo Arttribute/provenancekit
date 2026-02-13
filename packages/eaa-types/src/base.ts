@@ -629,6 +629,29 @@ function simpleHash(str: string): string {
 }
 
 /**
+ * Bundle signature schema.
+ *
+ * @remarks
+ * Contains the cryptographic signature of a provenance bundle's content,
+ * enabling verification that the bundle has not been tampered with.
+ */
+export const BundleSignature = z.object({
+  /** Signing algorithm used */
+  algorithm: z.enum(["Ed25519", "ECDSA-secp256k1"]),
+
+  /** Public key of the signer (hex-encoded) */
+  publicKey: z.string(),
+
+  /** Signature bytes (hex-encoded) */
+  signature: z.string(),
+
+  /** When the bundle was signed (ISO 8601) */
+  timestamp: z.string().datetime(),
+});
+
+export type BundleSignature = z.infer<typeof BundleSignature>;
+
+/**
  * ProvenanceBundle schema for complete provenance packages.
  *
  * @remarks
@@ -653,6 +676,9 @@ export const ProvenanceBundle = z.object({
 
   /** Extension data (bundle-level metadata) */
   extensions: z.record(z.unknown()).optional(),
+
+  /** Optional cryptographic signature of the bundle */
+  signature: BundleSignature.optional(),
 });
 
 export type ProvenanceBundle = z.infer<typeof ProvenanceBundle>;

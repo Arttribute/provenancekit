@@ -1,6 +1,7 @@
 // packages/provenancekit-sdk/src/client.ts
 import { Api, ApiClientOptions } from "./api";
 import { ProvenanceKitError } from "./errors";
+import { signAction, type ActionSignPayload, type ActionProof } from "./signing";
 import type {
   UploadMatchResult,
   DuplicateDetails,
@@ -38,6 +39,8 @@ export interface FileOpts {
     inputCids?: string[];
     toolCid?: string;
     proof?: string;
+    /** Structured action proof (ext:proof@1.0.0) */
+    actionProof?: ActionProof;
     extensions?: Record<string, any>;
   };
   resourceType?: string;
@@ -65,16 +68,36 @@ export interface ProvenanceKitOptions extends ApiClientOptions {
    * and session queries will be scoped to it.
    */
   projectId?: string;
+
+  /**
+   * Hex-encoded Ed25519 private key for auto-signing actions.
+   * When set, all actions created via `file()` are automatically signed.
+   */
+  signingKey?: string;
+
+  /**
+   * Entity ID to bind to signed actions.
+   * Required when `signingKey` is set.
+   */
+  signingEntityId?: string;
 }
 
 export class ProvenanceKit {
   private readonly api: Api;
   private readonly projectId?: string;
+  private readonly signingKey?: string;
+  private readonly signingEntityId?: string;
   readonly unclaimed = "ent:unclaimed";
 
   constructor(opts: ProvenanceKitOptions = {}) {
     this.api = new Api(opts);
     this.projectId = opts.projectId;
+    this.signingKey = opts.signingKey;
+    this.signingEntityId = opts.signingEntityId;
+
+    if (this.signingKey && !this.signingEntityId) {
+      throw new Error("signingEntityId is required when signingKey is set");
+    }
   }
 
   private form(file: Blob | File | Buffer | Uint8Array, json: unknown) {
@@ -103,12 +126,35 @@ export class ProvenanceKit {
     file: Blob | File | Buffer | Uint8Array,
     opts: FileOpts
   ): Promise<FileResult> {
+    // Auto-sign if signing key is configured and no proof already provided
+    let finalOpts = opts;
+    if (this.signingKey && !opts.action?.actionProof) {
+      const entityId = opts.entity.id ?? this.signingEntityId!;
+      const actionType = opts.action?.type ?? "create";
+      const inputCids = opts.action?.inputCids ?? [];
+      const timestamp = new Date().toISOString();
+
+      const payload: ActionSignPayload = {
+        entityId,
+        actionType,
+        inputs: inputCids,
+        timestamp,
+      };
+
+      const actionProof = await signAction(payload, this.signingKey);
+
+      finalOpts = {
+        ...opts,
+        action: { ...opts.action, actionProof },
+      };
+    }
+
     try {
       const res = await this.api.postForm<{
         cid: string;
         actionId: string;
         entityId: string;
-      }>("/activity", this.form(file, opts));
+      }>("/activity", this.form(file, finalOpts));
       return { ...res };
     } catch (e) {
       if (e instanceof ProvenanceKitError && e.code === "Duplicate") {
@@ -125,18 +171,6 @@ export class ProvenanceKit {
       }
       throw e;
     }
-  }
-
-  async tool(
-    spec: Blob | File | Buffer | Uint8Array,
-    meta: { name?: string; sessionId?: string }
-  ) {
-    const res = await this.file(spec, {
-      entity: { role: "organization", name: meta.name ?? "Tool Publisher" },
-      resourceType: "data",
-      sessionId: meta.sessionId,
-    });
-    return res.cid;
   }
 
   graph(cid: string, depth = 10) {

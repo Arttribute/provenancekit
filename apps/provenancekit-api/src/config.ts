@@ -20,6 +20,9 @@ const ConfigSchema = z.object({
   /** API keys (comma-separated). When set, all non-health endpoints require a Bearer token. */
   apiKeys: z.string().optional(),
 
+  /** Proof policy for action signing verification */
+  proofPolicy: z.enum(["enforce", "warn", "off"]).default("enforce"),
+
   // Supabase (PostgreSQL + Vectors)
   supabaseUrl: z.string().url(),
   supabaseAnonKey: z.string().min(1),
@@ -36,6 +39,24 @@ const ConfigSchema = z.object({
 
   // Optional: OpenAI for alternative embeddings
   openaiApiKey: z.string().optional(),
+
+  // Blockchain (optional - enables on-chain recording)
+  /** RPC URL for the target blockchain */
+  blockchainRpcUrl: z.string().url().optional(),
+  /** Chain ID (e.g., 8453 for Base, 84532 for Base Sepolia) */
+  blockchainChainId: z.coerce.number().optional(),
+  /** Human-readable chain name */
+  blockchainChainName: z.string().optional(),
+  /** ProvenanceRegistry contract address */
+  blockchainContractAddress: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{40}$/)
+    .optional(),
+  /** Private key for signing transactions (use env var, never hardcode) */
+  blockchainPrivateKey: z
+    .string()
+    .regex(/^0x[a-fA-F0-9]{64}$/)
+    .optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -58,6 +79,12 @@ export function loadConfig(): Config {
     matchThreshold: process.env.MATCH_THRESHOLD,
     openaiApiKey: process.env.OPENAI_API_KEY,
     apiKeys: process.env.API_KEYS,
+    proofPolicy: process.env.PROOF_POLICY,
+    blockchainRpcUrl: process.env.BLOCKCHAIN_RPC_URL,
+    blockchainChainId: process.env.BLOCKCHAIN_CHAIN_ID,
+    blockchainChainName: process.env.BLOCKCHAIN_CHAIN_NAME,
+    blockchainContractAddress: process.env.BLOCKCHAIN_CONTRACT_ADDRESS,
+    blockchainPrivateKey: process.env.BLOCKCHAIN_PRIVATE_KEY,
   });
 
   if (!result.success) {

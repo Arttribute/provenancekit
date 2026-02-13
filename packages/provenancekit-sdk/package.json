@@ -10,11 +10,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./signing": {
+      "types": "./dist/signing.d.ts",
+      "import": "./dist/signing.mjs",
+      "require": "./dist/signing.cjs"
     }
   },
   "scripts": {
     "build": "tsup",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run"
   },
   "keywords": [
     "attribution",
@@ -34,7 +39,8 @@
     "@types/node": "^24.0.14",
     "rimraf": "^6.0.1",
     "tsup": "^8.5.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.18"
   },
   "files": [
     "dist"
@@ -44,6 +50,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "workspace:*"
+    "@arttribute/eaa-types": "workspace:*",
+    "@noble/ed25519": "^3.0.0"
   }
 }

@@ -10,16 +10,32 @@ export const LICENSE_NAMESPACE = "ext:license@1.0.0" as const;
 /**
  * License extension schema.
  *
- * Defines usage rights and terms for content.
+ * Defines usage rights and terms for content. Attach to a Resource to declare
+ * general terms, or to an Attribution (with role "licensee") to record that
+ * a specific entity has been granted rights.
  *
  * @example
  * ```typescript
+ * // General license on a resource
  * const resource = withLicense(res, {
  *   type: "CC-BY-4.0",
  *   commercial: true,
  *   derivatives: true,
  *   attribution: "required",
  * });
+ *
+ * // Specific grant to an entity (on an attribution)
+ * const grant = withLicense(
+ *   { resourceRef: cidRef("bafy..."), entityId: "bob", role: "licensee" },
+ *   {
+ *     type: "commercial-license",
+ *     commercial: true,
+ *     derivatives: true,
+ *     grantedBy: "alice",
+ *     grantType: "purchase",
+ *     transactionRef: "0xabc...def",
+ *   }
+ * );
  * ```
  */
 export const LicenseExtension = z.object({
@@ -49,6 +65,17 @@ export const LicenseExtension = z.object({
 
   /** License expiration date (ISO 8601) */
   expires: z.string().datetime().optional(),
+
+  /** Entity ID of who granted the rights (for per-entity grants on attributions) */
+  grantedBy: z.string().optional(),
+
+  /** How rights were acquired: license, purchase, transfer, open, agreement */
+  grantType: z
+    .enum(["license", "purchase", "transfer", "open", "agreement"])
+    .optional(),
+
+  /** Reference to a payment/purchase transaction backing this grant */
+  transactionRef: z.string().optional(),
 });
 
 export type LicenseExtension = z.infer<typeof LicenseExtension>;
@@ -98,6 +125,23 @@ export function getLicense(
  */
 export function hasLicense(obj: Resource | Attribution): boolean {
   return obj.extensions?.[LICENSE_NAMESPACE] !== undefined;
+}
+
+/**
+ * Check if a license is currently active (not expired).
+ *
+ * @param obj - The resource or attribution to check
+ * @param now - Reference date (defaults to current time)
+ * @returns True if the license exists and has not expired
+ */
+export function isLicenseActive(
+  obj: Resource | Attribution,
+  now: Date = new Date()
+): boolean {
+  const license = getLicense(obj);
+  if (!license) return false;
+  if (!license.expires) return true;
+  return new Date(license.expires) > now;
 }
 
 /**

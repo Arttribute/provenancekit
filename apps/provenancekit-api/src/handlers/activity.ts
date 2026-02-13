@@ -4,6 +4,7 @@ import {
   ActivityPayload,
 } from "../services/activity.service.js";
 import { ProvenanceKitError } from "../errors.js";
+import { getAuthIdentity } from "../middleware/auth.js";
 import { ZodError } from "zod";
 
 const r = new Hono();
@@ -43,7 +44,7 @@ r.post("/activity", async (c) => {
   if (!parsed.success) throw ProvenanceKitError.fromZod(parsed.error);
 
   try {
-    const result = await createActivity(form.file, payload);
+    const result = await createActivity(form.file, payload, getAuthIdentity(c));
     return c.json(result, 201);
   } catch (err) {
     if (err instanceof ProvenanceKitError) throw err;

@@ -6,6 +6,7 @@ import {
   withLicense,
   getLicense,
   hasLicense,
+  isLicenseActive,
   Licenses,
 } from "../src/license";
 
@@ -109,6 +110,91 @@ describe("license extension", () => {
     it("returns false when extension missing", () => {
       const resource = createResource();
       expect(hasLicense(resource)).toBe(false);
+    });
+  });
+
+  describe("grant fields", () => {
+    it("accepts grantedBy, grantType, transactionRef", () => {
+      const result = LicenseExtension.safeParse({
+        type: "commercial-license",
+        commercial: true,
+        grantedBy: "alice",
+        grantType: "purchase",
+        transactionRef: "0xabc123",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.grantedBy).toBe("alice");
+        expect(result.data.grantType).toBe("purchase");
+        expect(result.data.transactionRef).toBe("0xabc123");
+      }
+    });
+
+    it("rejects invalid grantType", () => {
+      const result = LicenseExtension.safeParse({
+        type: "custom",
+        grantType: "stolen",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("models a per-entity grant on an attribution", () => {
+      const attr: Attribution = {
+        resourceRef: cidRef("bafyimage123"),
+        entityId: "bob",
+        role: "licensee",
+      };
+      const granted = withLicense(attr, {
+        type: "commercial-license",
+        commercial: true,
+        derivatives: true,
+        grantedBy: "alice",
+        grantType: "purchase",
+        transactionRef: "inv-2025-001",
+        expires: "2026-01-01T00:00:00Z",
+      });
+
+      const license = getLicense(granted);
+      expect(license?.grantedBy).toBe("alice");
+      expect(license?.grantType).toBe("purchase");
+      expect(license?.transactionRef).toBe("inv-2025-001");
+      expect(granted.role).toBe("licensee");
+    });
+  });
+
+  describe("isLicenseActive", () => {
+    it("returns true for license without expiry", () => {
+      const resource = withLicense(createResource(), Licenses.CC_BY);
+      expect(isLicenseActive(resource)).toBe(true);
+    });
+
+    it("returns true for license not yet expired", () => {
+      const resource = withLicense(createResource(), {
+        type: "custom",
+        expires: "2099-12-31T23:59:59Z",
+      });
+      expect(isLicenseActive(resource)).toBe(true);
+    });
+
+    it("returns false for expired license", () => {
+      const resource = withLicense(createResource(), {
+        type: "custom",
+        expires: "2020-01-01T00:00:00Z",
+      });
+      expect(isLicenseActive(resource)).toBe(false);
+    });
+
+    it("returns false when no license exists", () => {
+      expect(isLicenseActive(createResource())).toBe(false);
+    });
+
+    it("accepts custom reference date", () => {
+      const attr = withLicense(createAttribution(), {
+        type: "time-limited",
+        expires: "2025-06-01T00:00:00Z",
+      });
+      expect(isLicenseActive(attr, new Date("2025-01-01"))).toBe(true);
+      expect(isLicenseActive(attr, new Date("2025-07-01"))).toBe(false);
     });
   });
 

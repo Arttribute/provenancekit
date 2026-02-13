@@ -29,13 +29,18 @@ import {
   withAITool,
   withStorage,
   withPayment,
+  withOnchain,
+  withProof,
   Licenses,
+  type ActionProof,
 } from "@provenancekit/extensions";
+import { verifyAction, type ActionSignPayload } from "@provenancekit/sdk";
 import { getContext } from "../context.js";
 import { config } from "../config.js";
 import { EmbeddingService, type ResourceKind } from "../embedding/service.js";
 import { toDataURI, inferKindFromMime } from "../utils.js";
 import { ProvenanceKitError } from "../errors.js";
+import type { AuthIdentity } from "../middleware/auth.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | Embedding Service                                            |
@@ -108,6 +113,13 @@ export const ActivityPayload = z.object({
     inputCids: z.array(z.string()).default([]),
     toolCid: z.string().optional(),
     proof: z.string().optional(),
+    /** Structured action proof (ext:proof@1.0.0) — used for signature verification */
+    actionProof: z.object({
+      algorithm: z.enum(["Ed25519", "ECDSA-secp256k1"]),
+      publicKey: z.string(),
+      signature: z.string(),
+      timestamp: z.string(),
+    }).optional(),
     extensions: z.record(z.unknown()).optional(),
     aiTool: AIToolSchema.optional(),
   }),
@@ -148,6 +160,88 @@ export interface ActivityResult {
   encrypted: boolean;
   /** Base64-encoded encryption key — only present when encrypt=true. Caller MUST store this to decrypt later. */
   encryptionKey?: string;
+  /** Transaction hash if on-chain recording succeeded */
+  txHash?: string;
+}
+
+/*─────────────────────────────────────────────────────────────*\
+ | Blockchain ABI (minimal write interface)                     |
+\*─────────────────────────────────────────────────────────────*/
+
+/** Minimal ABI for writing to ProvenanceRegistry */
+const REGISTRY_WRITE_ABI = [
+  {
+    type: "function",
+    name: "recordActionAndRegisterOutputs",
+    inputs: [
+      { name: "actionType", type: "string" },
+      { name: "inputs", type: "string[]" },
+      { name: "outputs", type: "string[]" },
+      { name: "resourceType", type: "string" },
+    ],
+    outputs: [{ name: "actionId", type: "bytes32" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+/*─────────────────────────────────────────────────────────────*\
+ | Proof Verification                                           |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Verify an action proof against the entity's registered public key.
+ *
+ * Behaviour depends on `config.proofPolicy`:
+ * - `enforce`: reject unsigned actions from entities with registered public keys
+ * - `warn`: accept but log a warning
+ * - `off`: skip verification entirely
+ */
+async function verifyActionProof(
+  actionProof: ActionProof | undefined,
+  entity: { id: string; publicKey?: string },
+  actionType: string,
+  inputCids: string[],
+  timestamp: string
+): Promise<void> {
+  if (config.proofPolicy === "off") return;
+
+  // Structured proof provided — verify it
+  if (actionProof) {
+    // Check public key matches entity's registered key
+    if (entity.publicKey && actionProof.publicKey !== entity.publicKey) {
+      throw new ProvenanceKitError("Forbidden", "Proof public key does not match entity's registered public key", {
+        recovery: "Sign the action with the private key corresponding to the entity's registered public key",
+      });
+    }
+
+    const payload: ActionSignPayload = {
+      entityId: entity.id,
+      actionType,
+      inputs: inputCids,
+      timestamp,
+    };
+
+    const valid = await verifyAction(payload, actionProof);
+
+    if (!valid) {
+      throw new ProvenanceKitError("Forbidden", "Invalid action proof signature", {
+        recovery: "Ensure the action payload matches what was signed (entityId, actionType, inputs, timestamp)",
+      });
+    }
+    return;
+  }
+
+  // No proof but entity has a registered public key
+  if (entity.publicKey) {
+    if (config.proofPolicy === "enforce") {
+      throw new ProvenanceKitError("Forbidden", "Action proof required for entities with registered public keys", {
+        recovery: "Sign the action using signAction() from @provenancekit/sdk",
+      });
+    }
+    if (config.proofPolicy === "warn") {
+      console.warn(`[proof-policy] Unsigned action from entity ${entity.id} (has registered public key)`);
+    }
+  }
 }
 
 /*─────────────────────────────────────────────────────────────*\
@@ -165,7 +259,8 @@ export interface ActivityResult {
  */
 export async function createActivity(
   file: File,
-  body: unknown
+  body: unknown,
+  authIdentity?: AuthIdentity
 ): Promise<ActivityResult> {
   const { dbStorage, fileStorage, encryptedStorage, ipfsGateway } = getContext();
 
@@ -247,6 +342,15 @@ export async function createActivity(
     metadata: ent.wallet ? { wallet: ent.wallet } : undefined,
   });
 
+  // 6a'. Verify action proof
+  await verifyActionProof(
+    act.actionProof as ActionProof | undefined,
+    { id: entityId, publicKey: ent.publicKey },
+    act.type,
+    act.inputCids,
+    timestamp
+  );
+
   // 6b. Create action
   let action: Action = {
     id: actionId,
@@ -262,12 +366,26 @@ export async function createActivity(
     },
   };
 
+  // Add structured proof as extension
+  if (act.actionProof) {
+    action = withProof(action, act.actionProof as ActionProof);
+  }
+
   // Add session context as namespaced extension
   if (sessionId || projectId) {
     const sessionData: Record<string, string> = {};
     if (sessionId) sessionData.sessionId = sessionId;
     if (projectId) sessionData.projectId = projectId;
     setExtension(action, "ext:session@1.0.0", sessionData);
+  }
+
+  // Add auth identity as extension for audit trail
+  if (authIdentity) {
+    setExtension(action, "ext:auth@1.0.0", {
+      id: authIdentity.id,
+      method: authIdentity.method,
+      ...(authIdentity.entityId ? { entityId: authIdentity.entityId } : {}),
+    });
   }
 
   // Add AI tool extension if provided
@@ -366,6 +484,55 @@ export async function createActivity(
     });
   }
 
+  // 7. Optionally record on-chain
+  const { blockchain } = getContext();
+  let txHash: string | undefined;
+
+  if (blockchain) {
+    try {
+      const { request } = await blockchain.publicClient.simulateContract({
+        address: blockchain.contractAddress,
+        abi: REGISTRY_WRITE_ABI,
+        functionName: "recordActionAndRegisterOutputs",
+        args: [act.type, act.inputCids, [cid], kind],
+        account: blockchain.walletClient.account,
+      });
+
+      const hash = await blockchain.walletClient.writeContract(request);
+
+      const receipt = await blockchain.publicClient.waitForTransactionReceipt({
+        hash,
+      });
+
+      txHash = receipt.transactionHash;
+
+      // Update action extensions with on-chain data
+      const updatedAction = withOnchain(action, {
+        chainId: blockchain.chainId,
+        chainName: blockchain.chainName,
+        blockNumber: Number(receipt.blockNumber),
+        transactionHash: receipt.transactionHash,
+        contractAddress: blockchain.contractAddress,
+        confirmed: receipt.status === "success",
+      });
+
+      // Persist the on-chain extension back to DB
+      const { supabase } = getContext();
+      await supabase
+        .from("pk_action")
+        .update({ extensions: updatedAction.extensions })
+        .eq("id", actionId);
+
+      console.log(`✓ On-chain: tx ${txHash} (block ${receipt.blockNumber})`);
+    } catch (error) {
+      // On-chain failure does NOT roll back off-chain records
+      console.error(
+        "On-chain recording failed (off-chain records saved):",
+        error
+      );
+    }
+  }
+
   return {
     cid,
     actionId,
@@ -375,6 +542,7 @@ export async function createActivity(
     ...(encryptionKey
       ? { encryptionKey: Buffer.from(encryptionKey).toString("base64") }
       : {}),
+    ...(txHash ? { txHash } : {}),
   };
 }
 
