@@ -23,6 +23,17 @@ const ConfigSchema = z.object({
   /** Proof policy for action signing verification */
   proofPolicy: z.enum(["enforce", "warn", "off"]).default("enforce"),
 
+  /** Server Ed25519 private key for witness attestations (hex-encoded, 64 chars) */
+  serverSigningKey: z.string().regex(/^[a-fA-F0-9]{64}$/).optional(),
+
+  /** Whether to validate that input CIDs exist before creating actions */
+  validateInputs: z.boolean().default(true),
+
+  /** Minimum acceptable tool attestation level */
+  minToolAttestationLevel: z
+    .enum(["provider-signed", "receipt-backed", "self-declared"])
+    .default("self-declared"),
+
   // Supabase (PostgreSQL + Vectors)
   supabaseUrl: z.string().url(),
   supabaseAnonKey: z.string().min(1),
@@ -80,6 +91,9 @@ export function loadConfig(): Config {
     openaiApiKey: process.env.OPENAI_API_KEY,
     apiKeys: process.env.API_KEYS,
     proofPolicy: process.env.PROOF_POLICY,
+    serverSigningKey: process.env.SERVER_SIGNING_KEY,
+    validateInputs: process.env.VALIDATE_INPUTS === "false" ? false : true,
+    minToolAttestationLevel: process.env.MIN_TOOL_ATTESTATION_LEVEL,
     blockchainRpcUrl: process.env.BLOCKCHAIN_RPC_URL,
     blockchainChainId: process.env.BLOCKCHAIN_CHAIN_ID,
     blockchainChainName: process.env.BLOCKCHAIN_CHAIN_NAME,

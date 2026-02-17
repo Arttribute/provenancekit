@@ -132,6 +132,47 @@ export {
   hasProof,
 } from "./proof";
 
+// Identity proof extension
+export {
+  IDENTITY_NAMESPACE,
+  IdentityProofExtension,
+  withIdentityProof,
+  getIdentityProof,
+  hasIdentityProof,
+} from "./identity";
+
+// Server witness extension
+export {
+  WITNESS_NAMESPACE,
+  WitnessExtension,
+  withWitness,
+  getWitness,
+  hasWitness,
+} from "./witness";
+
+// Tool attestation extension
+export {
+  TOOL_ATTESTATION_NAMESPACE,
+  ToolAttestationLevel,
+  ToolAttestationExtension,
+  ProviderSignature,
+  ToolReceipt,
+  withToolAttestation,
+  getToolAttestation,
+  hasToolAttestation,
+  getAttestationLevel,
+} from "./tool-attestation";
+
+// Verification result extension
+export {
+  VERIFICATION_NAMESPACE,
+  ClaimStatus,
+  VerificationExtension,
+  withVerification,
+  getVerification,
+  isFullyVerified,
+} from "./verification";
+
 // Generic utilities
 export {
   withExtension,
@@ -168,4 +209,8 @@ export const NAMESPACES = {
   STORAGE: "ext:storage@1.0.0",
   AI: "ext:ai@1.0.0",
   PROOF: "ext:proof@1.0.0",
+  IDENTITY: "ext:identity@1.0.0",
+  WITNESS: "ext:witness@1.0.0",
+  TOOL_ATTESTATION: "ext:tool-attestation@1.0.0",
+  VERIFICATION: "ext:verification@1.0.0",
 } as const;

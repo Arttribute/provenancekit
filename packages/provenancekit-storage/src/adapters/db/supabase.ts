@@ -29,6 +29,7 @@ import type {
 import type {
   IProvenanceStorage,
   IVectorStorage,
+  EntityFilter,
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
@@ -399,17 +400,55 @@ $$;\n\n`;
   async upsertEntity(entity: Entity): Promise<Entity> {
     this.ensureInitialized();
 
+    // Check for publicKey immutability violation
+    const existing = await this.getEntity(entity.id);
+    if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
+      throw new QueryError(
+        `Cannot change publicKey for entity "${entity.id}": ` +
+        `public keys are immutable after first registration`
+      );
+    }
+
     const result = await this.client.from(this.t.entity).upsert({
       id: entity.id,
       role: entity.role,
       name: entity.name ?? null,
-      public_key: entity.publicKey ?? null,
-      metadata: entity.metadata ?? {},
-      extensions: entity.extensions ?? {},
+      public_key: existing?.publicKey ?? entity.publicKey ?? null,
+      metadata: { ...(existing?.metadata ?? {}), ...(entity.metadata ?? {}) },
+      extensions: { ...(existing?.extensions ?? {}), ...(entity.extensions ?? {}) },
     });
 
     this.handleError(result, "upsert entity");
     return entity;
+  }
+
+  async updateEntity(
+    id: string,
+    update: Partial<Pick<Entity, "name" | "metadata" | "extensions">>
+  ): Promise<Entity | null> {
+    this.ensureInitialized();
+
+    const existing = await this.getEntity(id);
+    if (!existing) return null;
+
+    const updateData: Record<string, unknown> = {};
+    if (update.name !== undefined) updateData.name = update.name;
+    if (update.metadata !== undefined) {
+      updateData.metadata = { ...existing.metadata, ...update.metadata };
+    }
+    if (update.extensions !== undefined) {
+      updateData.extensions = { ...existing.extensions, ...update.extensions };
+    }
+
+    if (Object.keys(updateData).length === 0) return existing;
+
+    const result = await this.client
+      .from(this.t.entity)
+      .update(updateData)
+      .eq("id", id);
+
+    this.handleError(result, "update entity");
+    return this.getEntity(id);
   }
 
   async getEntity(id: string): Promise<Entity | null> {
@@ -431,6 +470,26 @@ $$;\n\n`;
     this.ensureInitialized();
     const entity = await this.getEntity(id);
     return entity !== null;
+  }
+
+  async listEntities(filter?: EntityFilter): Promise<Entity[]> {
+    this.ensureInitialized();
+
+    let query = this.client.from<EntityRow>(this.t.entity).select("*");
+
+    if (filter?.role) query = query.eq("role", filter.role);
+
+    if (filter?.offset && filter?.limit) {
+      query = query.range(filter.offset, filter.offset + filter.limit - 1);
+    } else if (filter?.limit) {
+      query = query.limit(filter.limit);
+    }
+
+    const result = await query;
+    this.handleError(result, "list entities");
+
+    const rows = (result.data as EntityRow[] | null) ?? [];
+    return rows.map((r) => this.rowToEntity(r));
   }
 
   /*--------------------------------------------------------------
@@ -596,6 +655,37 @@ $$;\n\n`;
     return rows.map((r) => this.rowToAction(r));
   }
 
+  async updateAction(
+    id: string,
+    update: Partial<Pick<Action, "extensions" | "proof">>
+  ): Promise<Action | null> {
+    this.ensureInitialized();
+
+    const updateData: Record<string, unknown> = {};
+    if (update.extensions !== undefined) {
+      // Merge with existing extensions
+      const existing = await this.getAction(id);
+      if (!existing) return null;
+      updateData.extensions = { ...existing.extensions, ...update.extensions };
+    }
+    if (update.proof !== undefined) {
+      updateData.proof = update.proof;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return this.getAction(id);
+    }
+
+    const result = await this.client
+      .from(this.t.action)
+      .update(updateData)
+      .eq("id", id);
+
+    this.handleError(result, "update action");
+
+    return this.getAction(id);
+  }
+
   /*--------------------------------------------------------------
    | Attribution Operations
    --------------------------------------------------------------*/
@@ -687,6 +777,25 @@ $$;\n\n`;
     });
 
     this.handleError(result, "store embedding");
+  }
+
+  async getEmbedding(ref: string): Promise<number[] | null> {
+    if (!this.enableVectors) {
+      throw new QueryError("Vector search not enabled");
+    }
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from(this.t.embedding)
+      .select("embedding")
+      .eq("ref", ref)
+      .single();
+
+    if (result.error?.code === "PGRST116") return null;
+    this.handleError(result, "get embedding");
+
+    const data = result.data as { embedding: number[] } | null;
+    return data?.embedding ?? null;
   }
 
   async findSimilar(

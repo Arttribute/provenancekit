@@ -28,9 +28,14 @@ const r = new Hono();
  *   name?: string,
  *   wallet?: string,
  *   publicKey?: string,
+ *   registrationSignature?: string,
  *   metadata?: object,
  *   aiAgent?: { model: { provider, model, version? }, delegatedBy?, autonomyLevel?, ... }
  * }
+ *
+ * Identity protection:
+ * - New entities with publicKey require registrationSignature (when proofPolicy != "off")
+ * - Existing entities cannot change their publicKey (first-registration-wins)
  */
 r.post("/entity", async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as CreateEntityInput;
@@ -58,14 +63,8 @@ r.post("/entity", async (c) => {
     }
   }
 
-  try {
-    const result = await upsertEntity(body);
-    return c.json(result, 201);
-  } catch (e) {
-    throw new ProvenanceKitError("Internal", "Failed to upsert entity", {
-      details: e,
-    });
-  }
+  const result = await upsertEntity(body);
+  return c.json(result, 201);
 });
 
 /**

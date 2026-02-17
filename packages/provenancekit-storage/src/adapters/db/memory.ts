@@ -25,6 +25,7 @@ import type {
 import type {
   IProvenanceStorage,
   ITransactionalStorage,
+  EntityFilter,
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
@@ -67,8 +68,49 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
 
   async upsertEntity(entity: Entity): Promise<Entity> {
     this.ensureInitialized();
-    this.entities.set(entity.id, { ...entity });
-    return entity;
+
+    const existing = this.entities.get(entity.id);
+    if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
+      throw new Error(
+        `Cannot change publicKey for entity "${entity.id}": ` +
+        `public keys are immutable after first registration`
+      );
+    }
+
+    // Merge: preserve existing publicKey if new one is not provided
+    const merged = existing
+      ? {
+          ...existing,
+          ...entity,
+          publicKey: existing.publicKey ?? entity.publicKey,
+          metadata: { ...existing.metadata, ...entity.metadata },
+          extensions: { ...existing.extensions, ...entity.extensions },
+        }
+      : { ...entity };
+
+    this.entities.set(entity.id, merged);
+    return merged;
+  }
+
+  async updateEntity(
+    id: string,
+    update: Partial<Pick<Entity, "name" | "metadata" | "extensions">>
+  ): Promise<Entity | null> {
+    this.ensureInitialized();
+    const existing = this.entities.get(id);
+    if (!existing) return null;
+
+    const updated = { ...existing };
+    if (update.name !== undefined) updated.name = update.name;
+    if (update.metadata !== undefined) {
+      updated.metadata = { ...existing.metadata, ...update.metadata };
+    }
+    if (update.extensions !== undefined) {
+      updated.extensions = { ...existing.extensions, ...update.extensions };
+    }
+
+    this.entities.set(id, updated);
+    return { ...updated };
   }
 
   async getEntity(id: string): Promise<Entity | null> {
@@ -80,6 +122,20 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
   async entityExists(id: string): Promise<boolean> {
     this.ensureInitialized();
     return this.entities.has(id);
+  }
+
+  async listEntities(filter?: EntityFilter): Promise<Entity[]> {
+    this.ensureInitialized();
+    let results = Array.from(this.entities.values());
+
+    if (filter?.role) {
+      results = results.filter((e) => e.role === filter.role);
+    }
+
+    const offset = filter?.offset ?? 0;
+    const limit = filter?.limit ?? results.length;
+
+    return results.slice(offset, offset + limit).map((e) => ({ ...e }));
   }
 
   /*--------------------------------------------------------------
@@ -182,6 +238,26 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     const limit = filter?.limit ?? results.length;
 
     return results.slice(offset, offset + limit).map((a) => ({ ...a }));
+  }
+
+  async updateAction(
+    id: string,
+    update: Partial<Pick<Action, "extensions" | "proof">>
+  ): Promise<Action | null> {
+    this.ensureInitialized();
+    const existing = this.actions.get(id);
+    if (!existing) return null;
+
+    const updated = { ...existing };
+    if (update.extensions !== undefined) {
+      updated.extensions = { ...existing.extensions, ...update.extensions };
+    }
+    if (update.proof !== undefined) {
+      updated.proof = update.proof;
+    }
+
+    this.actions.set(id, updated);
+    return { ...updated };
   }
 
   /*--------------------------------------------------------------

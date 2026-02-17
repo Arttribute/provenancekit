@@ -34,6 +34,7 @@ import type {
 import type {
   IProvenanceStorage,
   ITransactionalStorage,
+  EntityFilter,
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
@@ -243,7 +244,21 @@ export class PostgresStorage
   async upsertEntity(entity: Entity): Promise<Entity> {
     this.ensureInitialized();
 
+    // Check for publicKey immutability violation
+    const existing = await this.getEntity(entity.id);
+    if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
+      throw new QueryError(
+        `Cannot change publicKey for entity "${entity.id}": ` +
+        `public keys are immutable after first registration`
+      );
+    }
+
     try {
+      // Preserve existing publicKey; merge metadata/extensions
+      const effectivePublicKey = existing?.publicKey ?? entity.publicKey ?? null;
+      const mergedMetadata = { ...(existing?.metadata ?? {}), ...(entity.metadata ?? {}) };
+      const mergedExtensions = { ...(existing?.extensions ?? {}), ...(entity.extensions ?? {}) };
+
       await this.query(
         `
         INSERT INTO ${this.t.entity} (id, role, name, public_key, metadata, extensions)
@@ -251,22 +266,62 @@ export class PostgresStorage
         ON CONFLICT (id) DO UPDATE SET
           role = EXCLUDED.role,
           name = EXCLUDED.name,
-          public_key = EXCLUDED.public_key,
-          metadata = EXCLUDED.metadata,
-          extensions = EXCLUDED.extensions
+          public_key = COALESCE(${this.t.entity}.public_key, EXCLUDED.public_key),
+          metadata = ${this.t.entity}.metadata || EXCLUDED.metadata,
+          extensions = ${this.t.entity}.extensions || EXCLUDED.extensions
         `,
         [
           entity.id,
           entity.role,
           entity.name ?? null,
-          entity.publicKey ?? null,
-          JSON.stringify(entity.metadata ?? {}),
-          JSON.stringify(entity.extensions ?? {}),
+          effectivePublicKey,
+          JSON.stringify(mergedMetadata),
+          JSON.stringify(mergedExtensions),
         ]
       );
       return entity;
     } catch (error) {
       throw new QueryError("Failed to upsert entity", error);
+    }
+  }
+
+  async updateEntity(
+    id: string,
+    update: Partial<Pick<Entity, "name" | "metadata" | "extensions">>
+  ): Promise<Entity | null> {
+    this.ensureInitialized();
+
+    const existing = await this.getEntity(id);
+    if (!existing) return null;
+
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (update.name !== undefined) {
+      sets.push(`name = $${paramIdx++}`);
+      params.push(update.name);
+    }
+    if (update.metadata !== undefined) {
+      sets.push(`metadata = metadata || $${paramIdx++}`);
+      params.push(JSON.stringify(update.metadata));
+    }
+    if (update.extensions !== undefined) {
+      sets.push(`extensions = extensions || $${paramIdx++}`);
+      params.push(JSON.stringify(update.extensions));
+    }
+
+    if (sets.length === 0) return existing;
+
+    params.push(id);
+    try {
+      await this.query(
+        `UPDATE ${this.t.entity} SET ${sets.join(", ")} WHERE id = $${paramIdx}`,
+        params
+      );
+      return this.getEntity(id);
+    } catch (error) {
+      throw new QueryError("Failed to update entity", error);
     }
   }
 
@@ -290,6 +345,31 @@ export class PostgresStorage
     );
 
     return rows[0]?.exists ?? false;
+  }
+
+  async listEntities(filter?: EntityFilter): Promise<Entity[]> {
+    this.ensureInitialized();
+
+    let sql = `SELECT * FROM ${this.t.entity} WHERE 1=1`;
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (filter?.role) {
+      sql += ` AND role = $${paramIdx++}`;
+      params.push(filter.role);
+    }
+
+    if (filter?.limit) {
+      sql += ` LIMIT $${paramIdx++}`;
+      params.push(filter.limit);
+    }
+    if (filter?.offset) {
+      sql += ` OFFSET $${paramIdx++}`;
+      params.push(filter.offset);
+    }
+
+    const rows = await this.query<EntityRow>(sql, params);
+    return rows.map((r) => this.rowToEntity(r));
   }
 
   /*--------------------------------------------------------------
@@ -499,6 +579,42 @@ export class PostgresStorage
 
     const rows = await this.query<ActionRow>(sql, params);
     return rows.map((r) => this.rowToAction(r));
+  }
+
+  async updateAction(
+    id: string,
+    update: Partial<Pick<Action, "extensions" | "proof">>
+  ): Promise<Action | null> {
+    this.ensureInitialized();
+
+    const existing = await this.getAction(id);
+    if (!existing) return null;
+
+    const setClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIdx = 1;
+
+    if (update.extensions !== undefined) {
+      setClauses.push(`extensions = $${paramIdx++}::jsonb`);
+      params.push(JSON.stringify({ ...existing.extensions, ...update.extensions }));
+    }
+    if (update.proof !== undefined) {
+      setClauses.push(`proof = $${paramIdx++}`);
+      params.push(update.proof);
+    }
+
+    if (setClauses.length === 0) return existing;
+
+    params.push(id);
+    try {
+      await this.query(
+        `UPDATE ${this.t.action} SET ${setClauses.join(", ")} WHERE id = $${paramIdx}`,
+        params
+      );
+      return this.getAction(id);
+    } catch (error) {
+      throw new QueryError("Failed to update action", error);
+    }
   }
 
   /*--------------------------------------------------------------

@@ -22,6 +22,18 @@ import type {
 \*-----------------------------------------------------------------*/
 
 /**
+ * Filter options for querying entities
+ */
+export interface EntityFilter {
+  /** Filter by entity role */
+  role?: string;
+  /** Limit number of results */
+  limit?: number;
+  /** Offset for pagination */
+  offset?: number;
+}
+
+/**
  * Filter options for querying resources
  */
 export interface ResourceFilter {
@@ -90,9 +102,31 @@ export interface IProvenanceStorage {
 
   /**
    * Create or update an entity.
-   * If entity with same ID exists, update it (upsert behavior).
+   * If entity with same ID exists, update mutable fields.
+   *
+   * IMPORTANT: If the entity already exists with a publicKey, and the
+   * incoming entity has a DIFFERENT publicKey, implementations MUST reject
+   * the operation by throwing an error. Public keys are immutable after
+   * first registration (first-registration-wins). This prevents entity
+   * impersonation via key replacement.
+   *
+   * Mutable fields: name, metadata, extensions, role
+   * Immutable fields: id, publicKey (once set)
    */
   upsertEntity(entity: Entity): Promise<Entity>;
+
+  /**
+   * Update mutable fields of an existing entity.
+   * Cannot change: id, publicKey.
+   *
+   * @param id - The entity ID
+   * @param update - Partial entity fields to update (name, metadata, extensions)
+   * @returns The updated entity, or null if entity not found
+   */
+  updateEntity(
+    id: string,
+    update: Partial<Pick<Entity, "name" | "metadata" | "extensions">>
+  ): Promise<Entity | null>;
 
   /**
    * Get an entity by ID.
@@ -104,6 +138,11 @@ export interface IProvenanceStorage {
    * Check if an entity exists.
    */
   entityExists(id: string): Promise<boolean>;
+
+  /**
+   * List entities with optional filtering.
+   */
+  listEntities(filter?: EntityFilter): Promise<Entity[]>;
 
   /*--------------------------------------------------------------
    | Resource Operations
@@ -172,6 +211,19 @@ export interface IProvenanceStorage {
    * List actions with optional filtering.
    */
   listActions(filter?: ActionFilter): Promise<Action[]>;
+
+  /**
+   * Update an existing action.
+   * Only the provided fields are updated (partial update).
+   * Returns the updated action, or null if not found.
+   *
+   * @param id - The action ID
+   * @param update - Partial action fields to update
+   */
+  updateAction(
+    id: string,
+    update: Partial<Pick<Action, "extensions" | "proof">>
+  ): Promise<Action | null>;
 
   /*--------------------------------------------------------------
    | Attribution Operations
@@ -255,6 +307,14 @@ export interface IVectorStorage {
    * @param vector - The embedding vector (array of numbers)
    */
   storeEmbedding(ref: string, vector: number[]): Promise<void>;
+
+  /**
+   * Get the embedding vector for a resource.
+   * Returns null if no embedding exists for the given ref.
+   *
+   * @param ref - The resource content reference
+   */
+  getEmbedding(ref: string): Promise<number[] | null>;
 
   /**
    * Find similar resources by vector similarity.
@@ -402,6 +462,7 @@ export function supportsVectors(
 ): storage is IProvenanceStorage & IVectorStorage {
   return (
     "storeEmbedding" in storage &&
+    "getEmbedding" in storage &&
     "findSimilar" in storage &&
     typeof storage.storeEmbedding === "function"
   );

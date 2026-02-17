@@ -27,6 +27,7 @@ import type {
 import type {
   IProvenanceStorage,
   ITransactionalStorage,
+  EntityFilter,
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
@@ -189,16 +190,60 @@ export class MongoDBStorage
   async upsertEntity(entity: Entity): Promise<Entity> {
     this.ensureInitialized();
 
+    // Check for publicKey immutability violation
+    const existing = await this.getEntity(entity.id);
+    if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
+      throw new QueryError(
+        `Cannot change publicKey for entity "${entity.id}": ` +
+        `public keys are immutable after first registration`
+      );
+    }
+
     try {
       await this.db.collection<Entity>(this.c.entity).updateOne(
         { id: entity.id },
-        { $set: entity },
+        {
+          $set: {
+            ...entity,
+            // Preserve existing publicKey if already set
+            publicKey: existing?.publicKey ?? entity.publicKey,
+          },
+          $setOnInsert: { id: entity.id },
+        },
         { upsert: true }
       );
       return entity;
     } catch (error) {
       throw new QueryError("Failed to upsert entity", error);
     }
+  }
+
+  async updateEntity(
+    id: string,
+    update: Partial<Pick<Entity, "name" | "metadata" | "extensions">>
+  ): Promise<Entity | null> {
+    this.ensureInitialized();
+
+    const existing = await this.getEntity(id);
+    if (!existing) return null;
+
+    const setFields: Record<string, unknown> = {};
+    if (update.name !== undefined) setFields.name = update.name;
+    if (update.metadata !== undefined) {
+      setFields.metadata = { ...existing.metadata, ...update.metadata };
+    }
+    if (update.extensions !== undefined) {
+      setFields.extensions = { ...existing.extensions, ...update.extensions };
+    }
+
+    if (Object.keys(setFields).length === 0) return existing;
+
+    await this.db.collection<Entity>(this.c.entity).updateOne(
+      { id },
+      { $set: setFields }
+    );
+
+    return this.getEntity(id);
   }
 
   async getEntity(id: string): Promise<Entity | null> {
@@ -212,6 +257,20 @@ export class MongoDBStorage
       .collection(this.c.entity)
       .countDocuments({ id });
     return count > 0;
+  }
+
+  async listEntities(filter?: EntityFilter): Promise<Entity[]> {
+    this.ensureInitialized();
+
+    const query: Record<string, unknown> = {};
+    if (filter?.role) query.role = filter.role;
+
+    let cursor = this.db.collection<Entity>(this.c.entity).find(query);
+
+    if (filter?.offset) cursor = cursor.skip(filter.offset);
+    if (filter?.limit) cursor = cursor.limit(filter.limit);
+
+    return cursor.toArray();
   }
 
   /*--------------------------------------------------------------
@@ -320,6 +379,37 @@ export class MongoDBStorage
     if (filter?.limit) cursor = cursor.limit(filter.limit);
 
     return cursor.toArray();
+  }
+
+  async updateAction(
+    id: string,
+    update: Partial<Pick<Action, "extensions" | "proof">>
+  ): Promise<Action | null> {
+    this.ensureInitialized();
+
+    const existing = await this.getAction(id);
+    if (!existing) return null;
+
+    const setFields: Record<string, unknown> = {};
+    if (update.extensions !== undefined) {
+      // Merge extensions
+      const merged = { ...existing.extensions, ...update.extensions };
+      setFields.extensions = merged;
+    }
+    if (update.proof !== undefined) {
+      setFields.proof = update.proof;
+    }
+
+    if (Object.keys(setFields).length === 0) return existing;
+
+    try {
+      await this.db
+        .collection<Action>(this.c.action)
+        .updateOne({ id }, { $set: setFields });
+      return this.getAction(id);
+    } catch (error) {
+      throw new QueryError("Failed to update action", error);
+    }
   }
 
   /*--------------------------------------------------------------

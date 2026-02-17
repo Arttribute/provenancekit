@@ -29,6 +29,7 @@ import {
   type Chain,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { derivePublicKey } from "@provenancekit/sdk";
 import { config } from "./config.js";
 
 /*─────────────────────────────────────────────────────────────*\
@@ -53,6 +54,12 @@ export interface AppContext {
 
   /** Generate a new encryption key */
   generateKey: () => Uint8Array;
+
+  /** Server signing key for witness attestations (hex-encoded Ed25519 private key) */
+  serverSigningKey?: string;
+
+  /** Server public key derived from serverSigningKey (hex-encoded) */
+  serverPublicKey?: string;
 
   /** Optional blockchain clients for on-chain provenance recording */
   blockchain?: {
@@ -108,7 +115,21 @@ export async function initializeContext(): Promise<AppContext> {
   );
   console.log("✓ Encrypted storage ready");
 
-  // 5. Initialize blockchain client (optional)
+  // 5. Initialize server signing key (for witness attestations)
+  let serverSigningKey: string | undefined;
+  let serverPublicKey: string | undefined;
+
+  if (config.serverSigningKey) {
+    serverSigningKey = config.serverSigningKey;
+    serverPublicKey = await derivePublicKey(config.serverSigningKey);
+    console.log(`✓ Server signing key ready (pubkey: ${serverPublicKey.slice(0, 16)}...)`);
+  } else if (config.proofPolicy !== "off") {
+    console.warn(
+      "[proof-policy] No SERVER_SIGNING_KEY configured — server witness attestations will be skipped"
+    );
+  }
+
+  // 6. Initialize blockchain client (optional)
   let blockchain: AppContext["blockchain"];
 
   if (
@@ -161,6 +182,8 @@ export async function initializeContext(): Promise<AppContext> {
     ipfsGateway: config.pinataGateway,
     supabase: supabaseClient,
     generateKey,
+    serverSigningKey,
+    serverPublicKey,
     blockchain,
   };
 

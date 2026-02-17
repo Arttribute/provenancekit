@@ -956,6 +956,7 @@ const attributions = createAttributionsFromC2PA(c2pa, contentRef);
 ### provenancekit-storage
 - Interface segregation: IProvenanceStorage, IFileStorage
 - Optional capabilities: ITransactionalStorage, IVectorStorage, ISyncableStorage, ISubscribableStorage
+- Full CRUD: `listEntities()`, `updateAction()`, `getEmbedding()` ensure all API operations go through the interface
 - Multiple adapters: PostgreSQL, MongoDB, Supabase, Memory (DB); Pinata, Infura, Web3.Storage, Arweave (Files)
 
 ### provenancekit-indexer
@@ -1254,16 +1255,16 @@ The storage abstraction (`IProvenanceStorage`) is excellent, but there is no way
 - Or remove `ITransactionalStorage` from the Supabase adapter's implements list and document the limitation
 - The PostgreSQL adapter should use actual `BEGIN/COMMIT/ROLLBACK`
 
-### 1.3 Session Handler Bypasses Storage Abstraction
+### 1.3 ~~Storage Abstraction Bypassed in 3 Places~~ ✅ FIXED
 
-**File:** `apps/provenancekit-api/src/handlers/session.ts`
+**Fixed in:** `interface.ts`, all 4 adapters (Memory, Supabase, PostgreSQL, MongoDB), and 3 API files.
 
-This handler queries Supabase directly (`supabase.from("pk_action").select("*")`) instead of using `IProvenanceStorage`. This defeats the purpose of the storage abstraction and will break if the backend changes.
+Three API code paths were querying Supabase directly instead of using `IProvenanceStorage`:
+1. `entity.service.ts:listEntities()` → **Fixed:** Added `listEntities(filter?: EntityFilter)` to `IProvenanceStorage`
+2. `handlers/similar.ts:getEmbedding()` → **Fixed:** Added `getEmbedding(ref)` to `IVectorStorage`
+3. `activity.service.ts:updateAction()` → **Fixed:** Added `updateAction(id, update)` to `IProvenanceStorage`
 
-**Action items:**
-- Add `listActions(filter)` and `listResources(filter)` with extension-based filtering to `IProvenanceStorage`
-- Or add a `findByExtensions(table, filter)` method
-- Rewrite the session handler to use the storage interface exclusively
+All 4 adapters (Memory, Supabase, PostgreSQL, MongoDB) implement the new methods. The API now uses the storage interface exclusively for these operations.
 
 ### 1.4 No API Authentication / Authorization
 
@@ -1349,7 +1350,7 @@ None of the packages have been published to npm yet. Set up:
 | Fix `this.recordAction()` external call in Registry | P0 | Tiny |
 | Add access control to `recordAttributionFor()` | P0 | Small |
 | Implement real transactions or remove claim | P1 | Medium |
-| Rewrite session handler to use storage interface | P1 | Small |
+| ~~Fix storage abstraction bypasses (3 places)~~ | ~~P1~~ | ~~✅ Done~~ |
 | Add API authentication middleware | P1 | Medium |
 | Replace hand-rolled ECDSA with OpenZeppelin | P2 | Small |
 | Clean up SDK legacy fields | P2 | Small |
@@ -1383,4 +1384,4 @@ None of the packages have been published to npm yet. Set up:
 
 ---
 
-*This document is updated as implementation progresses. Last updated: 2026-02-11*
+*This document is updated as implementation progresses. Last updated: 2026-02-16*

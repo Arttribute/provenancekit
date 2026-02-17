@@ -3,6 +3,11 @@
  *
  * Business logic for entity operations using @provenancekit/storage.
  * Supports AI agent extensions from @provenancekit/extensions.
+ *
+ * Entity identity is protected by first-registration-wins:
+ * - publicKey is immutable after first set
+ * - New entities with a publicKey require a registration signature
+ *   (key-ownership proof) when proofPolicy is "enforce" or "warn"
  */
 
 import { v4 as uuidv4 } from "uuid";
@@ -12,9 +17,13 @@ import {
   createAIAgent,
   isAIAgent,
   getAIAgent,
+  withIdentityProof,
   type AIAgentExtension,
 } from "@provenancekit/extensions";
+import { verifyRegistration } from "@provenancekit/sdk";
 import { getContext } from "../context.js";
+import { config } from "../config.js";
+import { ProvenanceKitError } from "../errors.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | Input Types                                                   |
@@ -31,6 +40,8 @@ export interface CreateEntityInput {
   wallet?: string;
   /** Public key for verification */
   publicKey?: string;
+  /** Registration signature proving ownership of publicKey */
+  registrationSignature?: string;
   /** Additional metadata */
   metadata?: Record<string, unknown>;
   /** AI agent configuration (if role is "ai") */
@@ -58,20 +69,76 @@ export interface EntityResult {
 \*─────────────────────────────────────────────────────────────*/
 
 /**
- * Create or update an entity.
+ * Register a new entity or update an existing one.
+ *
+ * Identity protection rules:
+ * - New entity with publicKey: requires registrationSignature (when proofPolicy != "off")
+ * - Existing entity: publicKey cannot be changed (first-registration-wins)
+ * - Mutable fields (name, metadata, extensions, role) can always be updated
+ *
  * Automatically adds AI agent extension if role is "ai" and aiAgent config is provided.
  */
-export async function upsertEntity(input: CreateEntityInput): Promise<EntityResult> {
+export async function registerOrUpdateEntity(
+  input: CreateEntityInput
+): Promise<EntityResult> {
   const { dbStorage } = getContext();
 
   const id = input.id ?? uuidv4();
+  const existing = await dbStorage.getEntity(id);
 
-  // Build base entity
+  // Existing entity — reject publicKey changes
+  if (existing?.publicKey && input.publicKey && existing.publicKey !== input.publicKey) {
+    throw new ProvenanceKitError(
+      "Forbidden",
+      "Cannot change registered public key for existing entity",
+      { recovery: "Use the original key pair, or register a new entity ID" }
+    );
+  }
+
+  // New entity with publicKey — verify key ownership
+  if (!existing && input.publicKey && config.proofPolicy !== "off") {
+    if (!input.registrationSignature) {
+      if (config.proofPolicy === "enforce") {
+        throw new ProvenanceKitError(
+          "Forbidden",
+          "Registration signature required for entities with public keys",
+          {
+            recovery:
+              "Sign the registration using signRegistration() from @provenancekit/sdk",
+          }
+        );
+      }
+      if (config.proofPolicy === "warn") {
+        console.warn(
+          `[proof-policy] Entity "${id}" registered with publicKey but no registration signature`
+        );
+      }
+    } else {
+      // Verify the registration signature
+      const valid = await verifyRegistration(
+        id,
+        input.publicKey,
+        input.registrationSignature
+      );
+      if (!valid) {
+        throw new ProvenanceKitError(
+          "Forbidden",
+          "Invalid registration signature — key ownership proof failed",
+          {
+            recovery:
+              "Ensure you signed the correct message: provenancekit:register:{entityId}:{publicKey}",
+          }
+        );
+      }
+    }
+  }
+
+  // Build entity
   let entity: Entity = {
     id,
     role: input.role as Entity["role"],
     name: input.name,
-    publicKey: input.publicKey,
+    publicKey: existing?.publicKey ?? input.publicKey,
     metadata: {
       ...input.metadata,
       ...(input.wallet ? { wallet: input.wallet } : {}),
@@ -90,7 +157,7 @@ export async function upsertEntity(input: CreateEntityInput): Promise<EntityResu
     });
     // Preserve other fields
     entity.name = input.name;
-    entity.publicKey = input.publicKey;
+    entity.publicKey = existing?.publicKey ?? input.publicKey;
     entity.metadata = {
       ...entity.metadata,
       ...input.metadata,
@@ -98,9 +165,26 @@ export async function upsertEntity(input: CreateEntityInput): Promise<EntityResu
     };
   }
 
+  // Add identity proof extension if registration signature was verified
+  if (!existing && input.publicKey && input.registrationSignature) {
+    entity = withIdentityProof(entity, {
+      method: "key-ownership",
+      verifiedAt: new Date().toISOString(),
+      registrationSignature: input.registrationSignature,
+    });
+  }
+
   await dbStorage.upsertEntity(entity);
 
   return { id, entity };
+}
+
+/**
+ * Create or update an entity (backwards-compatible alias).
+ * @deprecated Use registerOrUpdateEntity for new code.
+ */
+export async function upsertEntity(input: CreateEntityInput): Promise<EntityResult> {
+  return registerOrUpdateEntity(input);
 }
 
 /**
@@ -176,35 +260,11 @@ export async function listEntities(options?: {
   limit?: number;
   offset?: number;
 }): Promise<Entity[]> {
-  const { supabase } = getContext();
+  const { dbStorage } = getContext();
 
-  let query = supabase.from("pk_entity").select("*");
-
-  if (options?.role) {
-    query = query.eq("role", options.role);
-  }
-
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
-
-  if (options?.offset) {
-    query = query.range(options.offset, options.offset + (options.limit ?? 50) - 1);
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("Failed to list entities:", error);
-    return [];
-  }
-
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: row.id as string,
-    role: row.role as Entity["role"],
-    name: (row.name as string) ?? undefined,
-    publicKey: (row.public_key as string) ?? undefined,
-    metadata: (row.metadata as Record<string, unknown>) ?? undefined,
-    extensions: (row.extensions as Record<string, unknown>) ?? undefined,
-  }));
+  return dbStorage.listEntities({
+    role: options?.role,
+    limit: options?.limit,
+    offset: options?.offset,
+  });
 }
