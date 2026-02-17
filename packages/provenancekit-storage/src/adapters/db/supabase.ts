@@ -29,6 +29,7 @@ import type {
 import type {
   IProvenanceStorage,
   IVectorStorage,
+  IEncryptedVectorStorage,
   EntityFilter,
   ResourceFilter,
   ActionFilter,
@@ -65,6 +66,7 @@ export interface SupabaseQueryBuilder<T = unknown> {
   update(data: unknown): SupabaseQueryBuilder<T>;
   delete(): SupabaseQueryBuilder<T>;
   eq(column: string, value: unknown): SupabaseQueryBuilder<T>;
+  gt(column: string, value: unknown): SupabaseQueryBuilder<T>;
   contains(column: string, value: unknown): SupabaseQueryBuilder<T>;
   order(
     column: string,
@@ -134,7 +136,7 @@ export interface SupabaseStorageConfig {
  * BEGIN/COMMIT block.
  */
 export class SupabaseStorage
-  implements IProvenanceStorage, IVectorStorage
+  implements IProvenanceStorage, IVectorStorage, IEncryptedVectorStorage
 {
   private client: SupabaseClient;
   private prefix: string;
@@ -150,6 +152,7 @@ export class SupabaseStorage
     action: string;
     attribution: string;
     embedding: string;
+    encryptedEmbedding: string;
   };
 
   constructor(config: SupabaseStorageConfig) {
@@ -165,6 +168,7 @@ export class SupabaseStorage
       action: `${this.prefix}action`,
       attribution: `${this.prefix}attribution`,
       embedding: `${this.prefix}embedding`,
+      encryptedEmbedding: `${this.prefix}encrypted_embedding`,
     };
   }
 
@@ -266,6 +270,7 @@ export class SupabaseStorage
       action: `${prefix}action`,
       attribution: `${prefix}attribution`,
       embedding: `${prefix}embedding`,
+      encryptedEmbedding: `${prefix}encrypted_embedding`,
     };
 
     let sql = `-- ProvenanceKit Schema Migration
@@ -365,6 +370,21 @@ BEGIN
   LIMIT match_count;
 END;
 $$;\n\n`;
+    }
+
+    // Encrypted embedding table — stores opaque encrypted vector blobs.
+    // The server cannot read or search these; only the key holder can
+    // decrypt them client-side for local similarity search.
+    if (vectors) {
+      sql += `CREATE TABLE IF NOT EXISTS ${t.encryptedEmbedding} (
+  ref TEXT PRIMARY KEY REFERENCES ${t.resource}(ref),
+  blob TEXT NOT NULL,
+  kind TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
+  ON ${t.encryptedEmbedding}(created_at);\n\n`;
     }
 
     return sql;
@@ -822,6 +842,78 @@ $$;\n\n`;
     return (result.data ?? []).map((r) => ({
       ref: r.ref,
       score: r.similarity,
+    }));
+  }
+
+  /*--------------------------------------------------------------
+   | Encrypted Vector Storage
+   |
+   | Stores embedding vectors as opaque encrypted blobs.
+   | The server never sees plaintext vectors for encrypted resources —
+   | only the key holder can decrypt and search them client-side.
+   --------------------------------------------------------------*/
+
+  async storeEncryptedEmbedding(
+    ref: string,
+    blob: string,
+    kind?: string
+  ): Promise<void> {
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from(this.t.encryptedEmbedding)
+      .upsert({ ref, blob, kind });
+
+    this.handleError(result, "store encrypted embedding");
+  }
+
+  async getEncryptedEmbedding(
+    ref: string
+  ): Promise<{ blob: string; kind?: string } | null> {
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from(this.t.encryptedEmbedding)
+      .select("blob, kind")
+      .eq("ref", ref)
+      .single();
+
+    if (result.error?.code === "PGRST116") return null;
+    this.handleError(result, "get encrypted embedding");
+
+    const data = result.data as { blob: string; kind?: string } | null;
+    return data ?? null;
+  }
+
+  async listEncryptedEmbeddings(
+    opts?: { since?: string; kind?: string; limit?: number }
+  ): Promise<
+    Array<{ ref: string; blob: string; kind?: string; createdAt: string }>
+  > {
+    this.ensureInitialized();
+
+    type Row = { ref: string; blob: string; kind: string | null; created_at: string };
+
+    let query = this.client
+      .from<Row>(this.t.encryptedEmbedding)
+      .select("ref, blob, kind, created_at");
+
+    if (opts?.since) query = query.gt("created_at", opts.since);
+    if (opts?.kind) query = query.eq("kind", opts.kind);
+
+    query = query
+      .order("created_at", { ascending: true })
+      .limit(opts?.limit ?? 1000);
+
+    const result = await query;
+    this.handleError(result, "list encrypted embeddings");
+
+    const rows = (result.data as Row[] | null) ?? [];
+    return rows.map((r) => ({
+      ref: r.ref,
+      blob: r.blob,
+      kind: r.kind ?? undefined,
+      createdAt: r.created_at,
     }));
   }
 

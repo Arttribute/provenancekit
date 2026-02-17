@@ -253,3 +253,35 @@ export interface SupportedFormat {
 export interface TextSearchResult {
   matches: Match[];
 }
+
+/*───────────────────────────────────────────────────────────*\
+ | 9.  Encrypted Vector Search                               |
+ |                                                           |
+ | Encrypted resources store their embedding vectors as      |
+ | opaque encrypted blobs. The SDK decrypts them client-side |
+ | and runs brute-force cosine similarity locally, then      |
+ | merges results with server-side pgvector search.          |
+\*───────────────────────────────────────────────────────────*/
+
+export interface SearchOpts {
+  topK?: number;
+  minScore?: number;
+  type?: string;
+  /** Encryption key for searching encrypted resources (base64 or Uint8Array) */
+  encryptionKey?: string | Uint8Array;
+}
+
+export interface SearchResult {
+  cid: string;
+  score: number;
+  type?: string;
+  /** True if this result came from an encrypted resource (decrypted client-side) */
+  encrypted?: boolean;
+}
+
+export interface EncryptedEmbeddingRecord {
+  ref: string;
+  blob: string;
+  kind?: string;
+  createdAt: string;
+}

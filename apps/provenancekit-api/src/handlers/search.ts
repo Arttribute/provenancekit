@@ -1,8 +1,13 @@
 // apps/provenanceKit-api/src/handlers/search.ts
 import { Hono } from "hono";
 import { searchByFile, searchByText } from "../services/search.service.js";
+import { EmbeddingService } from "../embedding/service.js";
 import { inferKindFromMime } from "../utils.js";
 import { ProvenanceKitError } from "../errors.js";
+import { getContext } from "../context.js";
+import type { IEncryptedVectorStorage } from "@provenancekit/storage";
+
+const embedder = new EmbeddingService();
 
 const r = new Hono();
 
@@ -67,6 +72,52 @@ r.post("/search/text", async (c) => {
   });
 
   return c.json(result);
+});
+
+/*--------------------------------------------------------------
+  POST /search/text/vector
+  Returns the raw embedding vector for a text query without running
+  a similarity search. Used by the SDK to generate query vectors
+  for client-side encrypted search.
+--------------------------------------------------------------*/
+r.post("/search/text/vector", async (c) => {
+  const body = await c.req.json().catch(() => ({}));
+
+  if (typeof body.text !== "string" || !body.text.trim())
+    throw new ProvenanceKitError("MissingField", "`text` is required in body");
+
+  const vector = await embedder.vector("text", body.text).catch((e) => {
+    throw new ProvenanceKitError("EmbeddingFailed", "Text embedding failed", {
+      details: e,
+    });
+  });
+
+  return c.json({ vector });
+});
+
+/*--------------------------------------------------------------
+  GET /embeddings/encrypted
+  Delta sync endpoint for the SDK's client-side encrypted search.
+  Returns opaque encrypted vector blobs — the server cannot read them.
+  The SDK decrypts locally with the user's key and runs similarity search.
+--------------------------------------------------------------*/
+r.get("/embeddings/encrypted", async (c) => {
+  const since = c.req.query("since") || undefined;
+  const kind = c.req.query("kind") || undefined;
+  const limit = Number(c.req.query("limit") ?? 1000);
+
+  const { dbStorage } = getContext();
+  const storage = dbStorage as unknown as IEncryptedVectorStorage;
+
+  if (typeof storage.listEncryptedEmbeddings !== "function") {
+    throw new ProvenanceKitError(
+      "Unsupported",
+      "Encrypted vector storage not supported by current backend"
+    );
+  }
+
+  const results = await storage.listEncryptedEmbeddings({ since, kind, limit });
+  return c.json({ embeddings: results });
 });
 
 export const searchRoute = r;

@@ -3,6 +3,12 @@ export * from "./errors";
 export * from "./types";
 export { type ApiClientOptions } from "./api";
 export {
+  decryptVector,
+  cosineSimilarity,
+  searchVectors,
+  resolveKey,
+} from "./vector-crypto";
+export {
   signBundle,
   verifyBundle,
   generateKeyPair,

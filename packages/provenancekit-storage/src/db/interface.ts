@@ -332,6 +332,47 @@ export interface IVectorStorage {
   ): Promise<Array<{ ref: string; score: number }>>;
 }
 
+/**
+ * Optional: Encrypted vector storage.
+ *
+ * Stores embedding vectors as opaque encrypted blobs — the server cannot
+ * read or search them. Only the key holder can decrypt and search client-side.
+ * This preserves confidentiality: no semantic information leaks to the server.
+ */
+export interface IEncryptedVectorStorage {
+  /**
+   * Store an encrypted embedding blob for a resource.
+   * @param ref - The resource content reference
+   * @param blob - JSON-serialized EncryptionEnvelope (opaque to server)
+   * @param kind - Resource kind (image, text, audio, etc.)
+   */
+  storeEncryptedEmbedding(
+    ref: string,
+    blob: string,
+    kind?: string
+  ): Promise<void>;
+
+  /**
+   * Get a single encrypted embedding blob by resource ref.
+   */
+  getEncryptedEmbedding(
+    ref: string
+  ): Promise<{ blob: string; kind?: string } | null>;
+
+  /**
+   * List encrypted embeddings for delta sync.
+   * Supports pagination via `since` timestamp so the SDK only
+   * fetches new/changed vectors after initial sync.
+   */
+  listEncryptedEmbeddings(opts?: {
+    since?: string;
+    kind?: string;
+    limit?: number;
+  }): Promise<
+    Array<{ ref: string; blob: string; kind?: string; createdAt: string }>
+  >;
+}
+
 /*-----------------------------------------------------------------*\
  | Type Guards                                                       |
 \*-----------------------------------------------------------------*/
@@ -465,6 +506,19 @@ export function supportsVectors(
     "getEmbedding" in storage &&
     "findSimilar" in storage &&
     typeof storage.storeEmbedding === "function"
+  );
+}
+
+/**
+ * Type guard to check if storage supports encrypted vector storage.
+ */
+export function supportsEncryptedVectors(
+  storage: IProvenanceStorage
+): storage is IProvenanceStorage & IEncryptedVectorStorage {
+  return (
+    "storeEncryptedEmbedding" in storage &&
+    "listEncryptedEmbeddings" in storage &&
+    typeof storage.storeEncryptedEmbedding === "function"
   );
 }
 

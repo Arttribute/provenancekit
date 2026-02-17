@@ -2,6 +2,11 @@
 import { Api, ApiClientOptions } from "./api";
 import { ProvenanceKitError } from "./errors";
 import { signAction, type ActionSignPayload, type ActionProof } from "./signing";
+import {
+  decryptVector,
+  searchVectors,
+  resolveKey,
+} from "./vector-crypto";
 import type {
   UploadMatchResult,
   DuplicateDetails,
@@ -17,7 +22,33 @@ import type {
   SupportedFormat,
   TextSearchResult,
   SessionProvenance,
+  SearchOpts,
+  SearchResult,
+  EncryptedEmbeddingRecord,
 } from "./types";
+
+/**
+ * Merge server-side (pgvector) and client-side (encrypted) search results.
+ * Deduplicates by CID, ranks by score, and returns the top-K.
+ */
+function mergeResults(
+  server: SearchResult[],
+  encrypted: SearchResult[],
+  topK: number
+): SearchResult[] {
+  const seen = new Set<string>();
+  const all: SearchResult[] = [];
+
+  for (const r of [...server, ...encrypted]) {
+    if (!seen.has(r.cid)) {
+      seen.add(r.cid);
+      all.push(r);
+    }
+  }
+
+  all.sort((a, b) => b.score - a.score);
+  return all.slice(0, topK);
+}
 
 function asBlob(input: Blob | File | Buffer | Uint8Array): Blob {
   if (input instanceof Blob) return input;
@@ -246,6 +277,109 @@ export class ProvenanceKit {
       topK: opts.topK ?? 5,
       type: opts.type,
     });
+  }
+
+  /**
+   * Unified search across encrypted and non-encrypted resources.
+   *
+   * Non-encrypted resources: server-side pgvector similarity search (fast, scalable).
+   * Encrypted resources: SDK fetches encrypted vector blobs from the server,
+   * decrypts them locally with the provided key, runs brute-force cosine
+   * similarity in-memory, and merges results with server-side matches.
+   *
+   * The server never sees plaintext vectors for encrypted resources.
+   * Without an encryptionKey, only non-encrypted results are returned.
+   */
+  async search(query: string, opts: SearchOpts = {}): Promise<SearchResult[]> {
+    const { topK = 5, minScore = 0, type, encryptionKey } = opts;
+
+    // Server-side search for non-encrypted resources
+    const serverPromise = this.api
+      .postJSON<TextSearchResult>("/search/text", {
+        text: query,
+        topK,
+        minScore,
+        type,
+      })
+      .then((r) =>
+        r.matches.map((m) => ({
+          cid: m.cid,
+          score: m.score,
+          type: m.type,
+          encrypted: false,
+        }))
+      )
+      .catch(() => [] as SearchResult[]);
+
+    // Client-side search for encrypted resources (only if key provided)
+    let encryptedResults: SearchResult[] = [];
+    if (encryptionKey) {
+      try {
+        encryptedResults = await this.searchEncryptedVectors(
+          query,
+          encryptionKey,
+          { topK, minScore, type }
+        );
+      } catch {
+        // Encrypted search failure should not break the overall search
+      }
+    }
+
+    const serverResults = await serverPromise;
+    return mergeResults(serverResults, encryptedResults, topK);
+  }
+
+  /**
+   * Fetch encrypted vector blobs, decrypt locally, and run similarity search.
+   * This is the client-side leg of the unified search — the server only
+   * provides opaque encrypted blobs it cannot read.
+   */
+  private async searchEncryptedVectors(
+    query: string,
+    encryptionKey: string | Uint8Array,
+    opts: { topK?: number; minScore?: number; type?: string }
+  ): Promise<SearchResult[]> {
+    const key = resolveKey(encryptionKey);
+
+    // Fetch encrypted embedding blobs from the server
+    const qs = opts.type ? `&kind=${opts.type}` : "";
+    const response = await this.api.get<{
+      embeddings: EncryptedEmbeddingRecord[];
+    }>(`/embeddings/encrypted?limit=10000${qs}`);
+
+    if (!response.embeddings.length) return [];
+
+    // Decrypt vectors locally — the key never leaves the client
+    const decrypted: Array<{ ref: string; vec: Float32Array; kind?: string }> = [];
+    for (const record of response.embeddings) {
+      try {
+        const vec = decryptVector(record.blob, key);
+        decrypted.push({ ref: record.ref, vec, kind: record.kind });
+      } catch {
+        // Skip vectors that don't decrypt with this key (different owner)
+      }
+    }
+
+    if (!decrypted.length) return [];
+
+    // Generate a query vector from the first decrypted vector's dimensionality.
+    // For text search, we need the server to generate the query embedding.
+    const queryEmbedding = await this.api.postJSON<{ vector: number[] }>(
+      "/search/text/vector",
+      { text: query }
+    ).catch(() => null);
+
+    if (!queryEmbedding?.vector) return [];
+
+    const queryVec = new Float32Array(queryEmbedding.vector);
+    const results = searchVectors(queryVec, decrypted, opts);
+
+    return results.map((r) => ({
+      cid: r.ref,
+      score: r.score,
+      type: opts.type,
+      encrypted: true,
+    }));
   }
 
   /*─────────────────────────────────────────────────────────────*\

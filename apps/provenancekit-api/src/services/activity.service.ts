@@ -574,10 +574,19 @@ export async function createActivity(
     });
   }
 
-  // 7. Generate embedding and check for near-duplicates
+  // 7. Generate embedding and check for near-duplicates.
+  // Embeddings are generated from plaintext BEFORE encryption obscures content.
+  // For encrypted resources: the vector is encrypted with the resource key and
+  // stored as an opaque blob — only the key holder can search it client-side.
+  // For non-encrypted resources: the vector is stored in pgvector for server-side search.
   let embedding: number[] | null = null;
+  embedding = await embedder.vector(kind, toDataURI(bytes, mime));
+
   if (!encrypted) {
-    embedding = await embedder.vector(kind, toDataURI(bytes, mime));
+    // Server-side duplicate detection only applies to non-encrypted resources.
+    // Cross-key dedup is fundamentally incompatible with encryption — the server
+    // cannot compare vectors it cannot read. Same-key dedup is handled client-side
+    // by the SDK before upload.
     const nearMatch = await embedder.matchTop1(embedding, config.duplicateThreshold, kind);
     if (nearMatch) {
       throw new ProvenanceKitError("Duplicate", "Very similar resource already exists", {
@@ -737,8 +746,12 @@ export async function createActivity(
   await dbStorage.createResource(resource);
 
   // 10. Store embedding
-  if (embedding) {
+  if (embedding && !encrypted) {
     await embedder.store(cid, embedding);
+  } else if (embedding && encrypted && encryptionKey) {
+    // Encrypt the embedding vector so only the key holder can search.
+    // The server stores an opaque blob — no semantic information leaks.
+    await embedder.storeEncrypted(cid, embedding, encryptionKey, kind);
   }
 
   // 11. Create attribution

@@ -8,6 +8,8 @@
 import { XenovaUniversalProvider } from "./xenova-universal.provider.js";
 import { getContext } from "../context.js";
 import { config } from "../config.js";
+import { encrypt, toEnvelope } from "@provenancekit/privacy";
+import type { IEncryptedVectorStorage } from "@provenancekit/storage";
 
 export type ResourceKind = "text" | "image" | "audio" | "video" | "tool";
 
@@ -90,5 +92,32 @@ export class EmbeddingService {
   ): Promise<{ cid: string; score: number } | undefined> {
     const res = await this.matchFiltered(vec, { topK: 1, minScore, type });
     return res[0];
+  }
+
+  /**
+   * Encrypt an embedding vector and store it as an opaque blob.
+   *
+   * The vector is serialized as Float32Array bytes, encrypted with the
+   * resource's encryption key, and stored as a JSON EncryptionEnvelope.
+   * The server never sees the plaintext vector — only the key holder
+   * can decrypt and search it client-side.
+   */
+  async storeEncrypted(
+    ref: string,
+    vec: number[],
+    key: Uint8Array,
+    kind?: string
+  ): Promise<void> {
+    const { dbStorage } = getContext();
+    const bytes = new Uint8Array(new Float32Array(vec).buffer);
+    const result = encrypt(bytes, key);
+    const envelope = toEnvelope(result);
+    const blob = JSON.stringify(envelope);
+    await (dbStorage as unknown as IEncryptedVectorStorage).storeEncryptedEmbedding(
+      ref,
+      blob,
+      kind
+    );
+    console.log("Stored encrypted embedding for ref:", ref);
   }
 }

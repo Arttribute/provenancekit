@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@arttribute/eaa-types": "workspace:*",
-    "@noble/ed25519": "^3.0.0"
+    "@noble/ed25519": "^3.0.0",
+    "@provenancekit/privacy": "workspace:*"
   }
 }
