@@ -38,6 +38,7 @@ import type {
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
+  OwnershipState,
 } from "../../db/interface";
 
 import {
@@ -104,6 +105,7 @@ export class PostgresStorage
     resource: string;
     action: string;
     attribution: string;
+    ownershipState: string;
   };
 
   constructor(config: PostgresStorageConfig) {
@@ -117,6 +119,7 @@ export class PostgresStorage
       resource: `${this.prefix}resource`,
       action: `${this.prefix}action`,
       attribution: `${this.prefix}attribution`,
+      ownershipState: `${this.prefix}ownership_state`,
     };
   }
 
@@ -234,6 +237,20 @@ export class PostgresStorage
     `);
     await this.query(`
       CREATE INDEX IF NOT EXISTS idx_${this.prefix}action_extensions ON ${this.t.action} USING GIN (extensions)
+    `);
+
+    // Ownership state table (migration 002)
+    await this.query(`
+      CREATE TABLE IF NOT EXISTS ${this.t.ownershipState} (
+        resource_ref      TEXT PRIMARY KEY REFERENCES ${this.t.resource}(ref),
+        current_owner_id  TEXT NOT NULL REFERENCES ${this.t.entity}(id),
+        last_transfer_id  TEXT REFERENCES ${this.t.action}(id),
+        updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await this.query(`
+      CREATE INDEX IF NOT EXISTS idx_${this.prefix}ownership_current_owner
+        ON ${this.t.ownershipState}(current_owner_id)
     `);
   }
 
@@ -698,6 +715,82 @@ export class PostgresStorage
   }
 
   /*--------------------------------------------------------------
+   | Ownership Operations
+   --------------------------------------------------------------*/
+
+  async initOwnershipState(resourceRef: string, ownerId: string): Promise<void> {
+    this.ensureInitialized();
+    try {
+      await this.query(
+        `
+        INSERT INTO ${this.t.ownershipState}
+          (resource_ref, current_owner_id, last_transfer_id, updated_at)
+        VALUES ($1, $2, NULL, NOW())
+        ON CONFLICT (resource_ref) DO NOTHING
+        `,
+        [resourceRef, ownerId]
+      );
+    } catch (error) {
+      throw new QueryError("Failed to initialize ownership state", error);
+    }
+  }
+
+  async getOwnershipState(resourceRef: string): Promise<OwnershipState | null> {
+    this.ensureInitialized();
+
+    const rows = await this.query<OwnershipStateRow>(
+      `SELECT * FROM ${this.t.ownershipState} WHERE resource_ref = $1`,
+      [resourceRef]
+    );
+
+    if (rows.length === 0) return null;
+    return this.rowToOwnershipState(rows[0]);
+  }
+
+  async transferOwnershipState(
+    resourceRef: string,
+    newOwnerId: string,
+    transferActionId: string
+  ): Promise<void> {
+    this.ensureInitialized();
+    try {
+      await this.query(
+        `
+        INSERT INTO ${this.t.ownershipState}
+          (resource_ref, current_owner_id, last_transfer_id, updated_at)
+        VALUES ($1, $2, $3, NOW())
+        ON CONFLICT (resource_ref) DO UPDATE SET
+          current_owner_id = EXCLUDED.current_owner_id,
+          last_transfer_id = EXCLUDED.last_transfer_id,
+          updated_at       = EXCLUDED.updated_at
+        `,
+        [resourceRef, newOwnerId, transferActionId]
+      );
+    } catch (error) {
+      throw new QueryError("Failed to update ownership state", error);
+    }
+  }
+
+  async getOwnershipHistory(resourceRef: string): Promise<Action[]> {
+    this.ensureInitialized();
+
+    // Ownership Actions are those that reference this resource as an input
+    // AND have a type starting with "ext:ownership:"
+    const rows = await this.query<ActionRow>(
+      `
+      SELECT a.*
+      FROM ${this.t.action} a
+      WHERE a.type LIKE 'ext:ownership:%'
+        AND a.inputs::text LIKE $1
+      ORDER BY a.timestamp ASC
+      `,
+      [`%${resourceRef}%`]
+    );
+
+    return rows.map((r) => this.rowToAction(r));
+  }
+
+  /*--------------------------------------------------------------
    | Transaction Support
    --------------------------------------------------------------*/
 
@@ -790,6 +883,15 @@ export class PostgresStorage
 
     return attr;
   }
+
+  private rowToOwnershipState(row: OwnershipStateRow): OwnershipState {
+    return {
+      resourceRef: row.resource_ref,
+      currentOwnerId: row.current_owner_id,
+      lastTransferId: row.last_transfer_id ?? null,
+      updatedAt: row.updated_at,
+    };
+  }
 }
 
 /*-----------------------------------------------------------------*\
@@ -838,4 +940,11 @@ interface AttributionRow {
   role: string;
   note: string | null;
   extensions: Record<string, unknown> | null;
+}
+
+interface OwnershipStateRow {
+  resource_ref: string;
+  current_owner_id: string;
+  last_transfer_id: string | null;
+  updated_at: string;
 }

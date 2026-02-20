@@ -31,6 +31,7 @@ import type {
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
+  OwnershipState,
 } from "../../db/interface";
 
 import {
@@ -113,6 +114,7 @@ export class MongoDBStorage
     resource: string;
     action: string;
     attribution: string;
+    ownershipState: string;
   };
 
   constructor(config: MongoDBStorageConfig) {
@@ -125,6 +127,7 @@ export class MongoDBStorage
       resource: `${this.prefix}resources`,
       action: `${this.prefix}actions`,
       attribution: `${this.prefix}attributions`,
+      ownershipState: `${this.prefix}ownership_state`,
     };
   }
 
@@ -465,6 +468,79 @@ export class MongoDBStorage
     if (filter?.limit) cursor = cursor.limit(filter.limit);
 
     return cursor.toArray();
+  }
+
+  /*--------------------------------------------------------------
+   | Ownership Operations
+   --------------------------------------------------------------*/
+
+  async initOwnershipState(resourceRef: string, ownerId: string): Promise<void> {
+    this.ensureInitialized();
+    try {
+      await this.db.collection(this.c.ownershipState).updateOne(
+        { resourceRef },
+        {
+          $setOnInsert: {
+            resourceRef,
+            currentOwnerId: ownerId,
+            lastTransferId: null,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+        { upsert: true }
+      );
+    } catch (error) {
+      throw new QueryError("Failed to init ownership state", error);
+    }
+  }
+
+  async getOwnershipState(resourceRef: string): Promise<import("../../db/interface").OwnershipState | null> {
+    this.ensureInitialized();
+    const doc = await this.db
+      .collection<import("../../db/interface").OwnershipState>(this.c.ownershipState)
+      .findOne({ resourceRef });
+    return doc ?? null;
+  }
+
+  async transferOwnershipState(
+    resourceRef: string,
+    newOwnerId: string,
+    transferActionId: string
+  ): Promise<void> {
+    this.ensureInitialized();
+    try {
+      await this.db.collection(this.c.ownershipState).updateOne(
+        { resourceRef },
+        {
+          $set: {
+            currentOwnerId: newOwnerId,
+            lastTransferId: transferActionId,
+            updatedAt: new Date().toISOString(),
+          },
+          $setOnInsert: { resourceRef },
+        },
+        { upsert: true }
+      );
+    } catch (error) {
+      throw new QueryError("Failed to transfer ownership state", error);
+    }
+  }
+
+  async getOwnershipHistory(resourceRef: string): Promise<Action[]> {
+    this.ensureInitialized();
+    // Query actions whose inputs contain this ref and type is an ownership action
+    const results = await this.db
+      .collection<Action>(this.c.action)
+      .find({
+        $or: [
+          { type: "ext:ownership:claim@1.0.0" },
+          { type: "ext:ownership:transfer@1.0.0" },
+        ],
+        "inputs.ref": resourceRef,
+      })
+      .sort({ timestamp: 1 })
+      .toArray();
+    return results;
   }
 
   /*--------------------------------------------------------------

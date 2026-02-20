@@ -30,6 +30,7 @@ import graph from "./handlers/graph.js";
 import { searchRoute } from "./handlers/search.js";
 import payments from "./handlers/payments.js";
 import media from "./handlers/media.js";
+import ownership from "./handlers/ownership.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | App Factory                                                   |
@@ -75,6 +76,7 @@ export function createApp(opts?: CreateAppOptions) {
   app.route("/", session);
   app.route("/", payments);
   app.route("/", media);
+  app.route("/", ownership);
 
   // 404 handler for unknown routes
   app.notFound((c) =>

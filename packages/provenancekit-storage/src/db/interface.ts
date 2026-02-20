@@ -18,6 +18,33 @@ import type {
 } from "@arttribute/eaa-types";
 
 /*-----------------------------------------------------------------*\
+ | Ownership State Type                                              |
+\*-----------------------------------------------------------------*/
+
+/**
+ * Materialized ownership state for a resource.
+ *
+ * This is a fast-query cache derived from the ownership action chain
+ * (pk_action rows of type ext:ownership:transfer@1.0.0). The provenance
+ * action chain is always the authoritative source of truth; this record
+ * exists so "who owns this now?" is a cheap single-row lookup.
+ *
+ * - `currentOwnerId` starts as the resource's registrant (created_by) and
+ *   updates atomically each time a transfer Action is recorded.
+ * - `lastTransferId` is null when ownership has never been transferred.
+ */
+export interface OwnershipState {
+  /** Content reference of the owned resource */
+  resourceRef: string;
+  /** Entity ID of the current authoritative owner */
+  currentOwnerId: string;
+  /** Action ID of the most recent transfer, or null if never transferred */
+  lastTransferId: string | null;
+  /** ISO 8601 timestamp of the last ownership change */
+  updatedAt: string;
+}
+
+/*-----------------------------------------------------------------*\
  | Core Types                                                        |
 \*-----------------------------------------------------------------*/
 
@@ -257,6 +284,54 @@ export interface IProvenanceStorage {
     entityId: string,
     filter?: AttributionFilter
   ): Promise<Attribution[]>;
+
+  /*--------------------------------------------------------------
+   | Ownership Operations
+   --------------------------------------------------------------*/
+
+  /**
+   * Initialize the ownership state for a newly created resource.
+   * Sets the current owner to the registrant (created_by entity).
+   * Called once immediately after createResource().
+   *
+   * @param resourceRef - The resource content reference (CID)
+   * @param ownerId     - The registrant entity ID (same as resource.createdBy)
+   */
+  initOwnershipState(resourceRef: string, ownerId: string): Promise<void>;
+
+  /**
+   * Get the current ownership state for a resource.
+   * Returns null if the resource has no ownership state record
+   * (e.g. resources created before migration 002).
+   *
+   * @param resourceRef - The resource content reference (CID)
+   */
+  getOwnershipState(resourceRef: string): Promise<OwnershipState | null>;
+
+  /**
+   * Update the ownership state to reflect a completed transfer.
+   * Called atomically alongside createAction() for a transfer Action.
+   *
+   * @param resourceRef      - The resource content reference (CID)
+   * @param newOwnerId       - Entity ID of the new owner
+   * @param transferActionId - Action ID of the transfer event
+   */
+  transferOwnershipState(
+    resourceRef: string,
+    newOwnerId: string,
+    transferActionId: string
+  ): Promise<void>;
+
+  /**
+   * Get all ownership-related Actions for a resource in ascending
+   * timestamp order (oldest first). Returns both claim Actions
+   * (ext:ownership:claim@1.0.0) and transfer Actions
+   * (ext:ownership:transfer@1.0.0) so callers can reconstruct the
+   * full ownership history from the immutable provenance chain.
+   *
+   * @param resourceRef - The resource content reference (CID)
+   */
+  getOwnershipHistory(resourceRef: string): Promise<Action[]>;
 
   /*--------------------------------------------------------------
    | Lifecycle

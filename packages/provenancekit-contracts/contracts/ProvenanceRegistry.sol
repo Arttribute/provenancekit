@@ -54,6 +54,11 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     /// @dev Mapping from entity address to role
     mapping(address => string) private _entityRoles;
 
+    /// @dev Mapping from resource CID to current owner address.
+    ///      address(0) means ownership has never been transferred —
+    ///      in that case the effective owner is _resourceCreator[cid].
+    mapping(string => address) private _currentOwner;
+
     /*//////////////////////////////////////////////////////////////
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
@@ -75,6 +80,42 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
 
     /// @notice Thrown when referencing a non-existent action
     error ActionNotFound(bytes32 actionId);
+
+    /// @notice Thrown when a resource CID is not registered
+    error ResourceNotFound(string cid);
+
+    /*//////////////////////////////////////////////////////////////
+                           OWNERSHIP EVENTS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Emitted when an entity asserts it is the rightful owner of a resource.
+     * @dev Recording a claim does NOT change the current owner — it creates an
+     *      on-chain audit record. Use getOwner() to query the current owner.
+     */
+    event OwnershipClaimed(
+        string indexed cid,
+        address indexed claimant,
+        uint256 timestamp
+    );
+
+    /**
+     * @notice Emitted when ownership of a resource moves to a new address.
+     * @dev The transfer is recorded permissively — any registered entity can
+     *      call transferOwnership(). Trust is conveyed off-chain by the
+     *      ext:verification (v1.0.0) extension on the corresponding Action.
+     *      On-chain callers that need enforcement should call getOwner() and
+     *      verify msg.sender before calling transferOwnership().
+     * @param transferActionId Off-chain Action ID linking this event to the
+     *        immutable provenance record.
+     */
+    event OwnershipTransferred(
+        string indexed cid,
+        address indexed fromOwner,
+        address indexed toOwner,
+        bytes32 transferActionId,
+        uint256 timestamp
+    );
 
     /*//////////////////////////////////////////////////////////////
                          ENTITY FUNCTIONS
@@ -333,6 +374,76 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         }
 
         return actionId;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        OWNERSHIP FUNCTIONS
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Get the current owner of a resource.
+     * @dev Returns _resourceCreator if ownership has never been transferred
+     *      (i.e. _currentOwner is address(0)), preserving backwards
+     *      compatibility with resources registered before this feature.
+     *
+     * @param cid Content identifier of the resource
+     * @return Current owner address
+     */
+    function getOwner(string calldata cid) external view returns (address) {
+        if (!_resources[cid]) revert ResourceNotFound(cid);
+        address current = _currentOwner[cid];
+        return current == address(0) ? _resourceCreator[cid] : current;
+    }
+
+    /**
+     * @notice Record an on-chain ownership claim for a resource.
+     * @dev Emits OwnershipClaimed. Does NOT change the current owner.
+     *      Any registered entity may call this. The claim is a timestamped
+     *      audit record; dispute resolution is off-chain.
+     *
+     * @param cid Content identifier of the resource being claimed
+     */
+    function recordOwnershipClaim(string calldata cid) external {
+        if (!_resources[cid]) revert ResourceNotFound(cid);
+        if (!_entities[msg.sender]) revert Unauthorized();
+
+        emit OwnershipClaimed(cid, msg.sender, block.timestamp);
+    }
+
+    /**
+     * @notice Transfer ownership of a resource to a new address.
+     * @dev Permissive: any registered entity may call this. The transfer is
+     *      always recorded on-chain. Trust is conveyed by the off-chain
+     *      ext:verification (v1.0.0) extension on the corresponding Action.
+     *
+     *      On-chain callers that need enforcement (e.g. a payment splitter
+     *      honouring only voluntary transfers) should check:
+     *
+     *          require(provenanceRegistry.getOwner(cid) == msg.sender, "Not owner");
+     *
+     *      before calling this function, or use the `fromOwner` field of the
+     *      OwnershipTransferred event to validate post-hoc.
+     *
+     * @param cid              Content identifier of the resource
+     * @param newOwner         Address of the new owner
+     * @param transferActionId Off-chain Action ID of the transfer record
+     */
+    function transferOwnership(
+        string calldata cid,
+        address newOwner,
+        bytes32 transferActionId
+    ) external {
+        if (!_resources[cid]) revert ResourceNotFound(cid);
+        if (!_entities[msg.sender]) revert Unauthorized();
+        require(newOwner != address(0), "ProvenanceRegistry: new owner is zero address");
+
+        address current = _currentOwner[cid] == address(0)
+            ? _resourceCreator[cid]
+            : _currentOwner[cid];
+
+        _currentOwner[cid] = newOwner;
+
+        emit OwnershipTransferred(cid, current, newOwner, transferActionId, block.timestamp);
     }
 
     /*//////////////////////////////////////////////////////////////

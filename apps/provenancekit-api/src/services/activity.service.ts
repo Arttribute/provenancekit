@@ -745,6 +745,12 @@ export async function createActivity(
 
   await dbStorage.createResource(resource);
 
+  // Initialize ownership state: registrant becomes the first owner.
+  // This is a materialized cache for fast queries; the immutable `created_by`
+  // field on the resource record is always the original registrant regardless
+  // of any future ownership transfers.
+  await dbStorage.initOwnershipState(cid, entityId);
+
   // 10. Store embedding
   if (embedding && !encrypted) {
     await embedder.store(cid, embedding);

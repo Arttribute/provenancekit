@@ -34,6 +34,7 @@ import type {
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
+  OwnershipState,
 } from "../../db/interface";
 
 import {
@@ -61,8 +62,8 @@ export interface SupabaseResponse<T = unknown> {
  */
 export interface SupabaseQueryBuilder<T = unknown> {
   select(columns?: string): SupabaseQueryBuilder<T>;
-  insert(data: unknown | unknown[]): SupabaseQueryBuilder<T>;
-  upsert(data: unknown | unknown[]): SupabaseQueryBuilder<T>;
+  insert(data: unknown | unknown[], options?: Record<string, unknown>): SupabaseQueryBuilder<T>;
+  upsert(data: unknown | unknown[], options?: Record<string, unknown>): SupabaseQueryBuilder<T>;
   update(data: unknown): SupabaseQueryBuilder<T>;
   delete(): SupabaseQueryBuilder<T>;
   eq(column: string, value: unknown): SupabaseQueryBuilder<T>;
@@ -153,6 +154,7 @@ export class SupabaseStorage
     attribution: string;
     embedding: string;
     encryptedEmbedding: string;
+    ownershipState: string;
   };
 
   constructor(config: SupabaseStorageConfig) {
@@ -169,6 +171,7 @@ export class SupabaseStorage
       attribution: `${this.prefix}attribution`,
       embedding: `${this.prefix}embedding`,
       encryptedEmbedding: `${this.prefix}encrypted_embedding`,
+      ownershipState: `${this.prefix}ownership_state`,
     };
   }
 
@@ -782,6 +785,94 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
   }
 
   /*--------------------------------------------------------------
+   | Ownership Operations
+   --------------------------------------------------------------*/
+
+  async initOwnershipState(resourceRef: string, ownerId: string): Promise<void> {
+    this.ensureInitialized();
+
+    // Only insert if no record exists yet (insert-if-not-exists semantics)
+    const existing = await this.getOwnershipState(resourceRef);
+    if (existing) return;
+
+    const result = await this.client.from(this.t.ownershipState).insert({
+      resource_ref: resourceRef,
+      current_owner_id: ownerId,
+      last_transfer_id: null,
+      updated_at: new Date().toISOString(),
+    });
+
+    this.handleError(result, "init ownership state");
+  }
+
+  async getOwnershipState(resourceRef: string): Promise<OwnershipState | null> {
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from<OwnershipStateRow>(this.t.ownershipState)
+      .select("*")
+      .eq("resource_ref", resourceRef)
+      .single();
+
+    if (result.error?.code === "PGRST116") return null;
+    this.handleError(result, "get ownership state");
+
+    if (!result.data) return null;
+    return this.rowToOwnershipState(result.data as OwnershipStateRow);
+  }
+
+  async transferOwnershipState(
+    resourceRef: string,
+    newOwnerId: string,
+    transferActionId: string
+  ): Promise<void> {
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from(this.t.ownershipState)
+      .update({
+        current_owner_id: newOwnerId,
+        last_transfer_id: transferActionId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("resource_ref", resourceRef);
+
+    this.handleError(result, "transfer ownership state");
+  }
+
+  async getOwnershipHistory(resourceRef: string): Promise<Action[]> {
+    this.ensureInitialized();
+
+    // Fetch actions of ownership types that list this resource as an input.
+    // Supabase does not support LIKE on JSONB arrays directly, so we use
+    // the `contains` filter on the inputs array with the ref field.
+    const claimResult = await this.client
+      .from<ActionRow>(this.t.action)
+      .select("*")
+      .eq("type", "ext:ownership:claim@1.0.0")
+      .contains("inputs", [{ ref: resourceRef }])
+      .order("timestamp", { ascending: true });
+
+    this.handleError(claimResult, "get ownership history (claims)");
+
+    const transferResult = await this.client
+      .from<ActionRow>(this.t.action)
+      .select("*")
+      .eq("type", "ext:ownership:transfer@1.0.0")
+      .contains("inputs", [{ ref: resourceRef }])
+      .order("timestamp", { ascending: true });
+
+    this.handleError(transferResult, "get ownership history (transfers)");
+
+    const claimRows = (claimResult.data as ActionRow[] | null) ?? [];
+    const transferRows = (transferResult.data as ActionRow[] | null) ?? [];
+
+    return [...claimRows, ...transferRows]
+      .map((r) => this.rowToAction(r))
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  /*--------------------------------------------------------------
    | Vector Search (IVectorStorage)
    --------------------------------------------------------------*/
 
@@ -984,6 +1075,15 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
 
     return attr;
   }
+
+  private rowToOwnershipState(row: OwnershipStateRow): OwnershipState {
+    return {
+      resourceRef: row.resource_ref,
+      currentOwnerId: row.current_owner_id,
+      lastTransferId: row.last_transfer_id ?? null,
+      updatedAt: row.updated_at,
+    };
+  }
 }
 
 /*-----------------------------------------------------------------*\
@@ -1032,4 +1132,11 @@ interface AttributionRow {
   role: string;
   note: string | null;
   extensions: Record<string, unknown> | null;
+}
+
+interface OwnershipStateRow {
+  resource_ref: string;
+  current_owner_id: string;
+  last_transfer_id: string | null;
+  updated_at: string;
 }

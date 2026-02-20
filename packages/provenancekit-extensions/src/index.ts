@@ -198,6 +198,22 @@ export {
   type SplitResult,
 } from "./distribution";
 
+// Ownership extensions (claim + transfer)
+export {
+  OWNERSHIP_CLAIM_NAMESPACE,
+  OWNERSHIP_TRANSFER_NAMESPACE,
+  OwnershipEvidenceType,
+  OwnershipClaimExtension,
+  OwnershipTransferExtension,
+  OwnershipTransferType,
+  withOwnershipClaim,
+  getOwnershipClaim,
+  hasOwnershipClaim,
+  withOwnershipTransfer,
+  getOwnershipTransfer,
+  hasOwnershipTransfer,
+} from "./ownership";
+
 /**
  * All extension namespace constants for convenience.
  */
@@ -213,4 +229,6 @@ export const NAMESPACES = {
   WITNESS: "ext:witness@1.0.0",
   TOOL_ATTESTATION: "ext:tool-attestation@1.0.0",
   VERIFICATION: "ext:verification@1.0.0",
+  OWNERSHIP_CLAIM: "ext:ownership:claim@1.0.0",
+  OWNERSHIP_TRANSFER: "ext:ownership:transfer@1.0.0",
 } as const;

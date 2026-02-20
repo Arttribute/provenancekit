@@ -29,6 +29,7 @@ import type {
   ResourceFilter,
   ActionFilter,
   AttributionFilter,
+  OwnershipState,
 } from "../../db/interface";
 
 import { AlreadyExistsError, DbNotInitializedError } from "../../db/errors";
@@ -38,6 +39,7 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
   private resources = new Map<string, Resource>();
   private actions = new Map<string, Action>();
   private attributions: Attribution[] = [];
+  private ownershipStates = new Map<string, OwnershipState>();
   private initialized = false;
 
   /*--------------------------------------------------------------
@@ -300,6 +302,52 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
   }
 
   /*--------------------------------------------------------------
+   | Ownership Operations
+   --------------------------------------------------------------*/
+
+  async initOwnershipState(resourceRef: string, ownerId: string): Promise<void> {
+    this.ensureInitialized();
+    if (!this.ownershipStates.has(resourceRef)) {
+      this.ownershipStates.set(resourceRef, {
+        resourceRef,
+        currentOwnerId: ownerId,
+        lastTransferId: null,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  async getOwnershipState(resourceRef: string): Promise<OwnershipState | null> {
+    this.ensureInitialized();
+    return this.ownershipStates.get(resourceRef) ?? null;
+  }
+
+  async transferOwnershipState(
+    resourceRef: string,
+    newOwnerId: string,
+    transferActionId: string
+  ): Promise<void> {
+    this.ensureInitialized();
+    this.ownershipStates.set(resourceRef, {
+      resourceRef,
+      currentOwnerId: newOwnerId,
+      lastTransferId: transferActionId,
+      updatedAt: new Date().toISOString(),
+    });
+  }
+
+  async getOwnershipHistory(resourceRef: string): Promise<Action[]> {
+    this.ensureInitialized();
+    return Array.from(this.actions.values())
+      .filter(
+        (a) =>
+          a.type.startsWith("ext:ownership:") &&
+          a.inputs.some((inp) => inp.ref === resourceRef)
+      )
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  /*--------------------------------------------------------------
    | Transaction Support
    --------------------------------------------------------------*/
 
@@ -313,6 +361,7 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     const resourcesSnapshot = new Map(this.resources);
     const actionsSnapshot = new Map(this.actions);
     const attributionsSnapshot = [...this.attributions];
+    const ownershipSnapshot = new Map(this.ownershipStates);
 
     try {
       return await fn(this);
@@ -322,6 +371,7 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
       this.resources = resourcesSnapshot;
       this.actions = actionsSnapshot;
       this.attributions = attributionsSnapshot;
+      this.ownershipStates = ownershipSnapshot;
       throw error;
     }
   }
@@ -338,6 +388,7 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     this.resources.clear();
     this.actions.clear();
     this.attributions = [];
+    this.ownershipStates.clear();
   }
 
   /**
@@ -348,12 +399,14 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     resources: number;
     actions: number;
     attributions: number;
+    ownershipStates: number;
   } {
     return {
       entities: this.entities.size,
       resources: this.resources.size,
       actions: this.actions.size,
       attributions: this.attributions.length,
+      ownershipStates: this.ownershipStates.size,
     };
   }
 }
