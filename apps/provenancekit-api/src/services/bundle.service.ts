@@ -4,7 +4,7 @@
  * Provenance bundle operations using @provenancekit/storage utilities.
  */
 
-import type { ProvenanceBundle } from "@arttribute/eaa-types";
+import type { ProvenanceBundle } from "@provenancekit/eaa-types";
 import { getBundle, storeBundle } from "@provenancekit/storage/utils";
 import { getContext } from "../context.js";
 import { ProvenanceKitError } from "../errors.js";

@@ -31,7 +31,7 @@ import {
   type Resource,
   type Action,
   type Attribution,
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 import {
   withContrib,
   withLicense,

@@ -1,5 +1,5 @@
 /* Re‑export the canonical types from eaa-types */
-import type { Entity, Resource, Action, Attribution } from "@arttribute/eaa-types";
+import type { Entity, Resource, Action, Attribution } from "@provenancekit/eaa-types";
 export type { Entity, Resource, Action, Attribution };
 
 /*───────────────────────────────────────────────────────────*\
@@ -78,7 +78,7 @@ export interface SessionProvenance {
  *
  * This is a relaxed version of the canonical ProvenanceBundle from eaa-types
  * where `context` is optional (may not be set by all API versions).
- * For strict validation, use ProvenanceBundle from @arttribute/eaa-types.
+ * For strict validation, use ProvenanceBundle from @provenancekit/eaa-types.
  */
 export interface ProvenanceBundle {
   context?: string;

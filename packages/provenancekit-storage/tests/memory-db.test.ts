@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { cidRef } from "@arttribute/eaa-types";
-import type { Entity, Resource, Action, Attribution } from "@arttribute/eaa-types";
+import { cidRef } from "@provenancekit/eaa-types";
+import type { Entity, Resource, Action, Attribution } from "@provenancekit/eaa-types";
 import { MemoryDbStorage } from "../src/adapters/db/memory";
 import { AlreadyExistsError, DbNotInitializedError } from "../src/db/errors";
 

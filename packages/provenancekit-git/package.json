@@ -64,7 +64,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@provenancekit/extensions": "workspace:*",
     "simple-git": "^3.27.0",
     "zod": "^3.23.8"

@@ -11,8 +11,8 @@ import type {
   Resource,
   Action,
   Attribution,
-} from "@arttribute/eaa-types";
-import { CONTEXT_URI } from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
+import { CONTEXT_URI } from "@provenancekit/eaa-types";
 
 import type { IProvenanceStorage } from "../db/interface";
 import { supportsTransactions } from "../db/interface";

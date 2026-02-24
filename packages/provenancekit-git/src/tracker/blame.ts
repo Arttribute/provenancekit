@@ -9,7 +9,7 @@
 
 import type { SimpleGit } from "simple-git";
 import simpleGit from "simple-git";
-import type { ContentReference } from "@arttribute/eaa-types";
+import type { ContentReference } from "@provenancekit/eaa-types";
 import type { Distribution, DistributionEntry } from "@provenancekit/extensions";
 import type {
   BlameAnalysis,

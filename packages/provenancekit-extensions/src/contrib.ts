@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Attribution } from "@arttribute/eaa-types";
+import type { Attribution } from "@provenancekit/eaa-types";
 
 /**
  * Namespace for contribution extension.

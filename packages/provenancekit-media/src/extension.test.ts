@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { Resource } from "@arttribute/eaa-types";
+import type { Resource } from "@provenancekit/eaa-types";
 import {
   withC2PA,
   getC2PA,

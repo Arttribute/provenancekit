@@ -25,7 +25,7 @@
  */
 
 import { createHash } from "crypto";
-import type { ContentReference } from "@arttribute/eaa-types";
+import type { ContentReference } from "@provenancekit/eaa-types";
 
 import type {
   IFileStorage,

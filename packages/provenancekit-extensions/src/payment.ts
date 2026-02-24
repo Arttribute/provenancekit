@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Attribution, Action } from "@arttribute/eaa-types";
+import type { Attribution, Action } from "@provenancekit/eaa-types";
 
 /**
  * Namespace for payment extension.

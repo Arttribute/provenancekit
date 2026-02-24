@@ -11,7 +11,7 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
-import type { Entity } from "@arttribute/eaa-types";
+import type { Entity } from "@provenancekit/eaa-types";
 import {
   withAIAgent,
   createAIAgent,

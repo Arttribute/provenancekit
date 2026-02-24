@@ -8,7 +8,7 @@
 
 import type { SimpleGit, DefaultLogFields, ListLogLine } from "simple-git";
 import simpleGit from "simple-git";
-import type { Attribution, Entity, ContentReference } from "@arttribute/eaa-types";
+import type { Attribution, Entity, ContentReference } from "@provenancekit/eaa-types";
 import { withContrib } from "@provenancekit/extensions";
 import type {
   CommitInfo,

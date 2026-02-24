@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cidRef, type Resource, type Attribution } from "@arttribute/eaa-types";
+import { cidRef, type Resource, type Attribution } from "@provenancekit/eaa-types";
 import {
   LICENSE_NAMESPACE,
   LicenseExtension,

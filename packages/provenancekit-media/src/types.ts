@@ -10,7 +10,7 @@ import type {
   Attribution as EAAAttribution,
   Entity as EAAEntity,
   ContentReference,
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 /*─────────────────────────────────────────────────────────────*\
  | Internal Media Types                                         |

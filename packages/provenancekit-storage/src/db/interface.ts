@@ -15,7 +15,7 @@ import type {
   Resource,
   Action,
   Attribution,
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 /*-----------------------------------------------------------------*\
  | Ownership State Type                                              |

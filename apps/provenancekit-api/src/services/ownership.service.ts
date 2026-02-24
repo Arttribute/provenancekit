@@ -18,7 +18,7 @@
  */
 
 import { v4 as uuidv4 } from "uuid";
-import { cidRef, type Action, type Attribution } from "@arttribute/eaa-types";
+import { cidRef, type Action, type Attribution } from "@provenancekit/eaa-types";
 import {
   withOwnershipClaim,
   withOwnershipTransfer,

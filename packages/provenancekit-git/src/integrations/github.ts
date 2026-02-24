@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Action, Attribution, Entity, ContentReference } from "@arttribute/eaa-types";
+import type { Action, Attribution, Entity, ContentReference } from "@provenancekit/eaa-types";
 import { withContrib } from "@provenancekit/extensions";
 import type {
   GitHubRepo,

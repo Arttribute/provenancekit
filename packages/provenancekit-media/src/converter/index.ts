@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { ContentReference } from "@arttribute/eaa-types";
+import type { ContentReference } from "@provenancekit/eaa-types";
 import type {
   MediaAction as Action,
   MediaAttribution as Attribution,

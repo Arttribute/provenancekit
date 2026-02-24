@@ -10,7 +10,7 @@
  * - Minimal core, optional capabilities via extensions
  */
 
-import type { ContentReference } from "@arttribute/eaa-types";
+import type { ContentReference } from "@provenancekit/eaa-types";
 
 /*-----------------------------------------------------------------*\
  | Core Types                                                        |

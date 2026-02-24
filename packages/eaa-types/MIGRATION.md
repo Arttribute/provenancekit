@@ -1,6 +1,6 @@
 # Migration Guide: v1 → v2
 
-This guide helps you upgrade from v1 to v2 of `@arttribute/eaa-types`.
+This guide helps you upgrade from v1 to v2 of `@provenancekit/eaa-types`.
 
 ## Overview
 
@@ -43,7 +43,7 @@ const attribution: Attribution = {
 
 **After (v2)**:
 ```typescript
-import { Attribution, setExtension } from "@arttribute/eaa-types";
+import { Attribution, setExtension } from "@provenancekit/eaa-types";
 
 const attribution: Attribution = {
   resourceCid: "bafy...",
@@ -89,7 +89,7 @@ const resource: Resource = {
 
 **After (v2)**:
 ```typescript
-import { Resource, setExtension } from "@arttribute/eaa-types";
+import { Resource, setExtension } from "@provenancekit/eaa-types";
 
 const resource: Resource = {
   address: { cid: "bafy...", size: 1024, algorithm: "sha256" },
@@ -177,7 +177,7 @@ const action: Action = {
 
 **After (v2)**:
 ```typescript
-import { Action, setExtension } from "@arttribute/eaa-types";
+import { Action, setExtension } from "@provenancekit/eaa-types";
 
 const action: Action = {
   id: "action1",
@@ -251,7 +251,7 @@ setExtension(action, "ext:tool@1.0.0", {
 **Define Extension**:
 ```typescript
 import { z } from "zod";
-import { ExtensionDefinition, registry } from "@arttribute/eaa-types";
+import { ExtensionDefinition, registry } from "@provenancekit/eaa-types";
 
 const MyExtension: ExtensionDefinition = {
   key: "ext:myorg:feature@1.0.0",
@@ -270,7 +270,7 @@ registry.register(MyExtension);
 
 **Use Extension**:
 ```typescript
-import { Resource, setExtension, getExtension } from "@arttribute/eaa-types";
+import { Resource, setExtension, getExtension } from "@provenancekit/eaa-types";
 
 const resource: Resource = { /* ... */ };
 
@@ -303,7 +303,7 @@ const attribution: Attribution = {
 
 **v2**:
 ```typescript
-import { Attribution, setExtension } from "@arttribute/eaa-types";
+import { Attribution, setExtension } from "@provenancekit/eaa-types";
 
 const attribution: Attribution = {
   resourceCid: "bafy...",
@@ -332,7 +332,7 @@ const attribution: Attribution = {
 
 **v2**:
 ```typescript
-import { Attribution, setExtension } from "@arttribute/eaa-types";
+import { Attribution, setExtension } from "@provenancekit/eaa-types";
 
 const attribution: Attribution = {
   resourceCid: "bafy...",
@@ -367,7 +367,7 @@ const action: Action = {
 
 **v2**:
 ```typescript
-import { Action, setExtension } from "@arttribute/eaa-types";
+import { Action, setExtension } from "@provenancekit/eaa-types";
 
 const action: Action = {
   id: "action1",
@@ -393,7 +393,7 @@ setExtension(action, "ext:tool@1.0.0", {
 For bulk migrations, use this script:
 
 ```typescript
-import { Attribution, Resource, Action, setExtension } from "@arttribute/eaa-types";
+import { Attribution, Resource, Action, setExtension } from "@provenancekit/eaa-types";
 
 function migrateAttribution(oldAttr: any): Attribution {
   const newAttr: Attribution = {
@@ -489,7 +489,7 @@ function migrateAction(oldAct: any): Action {
 After migrating, validate your data:
 
 ```typescript
-import { ProvenanceBundle, validateExtensions } from "@arttribute/eaa-types";
+import { ProvenanceBundle, validateExtensions } from "@provenancekit/eaa-types";
 
 const bundle: ProvenanceBundle = { /* ... */ };
 

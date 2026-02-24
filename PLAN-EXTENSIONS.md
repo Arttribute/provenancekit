@@ -52,7 +52,7 @@ packages/provenancekit-extensions/
 ```typescript
 // src/contrib.ts
 import { z } from "zod";
-import type { Attribution } from "@arttribute/eaa-types";
+import type { Attribution } from "@provenancekit/eaa-types";
 
 export const CONTRIB_NAMESPACE = "ext:contrib@1.0.0" as const;
 
@@ -135,7 +135,7 @@ export function getContribBps(attr: Attribution): number {
 ```typescript
 // src/license.ts
 import { z } from "zod";
-import type { Resource, Attribution } from "@arttribute/eaa-types";
+import type { Resource, Attribution } from "@provenancekit/eaa-types";
 
 export const LICENSE_NAMESPACE = "ext:license@1.0.0" as const;
 
@@ -208,7 +208,7 @@ export const Licenses = {
 ```typescript
 // src/payment.ts
 import { z } from "zod";
-import type { Attribution, Action } from "@arttribute/eaa-types";
+import type { Attribution, Action } from "@provenancekit/eaa-types";
 
 export const PAYMENT_NAMESPACE = "ext:payment@1.0.0" as const;
 
@@ -323,7 +323,7 @@ export function getOnchain(obj: { extensions?: Record<string, unknown> }): Oncha
 ```typescript
 // src/storage.ts
 import { z } from "zod";
-import type { Resource } from "@arttribute/eaa-types";
+import type { Resource } from "@provenancekit/eaa-types";
 
 export const STORAGE_NAMESPACE = "ext:storage@1.0.0" as const;
 
@@ -372,7 +372,7 @@ export function getStorage(resource: Resource): StorageExtension | undefined {
 ```typescript
 // src/ai.ts
 import { z } from "zod";
-import type { Entity, Action } from "@arttribute/eaa-types";
+import type { Entity, Action } from "@provenancekit/eaa-types";
 
 export const AI_NAMESPACE = "ext:ai@1.0.0" as const;
 
@@ -481,7 +481,7 @@ export function withoutExtension<T extends { extensions?: Record<string, unknown
 
 ```typescript
 // src/distribution.ts
-import type { Attribution, ContentReference } from "@arttribute/eaa-types";
+import type { Attribution, ContentReference } from "@provenancekit/eaa-types";
 import { getContribBps } from "./contrib";
 import { getPayment, type PaymentExtension } from "./payment";
 
@@ -649,7 +649,7 @@ export {
 ### Basic Usage
 
 ```typescript
-import { Attribution, cidRef } from "@arttribute/eaa-types";
+import { Attribution, cidRef } from "@provenancekit/eaa-types";
 import { withContrib, withLicense, withPayment, Licenses } from "@provenancekit/extensions";
 
 // Create attribution with extensions
@@ -749,7 +749,7 @@ const attribution = {
     "zod": "^3.22.0"
   },
   "peerDependencies": {
-    "@arttribute/eaa-types": "workspace:*"
+    "@provenancekit/eaa-types": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.0",

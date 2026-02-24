@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import type { Resource, Action, Attribution, Entity } from "@arttribute/eaa-types";
+import type { Resource, Action, Attribution, Entity } from "@provenancekit/eaa-types";
 import type {
   C2PAExtension,
   C2PAAction,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Action, Resource, Attribution } from "@arttribute/eaa-types";
-import { cidRef } from "@arttribute/eaa-types";
+import type { Action, Resource, Attribution } from "@provenancekit/eaa-types";
+import { cidRef } from "@provenancekit/eaa-types";
 import {
   ONCHAIN_NAMESPACE,
   OnchainExtension,

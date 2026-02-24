@@ -58,7 +58,7 @@
  * @packageDocumentation
  */
 
-import type { Attribution, ContentReference } from "@arttribute/eaa-types";
+import type { Attribution, ContentReference } from "@provenancekit/eaa-types";
 import { getContribBps, getContrib } from "./contrib";
 import { getPayment, type PaymentExtension } from "./payment";
 

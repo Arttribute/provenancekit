@@ -76,10 +76,10 @@
     "test:watch": "vitest"
   },
   "peerDependencies": {
-    "@arttribute/eaa-types": "workspace:*"
+    "@provenancekit/eaa-types": "workspace:*"
   },
   "devDependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0",
     "tsup": "^8.0.0",

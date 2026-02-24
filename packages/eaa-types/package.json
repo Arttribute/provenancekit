@@ -1,5 +1,5 @@
 {
-  "name": "@arttribute/eaa-types",
+  "name": "@provenancekit/eaa-types",
   "version": "0.0.2",
   "description": "Pure provenance primitives for Human-AI collaborative works. Entity • Action • Attribution (EAA) type definitions with extensible architecture.",
   "license": "MIT",

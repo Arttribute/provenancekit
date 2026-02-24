@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Entity, Action } from "@arttribute/eaa-types";
+import type { Entity, Action } from "@provenancekit/eaa-types";
 
 /**
  * Namespace for AI extension.

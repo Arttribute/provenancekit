@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cidRef, type Attribution, type Action } from "@arttribute/eaa-types";
+import { cidRef, type Attribution, type Action } from "@provenancekit/eaa-types";
 import {
   PAYMENT_NAMESPACE,
   PAYMENT_METHODS,

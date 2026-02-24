@@ -9,7 +9,7 @@
  *
  * @example
  * ```typescript
- * import { Attribution, cidRef } from "@arttribute/eaa-types";
+ * import { Attribution, cidRef } from "@provenancekit/eaa-types";
  * import {
  *   withContrib,
  *   withLicense,

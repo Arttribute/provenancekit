@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Action, Entity } from "@arttribute/eaa-types";
+import type { Action, Entity } from "@provenancekit/eaa-types";
 import {
   AI_NAMESPACE,
   AIToolExtension,

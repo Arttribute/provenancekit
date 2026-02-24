@@ -50,7 +50,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@noble/ed25519": "^3.0.0",
     "@provenancekit/privacy": "workspace:*"
   }

@@ -15,7 +15,7 @@
  */
 
 import * as ed from "@noble/ed25519";
-import type { ProvenanceBundle, BundleSignature } from "@arttribute/eaa-types";
+import type { ProvenanceBundle, BundleSignature } from "@provenancekit/eaa-types";
 
 /** Structured action proof (matches ext:proof@1.0.0 extension schema) */
 export interface ActionProof {

@@ -10,7 +10,7 @@
     "paths": {
       "@provenancekit/sdk": ["packages/provenancekit-sdk/dist"],
       "@provenancekit/ui": ["packages/provenancekit-ui/dist"],
-      "@arttribute/eaa-types": ["packages/eaa-types/dist"]
+      "@provenancekit/eaa-types": ["packages/eaa-types/dist"]
     }
   }
 }

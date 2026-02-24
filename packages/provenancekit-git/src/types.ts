@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import type { Action, Attribution, Entity, ContentReference } from "@arttribute/eaa-types";
+import type { Action, Attribution, Entity, ContentReference } from "@provenancekit/eaa-types";
 import type { Distribution } from "@provenancekit/extensions";
 
 /*─────────────────────────────────────────────────────────────*\

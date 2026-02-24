@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Resource } from "@arttribute/eaa-types";
-import { cidRef } from "@arttribute/eaa-types";
+import type { Resource } from "@provenancekit/eaa-types";
+import { cidRef } from "@provenancekit/eaa-types";
 import {
   STORAGE_NAMESPACE,
   STORAGE_PROVIDERS,

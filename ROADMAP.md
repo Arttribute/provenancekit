@@ -33,7 +33,7 @@ The foundation. Pure provenance primitives with no opinions about usage.
 
 | Package | Status | Purpose |
 |---------|--------|---------|
-| `@arttribute/eaa-types` | ✅ Done | Entity-Action-Attribution type system |
+| `@provenancekit/eaa-types` | ✅ Done | Entity-Action-Attribution type system |
 | `@provenancekit/contracts` | ✅ Done | On-chain provenance recording |
 | `@provenancekit/storage` | ✅ Done | Database & file storage abstraction |
 | `@provenancekit/indexer` | ✅ Done | Blockchain → Storage sync |

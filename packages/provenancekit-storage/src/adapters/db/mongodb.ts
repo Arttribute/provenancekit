@@ -22,7 +22,7 @@ import type {
   Resource,
   Action,
   Attribution,
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 import type {
   IProvenanceStorage,

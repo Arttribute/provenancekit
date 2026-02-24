@@ -15,8 +15,8 @@ import type {
   ActionType,
   AttributionRole,
   ResourceType,
-} from "@arttribute/eaa-types";
-import { cidRef } from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
+import { cidRef } from "@provenancekit/eaa-types";
 
 import type {
   ActionRecordedEvent,

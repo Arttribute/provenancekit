@@ -7,7 +7,7 @@
     "start": "node dist/src/index.js"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@hono/node-server": "^1.15.0",
     "@img/sharp-libvips-linux-x64": "1.0.6",
     "@img/sharp-linux-x64": "0.33.5",

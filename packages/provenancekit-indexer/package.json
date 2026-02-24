@@ -22,12 +22,12 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@provenancekit/storage": "workspace:*",
     "viem": "^2.0.0"
   },
   "devDependencies": {
-    "@arttribute/eaa-types": "workspace:*",
+    "@provenancekit/eaa-types": "workspace:*",
     "@provenancekit/storage": "workspace:*",
     "@types/node": "^20.0.0",
     "typescript": "^5.4.0",

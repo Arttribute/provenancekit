@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Resource } from "@arttribute/eaa-types";
+import type { Resource } from "@provenancekit/eaa-types";
 
 /**
  * Namespace for storage extension.

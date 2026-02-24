@@ -24,7 +24,7 @@ import type {
   Action,
   Attribution,
   ContentReference,
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 import type {
   IProvenanceStorage,

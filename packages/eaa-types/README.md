@@ -1,9 +1,9 @@
-# @arttribute/eaa-types
+# @provenancekit/eaa-types
 
 **Pure provenance primitives for Human-AI collaborative works**
 
-[![Version](https://img.shields.io/npm/v/@arttribute/eaa-types)](https://www.npmjs.com/package/@arttribute/eaa-types)
-[![License](https://img.shields.io/npm/l/@arttribute/eaa-types)](./LICENSE)
+[![Version](https://img.shields.io/npm/v/@provenancekit/eaa-types)](https://www.npmjs.com/package/@provenancekit/eaa-types)
+[![License](https://img.shields.io/npm/l/@provenancekit/eaa-types)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue)](https://www.typescriptlang.org/)
 
 Entity-Action-Attribution (EAA) type definitions and Zod schemas for tracking provenance of AI-generated and human-created content.
@@ -24,11 +24,11 @@ Entity-Action-Attribution (EAA) type definitions and Zod schemas for tracking pr
 ## Installation
 
 ```bash
-npm install @arttribute/eaa-types
+npm install @provenancekit/eaa-types
 # or
-pnpm add @arttribute/eaa-types
+pnpm add @provenancekit/eaa-types
 # or
-yarn add @arttribute/eaa-types
+yarn add @provenancekit/eaa-types
 ```
 
 ---
@@ -42,7 +42,7 @@ import {
   Action,
   Attribution,
   ProvenanceBundle
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 // 1. Define entities (who)
 const human: Entity = {
@@ -196,7 +196,7 @@ import {
   setExtension,
   getExtension,
   hasExtension
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 
 const entity: Entity = {
   id: "alice",
@@ -223,7 +223,7 @@ if (hasExtension(entity, "ext:x402@1.0.0")) {
 
 ```typescript
 import { z } from "zod";
-import { ExtensionDefinition, registry } from "@arttribute/eaa-types";
+import { ExtensionDefinition, registry } from "@provenancekit/eaa-types";
 
 // 1. Define extension schema
 const PaymentExtension: ExtensionDefinition = {
@@ -282,7 +282,7 @@ EAA types map directly to W3C PROV:
 ### Example 1: AI Image Generation
 
 ```typescript
-import { Entity, Resource, Action, Attribution } from "@arttribute/eaa-types";
+import { Entity, Resource, Action, Attribution } from "@provenancekit/eaa-types";
 
 // Human provides prompt
 const human: Entity = {
@@ -434,7 +434,7 @@ import type {
   ActionType,
   Attribution,
   ProvenanceBundle
-} from "@arttribute/eaa-types";
+} from "@provenancekit/eaa-types";
 ```
 
 ---
@@ -444,7 +444,7 @@ import type {
 All types include Zod schemas for runtime validation.
 
 ```typescript
-import { Entity, Resource, Action } from "@arttribute/eaa-types";
+import { Entity, Resource, Action } from "@provenancekit/eaa-types";
 
 // Validate at runtime
 const result = Entity.safeParse(data);

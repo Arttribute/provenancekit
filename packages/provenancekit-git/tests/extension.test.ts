@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { Action } from "@arttribute/eaa-types";
+import type { Action } from "@provenancekit/eaa-types";
 import {
   GIT_NAMESPACE,
   withGitCommit,
