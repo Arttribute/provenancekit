@@ -1,6 +1,6 @@
 export * from "./base";
 export * from "./extensions";
-export const VERSION = "0.0.3";
+export const VERSION = "0.0.2";
 
 /*─────────────────────────────────────────────────────────────*\
  | Breaking Changes in v2 (Context URI v2)                       |
