@@ -2,6 +2,27 @@ export * from "./client";
 export * from "./errors";
 export * from "./types";
 export { type ApiClientOptions } from "./api";
+
+// Extension inspection helpers — use these to read provenance data from bundles
+export {
+  getWitness,
+  hasWitness,
+  type WitnessExtension,
+  type EnvironmentAttestation,
+} from "@provenancekit/extensions";
+
+export {
+  getVerification,
+  isFullyVerified,
+  type VerificationExtension,
+  type ClaimStatus,
+} from "@provenancekit/extensions";
+
+export {
+  getProof,
+  hasProof,
+  type ProofExtension,
+} from "@provenancekit/extensions";
 export {
   decryptVector,
   cosineSimilarity,

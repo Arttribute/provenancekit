@@ -20,6 +20,7 @@ import {
   generateKey,
   type MinimalFileStorage,
 } from "@provenancekit/privacy";
+import type { EnvironmentAttestation } from "@provenancekit/extensions";
 import {
   createPublicClient,
   createWalletClient,
@@ -31,6 +32,49 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { derivePublicKey } from "@provenancekit/sdk";
 import { config } from "./config.js";
+
+/*─────────────────────────────────────────────────────────────*\
+ | Attestation Provider Interface                               |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Minimal interface for environment attestation generation.
+ *
+ * Implement with any attesting environment SDK (TEE, TPM, HSM, etc.) and
+ * pass to AppContext.attestationProvider. ProvenanceKit only calls
+ * getAttestation() — key sealing, key management, and report verification
+ * are entirely your implementation's concern.
+ *
+ * @example
+ * ```ts
+ * // AWS Nitro Enclave
+ * const attestationProvider: IAttestationProvider = {
+ *   async getAttestation(nonce) {
+ *     const doc = await nsm.getAttestationDoc({ nonce });
+ *     return { type: "aws-nitro", report: doc.toString("base64"), nonce };
+ *   },
+ * };
+ *
+ * // Intel SGX (via Open Enclave SDK)
+ * const attestationProvider: IAttestationProvider = {
+ *   async getAttestation(nonce) {
+ *     const quote = await oe.getReport(Buffer.from(nonce ?? ""));
+ *     return { type: "intel-sgx", report: quote.toString("base64"), nonce };
+ *   },
+ * };
+ *
+ * // TPM
+ * const attestationProvider: IAttestationProvider = {
+ *   async getAttestation(nonce) {
+ *     const quote = await tpm.quote({ nonce, pcrSelection: [0, 7] });
+ *     return { type: "tpm", report: quote.toString("base64"), nonce };
+ *   },
+ * };
+ * ```
+ */
+export interface IAttestationProvider {
+  getAttestation(nonce?: string): Promise<EnvironmentAttestation>;
+}
 
 /*─────────────────────────────────────────────────────────────*\
  | Context Interface                                            |
@@ -60,6 +104,13 @@ export interface AppContext {
 
   /** Server public key derived from serverSigningKey (hex-encoded) */
   serverPublicKey?: string;
+
+  /**
+   * Optional attestation provider.
+   * When provided, server witnesses will include an environment attestation
+   * report stored in ext:witness@1.0.0.attestation for independent verification.
+   */
+  attestationProvider?: IAttestationProvider;
 
   /** Optional blockchain clients for on-chain provenance recording */
   blockchain?: {

@@ -7,6 +7,41 @@ import { z } from "zod";
 export const WITNESS_NAMESPACE = "ext:witness@1.0.0" as const;
 
 /**
+ * Environment attestation report.
+ *
+ * Evidence that the server witness was produced inside a verifiable,
+ * attested execution environment. The raw `report` is the base64-encoded
+ * attestation document from the environment — verifiers use the appropriate
+ * SDK for the given `type` to independently check it.
+ *
+ * Well-known type values: "intel-sgx", "aws-nitro", "marlin-oyster",
+ * "amd-sev-snp", "tpm". Open string — custom environments are permitted.
+ */
+export const EnvironmentAttestation = z.object({
+  /**
+   * The attesting environment type.
+   * Well-known: "intel-sgx" | "aws-nitro" | "marlin-oyster" | "amd-sev-snp" | "tpm"
+   */
+  type: z.string(),
+
+  /** Base64-encoded raw attestation document produced by the environment */
+  report: z.string(),
+
+  /**
+   * Environment-specific measurement values extracted from the report.
+   * SGX: { mrenclave, mrsigner }
+   * Nitro: { pcr0, pcr1, pcr2 }
+   * TPM: { pcr0, pcr7, ... }
+   */
+  measurements: z.record(z.string()).optional(),
+
+  /** Freshness nonce that was included when requesting the attestation */
+  nonce: z.string().optional(),
+});
+
+export type EnvironmentAttestation = z.infer<typeof EnvironmentAttestation>;
+
+/**
  * Server witness extension schema.
  *
  * A cryptographic attestation by the server that a specific action
@@ -55,6 +90,15 @@ export const WitnessExtension = z.object({
 
   /** When the witness attestation was created (ISO 8601) */
   timestamp: z.string().datetime(),
+
+  /**
+   * Environment attestation report.
+   * Present when the server ran inside a verifiable attested environment
+   * (TEE, TPM, HSM, etc.). Upgrades the software witness to an environment-
+   * attested witness — verifiers can independently check the report to confirm
+   * the witness was produced by the expected, unmodified server code.
+   */
+  attestation: EnvironmentAttestation.optional(),
 });
 
 export type WitnessExtension = z.infer<typeof WitnessExtension>;

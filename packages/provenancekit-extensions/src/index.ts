@@ -144,6 +144,7 @@ export {
 // Server witness extension
 export {
   WITNESS_NAMESPACE,
+  EnvironmentAttestation,
   WitnessExtension,
   withWitness,
   getWitness,

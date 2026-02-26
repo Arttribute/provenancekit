@@ -52,6 +52,7 @@
   "dependencies": {
     "@provenancekit/eaa-types": "workspace:*",
     "@noble/ed25519": "^3.0.0",
-    "@provenancekit/privacy": "workspace:*"
+    "@provenancekit/privacy": "workspace:*",
+    "@provenancekit/extensions": "workspace:*"
   }
 }

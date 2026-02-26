@@ -73,6 +73,13 @@ export const VerificationExtension = z.object({
     tool: ClaimDetail.optional(),
     /** Input existence validation (optional — only present if inputs were declared) */
     inputs: ClaimDetail.optional(),
+    /**
+     * Environment attestation (optional — only present when server ran inside an
+     * attested environment). "verified" means an attestation report was attached
+     * to the witness. Verifiers should independently check the report in
+     * ext:witness@1.0.0.attestation.
+     */
+    attestation: ClaimDetail.optional(),
   }),
 
   /** When verification was performed (ISO 8601) */

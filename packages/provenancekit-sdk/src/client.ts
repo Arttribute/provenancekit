@@ -25,6 +25,14 @@ import type {
   SearchOpts,
   SearchResult,
   EncryptedEmbeddingRecord,
+  EntityResult,
+  EntityListResult,
+  EntityListOpts,
+  AIAgentResult,
+  OwnershipState,
+  OwnershipClaimOpts,
+  OwnershipTransferOpts,
+  OwnershipActionResult,
 } from "./types";
 
 /**
@@ -224,6 +232,80 @@ export class ProvenanceKit {
    | when creating activities to link them. Query provenance      |
    | for a session using this method.                             |
   \*─────────────────────────────────────────────────────────────*/
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Health                                                       |
+  \*─────────────────────────────────────────────────────────────*/
+
+  health() {
+    return this.api.get<string>("/");
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Entity Queries                                               |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Get a single entity by ID, including AI agent info if applicable.
+   */
+  getEntity(id: string) {
+    return this.api.get<EntityResult>(`/entity/${encodeURIComponent(id)}`);
+  }
+
+  /**
+   * List entities with optional filtering by role and pagination.
+   */
+  listEntities(opts: EntityListOpts = {}) {
+    const params = new URLSearchParams();
+    if (opts.role) params.set("role", opts.role);
+    if (opts.limit !== undefined) params.set("limit", String(opts.limit));
+    if (opts.offset !== undefined) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    return this.api.get<EntityListResult>(`/entities${qs ? `?${qs}` : ""}`);
+  }
+
+  /**
+   * Get AI agent extension data for an entity.
+   * Throws if the entity is not an AI agent.
+   */
+  getAIAgent(id: string) {
+    return this.api.get<AIAgentResult>(`/entity/${encodeURIComponent(id)}/ai-agent`);
+  }
+
+  /*─────────────────────────────────────────────────────────────*\
+   | Ownership                                                    |
+  \*─────────────────────────────────────────────────────────────*/
+
+  /**
+   * Get the current ownership state and full history for a resource.
+   */
+  ownership(cid: string) {
+    return this.api.get<OwnershipState>(`/resource/${cid}/ownership`);
+  }
+
+  /**
+   * Record an ownership claim for a resource.
+   * Does NOT change ownership state — trust level is conveyed via
+   * ext:verification@1.0.0 on the returned action.
+   */
+  ownershipClaim(cid: string, opts: OwnershipClaimOpts) {
+    return this.api.postJSON<OwnershipActionResult>(
+      `/resource/${cid}/ownership/claim`,
+      opts
+    );
+  }
+
+  /**
+   * Transfer ownership of a resource to a new entity.
+   * Always updates ownership state. The returned action carries
+   * ext:verification@1.0.0 showing whether the transfer was authorized.
+   */
+  ownershipTransfer(cid: string, opts: OwnershipTransferOpts) {
+    return this.api.postJSON<OwnershipActionResult>(
+      `/resource/${cid}/ownership/transfer`,
+      opts
+    );
+  }
 
   /**
    * Get all provenance records linked to an app-managed session.

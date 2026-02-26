@@ -240,10 +240,11 @@ interface ClaimTracker {
   output: { status: ClaimStatus; detail?: string };
   tool?: { status: ClaimStatus; detail?: string };
   inputs?: { status: ClaimStatus; detail?: string };
+  attestation?: { status: ClaimStatus; detail?: string };
 }
 
 function overallStatus(claims: ClaimTracker): "verified" | "partial" | "unverified" | "skipped" {
-  const all = [claims.identity, claims.action, claims.output, claims.tool, claims.inputs]
+  const all = [claims.identity, claims.action, claims.output, claims.tool, claims.inputs, claims.attestation]
     .filter(Boolean) as { status: ClaimStatus }[];
 
   if (all.every((c) => c.status === "skipped")) return "skipped";
@@ -631,14 +632,31 @@ export async function createActivity(
   }
 
   // 8c. Create server witness (output binding)
-  const { serverSigningKey } = getContext();
+  const { serverSigningKey, attestationProvider } = getContext();
   if (serverSigningKey && act.actionProof) {
     const proofHash = await hashActionProof(act.actionProof as ActionProof);
     const witness = await createServerWitness(
       { actionId, entityId, outputCid: cid, actionProofHash: proofHash },
       serverSigningKey
     );
-    action = withWitness(action, witness);
+
+    // Attach environment attestation if a provider is configured.
+    // Uses the action proof hash as the nonce to bind freshness to this action.
+    if (attestationProvider) {
+      try {
+        const envAttestation = await attestationProvider.getAttestation(proofHash);
+        const witnessWithAttestation = { ...witness, attestation: envAttestation };
+        action = withWitness(action, witnessWithAttestation);
+        claims.attestation = { status: "verified", detail: `${envAttestation.type} attestation attached` };
+      } catch (err) {
+        console.warn("[attestation] Failed to get environment attestation:", err);
+        action = withWitness(action, witness);
+        claims.attestation = { status: "failed", detail: "Environment attestation generation failed" };
+      }
+    } else {
+      action = withWitness(action, witness);
+    }
+
     claims.output = { status: "verified", detail: "Server witness present" };
   } else if (serverSigningKey && !act.actionProof) {
     // No action proof to bind to — witness would be incomplete
@@ -701,6 +719,7 @@ export async function createActivity(
       output: claims.output,
       ...(claims.tool ? { tool: claims.tool } : {}),
       ...(claims.inputs ? { inputs: claims.inputs } : {}),
+      ...(claims.attestation ? { attestation: claims.attestation } : {}),
     },
     verifiedAt: new Date().toISOString(),
     policyUsed: config.proofPolicy,

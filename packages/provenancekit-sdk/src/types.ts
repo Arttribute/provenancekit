@@ -2,8 +2,105 @@
 import type { Entity, Resource, Action, Attribution } from "@provenancekit/eaa-types";
 export type { Entity, Resource, Action, Attribution };
 
+/* Re‑export AI agent extension type */
+import type { AIAgentExtension } from "@provenancekit/extensions";
+export type { AIAgentExtension };
+
 /*───────────────────────────────────────────────────────────*\
- | 1.  Duplicate‑handling helper                              |
+ | 1.  Entity                                                 |
+\*───────────────────────────────────────────────────────────*/
+
+export interface EntityResult {
+  entity: Entity;
+  isAIAgent: boolean;
+  aiAgent?: AIAgentExtension | null;
+}
+
+export interface EntityListResult {
+  entities: Entity[];
+  count: number;
+}
+
+export interface EntityListOpts {
+  role?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface AIAgentResult {
+  agentData: AIAgentExtension;
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 2.  Ownership                                              |
+\*───────────────────────────────────────────────────────────*/
+
+export type OwnershipEvidenceType =
+  | "self-declaration"
+  | "signed-content"
+  | "external-timestamp"
+  | "legal-document"
+  | "third-party-attestation";
+
+export type OwnershipTransferType = "voluntary" | "authorized" | "adjudicated";
+
+export interface OwnershipProof {
+  algorithm: "Ed25519" | "ECDSA-secp256k1";
+  publicKey: string;
+  signature: string;
+  timestamp: string;
+}
+
+export interface OwnershipState {
+  resourceRef: string;
+  /** Entity who originally uploaded the resource (immutable) */
+  registrant: Entity;
+  /** Current authoritative owner */
+  currentOwner: Entity;
+  /** True if ownership has never been transferred */
+  neverTransferred: boolean;
+  /** Most recent transfer action, if any */
+  lastTransfer: Action | null;
+  /** Full history of claim and transfer actions, oldest first */
+  history: Action[];
+}
+
+export interface OwnershipClaimOpts {
+  entity: {
+    id?: string;
+    role?: string;
+    name?: string;
+    publicKey?: string;
+    registrationSignature?: string;
+  };
+  evidenceType: OwnershipEvidenceType;
+  evidenceRef?: string;
+  proof?: OwnershipProof;
+  note?: string;
+}
+
+export interface OwnershipTransferOpts {
+  performedBy: {
+    id?: string;
+    role?: string;
+    name?: string;
+    publicKey?: string;
+    registrationSignature?: string;
+  };
+  toEntityId: string;
+  transferType: OwnershipTransferType;
+  authorizationRef?: string;
+  proof?: OwnershipProof;
+  note?: string;
+}
+
+export interface OwnershipActionResult {
+  action: Action;
+  attribution: Attribution;
+}
+
+/*───────────────────────────────────────────────────────────*\
+ | 3.  Duplicate‑handling helper                              |
 \*───────────────────────────────────────────────────────────*/
 export interface DuplicateDetails {
   cid: string;
