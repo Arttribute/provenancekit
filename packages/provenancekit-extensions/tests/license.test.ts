@@ -7,6 +7,7 @@ import {
   getLicense,
   hasLicense,
   isLicenseActive,
+  hasAITrainingReservation,
   Licenses,
 } from "../src/license";
 
@@ -195,6 +196,91 @@ describe("license extension", () => {
       });
       expect(isLicenseActive(attr, new Date("2025-01-01"))).toBe(true);
       expect(isLicenseActive(attr, new Date("2025-07-01"))).toBe(false);
+    });
+  });
+
+  describe("aiTraining field (DSM Art. 4(3))", () => {
+    it("accepts 'permitted' value", () => {
+      const result = LicenseExtension.safeParse({
+        type: "CC-BY-4.0",
+        aiTraining: "permitted",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.aiTraining).toBe("permitted");
+    });
+
+    it("accepts 'reserved' value", () => {
+      const result = LicenseExtension.safeParse({
+        type: "CC-BY-4.0",
+        aiTraining: "reserved",
+      });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.aiTraining).toBe("reserved");
+    });
+
+    it("accepts 'unspecified' value", () => {
+      const result = LicenseExtension.safeParse({
+        type: "MIT",
+        aiTraining: "unspecified",
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it("rejects invalid aiTraining value", () => {
+      const result = LicenseExtension.safeParse({
+        type: "MIT",
+        aiTraining: "forbidden",
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it("is optional — omitting it succeeds", () => {
+      const result = LicenseExtension.safeParse({ type: "MIT" });
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.aiTraining).toBeUndefined();
+    });
+  });
+
+  describe("hasAITrainingReservation", () => {
+    it("returns true when aiTraining is 'reserved'", () => {
+      const resource = withLicense(createResource(), {
+        type: "CC-BY-4.0",
+        aiTraining: "reserved",
+      });
+      expect(hasAITrainingReservation(resource)).toBe(true);
+    });
+
+    it("returns false when aiTraining is 'permitted'", () => {
+      const resource = withLicense(createResource(), {
+        type: "CC-BY-4.0",
+        aiTraining: "permitted",
+      });
+      expect(hasAITrainingReservation(resource)).toBe(false);
+    });
+
+    it("returns false when aiTraining is 'unspecified'", () => {
+      const resource = withLicense(createResource(), {
+        type: "MIT",
+        aiTraining: "unspecified",
+      });
+      expect(hasAITrainingReservation(resource)).toBe(false);
+    });
+
+    it("returns false when aiTraining field is absent", () => {
+      const resource = withLicense(createResource(), Licenses.CC_BY);
+      expect(hasAITrainingReservation(resource)).toBe(false);
+    });
+
+    it("returns false when no license extension present", () => {
+      expect(hasAITrainingReservation(createResource())).toBe(false);
+    });
+
+    it("works on attributions", () => {
+      const attr = withLicense(createAttribution(), {
+        type: "proprietary",
+        aiTraining: "reserved",
+      });
+      expect(hasAITrainingReservation(attr)).toBe(true);
     });
   });
 

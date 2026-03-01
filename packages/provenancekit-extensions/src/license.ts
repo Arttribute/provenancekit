@@ -76,6 +76,30 @@ export const LicenseExtension = z.object({
 
   /** Reference to a payment/purchase transaction backing this grant */
   transactionRef: z.string().optional(),
+
+  /**
+   * Whether use of this work for AI training is permitted, reserved, or unspecified.
+   *
+   * - `"permitted"` — Rights holder explicitly allows AI training use
+   * - `"reserved"` — Rights holder reserves this right; AI training is NOT permitted
+   *   (machine-readable DSM Article 4(3) opt-out / EU AI Act Art. 53(1)(c))
+   * - `"unspecified"` — No explicit position stated (default)
+   *
+   * @remarks
+   * DSM Directive Art. 4(3) requires rightsholders to be able to reserve rights
+   * for text and data mining "in an appropriate manner, such as machine-readable means".
+   * Setting this field to "reserved" satisfies that requirement.
+   *
+   * @example
+   * ```typescript
+   * // Opt out of AI training
+   * const resource = withLicense(res, {
+   *   ...Licenses.CC_BY,
+   *   aiTraining: "reserved",
+   * });
+   * ```
+   */
+  aiTraining: z.enum(["permitted", "reserved", "unspecified"]).optional(),
 });
 
 export type LicenseExtension = z.infer<typeof LicenseExtension>;
@@ -142,6 +166,26 @@ export function isLicenseActive(
   if (!license) return false;
   if (!license.expires) return true;
   return new Date(license.expires) > now;
+}
+
+/**
+ * Check if the AI training right is reserved on a resource or attribution.
+ *
+ * Returns true when `aiTraining === "reserved"`, meaning the rights holder
+ * has explicitly opted out of AI training use under DSM Art. 4(3).
+ *
+ * @param obj - The resource or attribution to check
+ * @returns True if AI training is reserved (not permitted)
+ *
+ * @example
+ * ```typescript
+ * if (hasAITrainingReservation(resource)) {
+ *   // Respect the opt-out — do not use for training
+ * }
+ * ```
+ */
+export function hasAITrainingReservation(obj: Resource | Attribution): boolean {
+  return getLicense(obj)?.aiTraining === "reserved";
 }
 
 /**

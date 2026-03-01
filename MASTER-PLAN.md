@@ -452,8 +452,31 @@ interface IPaymentAdapter {
 
 ---
 
-## @provenancekit/ui ⚠️ STUB
-**Status:** Package skeleton only; no component implementations; no tests
+## @provenancekit/ui ✅ COMPLETE
+**Status:** Full component library — 42 source files, builds clean (CJS + ESM + type declarations). See `PLAN-UI.md` for full implementation detail.
+
+**Framework:** React 19 + Tailwind CSS v4 + Radix UI primitives + tsup
+**Build output:** `dist/index.{js,mjs,d.ts}` + `dist/styles.css` (41 KB)
+
+**Component Surface (public exports):**
+
+| Group | Components |
+|-------|-----------|
+| **Primitives** | `EntityAvatar`, `RoleBadge`, `VerificationIndicator`, `LicenseChip`, `Timestamp`, `CidDisplay`, `ContributionBar` |
+| **Badge** | `ProvenanceBadge`, `ProvenancePopover` |
+| **Bundle** | `ProvenanceBundleView`, `ActionCard`, `EntityCard`, `ResourceCard`, `AttributionList` |
+| **Graph** | `ProvenanceGraph`, `GraphCanvas`, `GraphNode`, `GraphEdge`, `GraphControls`, `GraphLegend` |
+| **Extensions** | `AIExtensionView`, `LicenseExtensionView`, `OnchainExtensionView`, `VerificationView`, `ContribExtensionView` |
+| **Tracker** | `ProvenanceTracker`, `TrackerActionItem`, `TrackerSessionHeader` |
+| **Search** | `ProvenanceSearch`, `SearchResultCard`, `FileUploadZone` |
+| **Context / Hooks** | `ProvenanceKitProvider`, `useProvenanceGraph`, `useProvenanceBundle`, `useSessionProvenance`, `useDistribution` |
+
+**Design token system:** `--pk-*` CSS custom properties; light + dark mode via `@media (prefers-color-scheme: dark)`; override with `.dark` class selector.
+
+**Missing (next steps):**
+- No Storybook / visual tests
+- No unit tests (component logic untested)
+- No Storybook stories for docs site
 
 ---
 
@@ -476,7 +499,7 @@ The master plan previously referenced this package. It does not exist as a separ
 | @provenancekit/media | 157/157 | ✅ |
 | @provenancekit/sdk | 25/25 | ✅ |
 | @provenancekit/indexer | 0 | ⚠️ Stub |
-| @provenancekit/ui | Skipped | ⚠️ Stub |
+| @provenancekit/ui | N/A (UI components) | ⚠️ 0 tests; component logic untested |
 | provenancekit-api | 0 | ⚠️ No tests |
 | provenancekit-app | 0 | ⚠️ Demo |
 | **Total (tested packages)** | **790/790** | **✅ 100%** |
@@ -785,4 +808,4 @@ The app is currently a demo. Production readiness requires:
 
 ---
 
-*Last updated: 2026-02-24. This document reflects the actual current state of the codebase as of this date.*
+*Last updated: 2026-03-01. This document reflects the actual current state of the codebase as of this date.*

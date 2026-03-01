@@ -60,6 +60,7 @@ export {
   getLicense,
   hasLicense,
   isLicenseActive,
+  hasAITrainingReservation,
   Licenses,
   type LicensePreset,
 } from "./license";
@@ -199,6 +200,19 @@ export {
   type SplitResult,
 } from "./distribution";
 
+// Authorization extension
+export {
+  AUTHORIZATION_NAMESPACE,
+  AuthorizationStatus,
+  AuthorizationExtension,
+  withAuthorization,
+  getAuthorization,
+  hasAuthorization,
+  isAuthorized,
+  isRevoked,
+  isPendingAuthorization,
+} from "./authorization";
+
 // Ownership extensions (claim + transfer)
 export {
   OWNERSHIP_CLAIM_NAMESPACE,
@@ -232,4 +246,5 @@ export const NAMESPACES = {
   VERIFICATION: "ext:verification@1.0.0",
   OWNERSHIP_CLAIM: "ext:ownership:claim@1.0.0",
   OWNERSHIP_TRANSFER: "ext:ownership:transfer@1.0.0",
+  AUTHORIZATION: "ext:authorization@1.0.0",
 } as const;

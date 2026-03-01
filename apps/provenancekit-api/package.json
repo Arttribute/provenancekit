@@ -4,7 +4,9 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/src/index.js"
+    "start": "node dist/src/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@provenancekit/eaa-types": "workspace:*",
@@ -36,7 +38,8 @@
     "@types/node": "^20.11.17",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.7.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^1.6.1"
   },
   "pnpm": {
     "overrides": {
