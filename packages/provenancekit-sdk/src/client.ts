@@ -2,6 +2,7 @@
 import { Api, ApiClientOptions } from "./api";
 import { ProvenanceKitError } from "./errors";
 import { signAction, type ActionSignPayload, type ActionProof } from "./signing";
+import type { IChainAdapter } from "./chain";
 import {
   decryptVector,
   searchVectors,
@@ -61,8 +62,8 @@ function mergeResults(
 function asBlob(input: Blob | File | Buffer | Uint8Array): Blob {
   if (input instanceof Blob) return input;
   if (typeof Buffer !== "undefined" && input instanceof Buffer)
-    return new Blob([input]);
-  if (input instanceof Uint8Array) return new Blob([input]);
+    return new Blob([input as unknown as ArrayBuffer]);
+  if (input instanceof Uint8Array) return new Blob([input as unknown as ArrayBuffer]);
   throw new TypeError("Unsupported binary type");
 }
 
@@ -92,12 +93,27 @@ export interface UploadOptions {
   min?: number;
 }
 
+export interface OnchainRecord {
+  /** Transaction hash of the on-chain recording. */
+  txHash: string;
+  /** On-chain action ID (bytes32 as hex). */
+  actionId: string;
+  /** Chain ID where the action was recorded. */
+  chainId?: number;
+  /** Human-readable chain name. */
+  chainName?: string;
+  /** Address of the ProvenanceRegistry contract. */
+  contractAddress: string;
+}
+
 export interface FileResult {
   cid: string;
   actionId?: string;
   entityId?: string;
   duplicate?: DuplicateDetails;
   matched?: Match;
+  /** Present when on-chain recording succeeded via a configured chain adapter. */
+  onchain?: OnchainRecord;
 }
 
 export interface ProvenanceKitOptions extends ApiClientOptions {
@@ -119,6 +135,17 @@ export interface ProvenanceKitOptions extends ApiClientOptions {
    * Required when `signingKey` is set.
    */
   signingEntityId?: string;
+
+  /**
+   * Optional on-chain adapter. When set, actions recorded via `file()` are
+   * also recorded on the ProvenanceRegistry smart contract. The result will
+   * include an `onchain` field with the transaction hash and on-chain action ID.
+   *
+   * On-chain recording is fire-and-forget by default (failures are non-fatal).
+   * Use `createViemAdapter` to create a viem-backed adapter, or implement
+   * `IChainAdapter` directly for other EVM clients (ethers.js, wagmi, etc.).
+   */
+  chain?: IChainAdapter;
 }
 
 export class ProvenanceKit {
@@ -126,6 +153,7 @@ export class ProvenanceKit {
   private readonly projectId?: string;
   private readonly signingKey?: string;
   private readonly signingEntityId?: string;
+  private readonly chainAdapter?: IChainAdapter;
   readonly unclaimed = "ent:unclaimed";
 
   constructor(opts: ProvenanceKitOptions = {}) {
@@ -133,6 +161,7 @@ export class ProvenanceKit {
     this.projectId = opts.projectId;
     this.signingKey = opts.signingKey;
     this.signingEntityId = opts.signingEntityId;
+    this.chainAdapter = opts.chain;
 
     if (this.signingKey && !this.signingEntityId) {
       throw new Error("signingEntityId is required when signingKey is set");
@@ -194,7 +223,30 @@ export class ProvenanceKit {
         actionId: string;
         entityId: string;
       }>("/activity", this.form(file, finalOpts));
-      return { ...res };
+
+      const result: FileResult = { ...res };
+
+      // Record on-chain if a chain adapter is configured (fire-and-forget)
+      if (this.chainAdapter) {
+        try {
+          const onchainResult = await this.chainAdapter.recordAction({
+            actionType: finalOpts.action?.type ?? "create",
+            inputs: finalOpts.action?.inputCids ?? [],
+            outputs: [res.cid],
+          });
+          result.onchain = {
+            txHash: onchainResult.txHash,
+            actionId: onchainResult.actionId,
+            chainId: this.chainAdapter.chainId,
+            chainName: this.chainAdapter.chainName,
+            contractAddress: this.chainAdapter.contractAddress,
+          };
+        } catch {
+          // On-chain recording is non-fatal — the off-chain record stands
+        }
+      }
+
+      return result;
     } catch (e) {
       if (e instanceof ProvenanceKitError && e.code === "Duplicate") {
         const d = e.details as DuplicateDetails;

@@ -22,6 +22,7 @@ import {
 import health from "./handlers/health.js";
 import entity from "./handlers/entity.js";
 import activity from "./handlers/activity.js";
+import v1 from "./handlers/v1.js";
 import bundle from "./handlers/bundle.js";
 import similar from "./handlers/similar.js";
 import session from "./handlers/session.js";
@@ -66,6 +67,7 @@ export function createApp(opts?: CreateAppOptions) {
 
   // Routes
   app.route("/", health);
+  app.route("/v1", v1);
   app.route("/", entity);
   app.route("/", activity);
   app.route("/", bundle);

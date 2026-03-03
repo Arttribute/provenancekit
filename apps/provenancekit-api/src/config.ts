@@ -34,13 +34,13 @@ const ConfigSchema = z.object({
     .enum(["provider-signed", "receipt-backed", "self-declared"])
     .default("self-declared"),
 
-  // Supabase (PostgreSQL + Vectors)
-  supabaseUrl: z.string().url(),
-  supabaseAnonKey: z.string().min(1),
+  // Supabase (PostgreSQL + Vectors) — optional; falls back to in-memory storage for local dev
+  supabaseUrl: z.string().url().optional(),
+  supabaseAnonKey: z.string().min(1).optional(),
   supabaseServiceKey: z.string().min(1).optional(),
 
-  // Pinata (IPFS)
-  pinataJwt: z.string().min(1),
+  // Pinata (IPFS) — optional; falls back to in-memory file storage for local dev
+  pinataJwt: z.string().min(1).optional(),
   pinataGateway: z.string().url().default("https://gateway.pinata.cloud/ipfs"),
 
   // Vector search

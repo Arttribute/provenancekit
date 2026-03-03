@@ -12,6 +12,8 @@ import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient as RealSupabaseClient } from "@supabase/supabase-js";
 import { SupabaseStorage } from "@provenancekit/storage/adapters/db/supabase";
 import type { SupabaseClient as StorageSupabaseClient } from "@provenancekit/storage/adapters/db/supabase";
+import { MemoryDbStorage } from "@provenancekit/storage/adapters/db/memory";
+import { MemoryFileStorage } from "@provenancekit/storage/adapters/files/memory";
 import { PinataStorage } from "@provenancekit/storage/adapters/files/ipfs-pinata";
 import type { IProvenanceStorage, IVectorStorage } from "@provenancekit/storage";
 import type { IFileStorage } from "@provenancekit/storage/files";
@@ -81,10 +83,10 @@ export interface IAttestationProvider {
 \*─────────────────────────────────────────────────────────────*/
 
 export interface AppContext {
-  /** Database storage (Supabase with pgvector) */
+  /** Database storage (Supabase with pgvector, or in-memory for local dev) */
   dbStorage: IProvenanceStorage & IVectorStorage;
 
-  /** File storage (Pinata IPFS) */
+  /** File storage (Pinata IPFS, or in-memory for local dev) */
   fileStorage: IFileStorage;
 
   /** Encrypted file storage wrapper */
@@ -93,8 +95,8 @@ export interface AppContext {
   /** IPFS gateway URL */
   ipfsGateway: string;
 
-  /** Raw Supabase client for direct queries */
-  supabase: RealSupabaseClient;
+  /** Raw Supabase client for direct queries (null when using memory adapter) */
+  supabase: RealSupabaseClient | null;
 
   /** Generate a new encryption key */
   generateKey: () => Uint8Array;
@@ -137,28 +139,50 @@ export async function initializeContext(): Promise<AppContext> {
 
   console.log("Initializing ProvenanceKit API context...");
 
-  // 1. Create Supabase client
-  const supabaseClient = createClient(
-    config.supabaseUrl,
-    config.supabaseServiceKey ?? config.supabaseAnonKey
-  );
+  // 1. Initialize database storage
+  // Falls back to in-memory storage when Supabase is not configured (local dev)
+  let supabaseClient: RealSupabaseClient | null = null;
+  let dbStorage: IProvenanceStorage & IVectorStorage;
 
-  // 2. Initialize database storage with vector support
-  const dbStorage = new SupabaseStorage({
-    client: supabaseClient as unknown as StorageSupabaseClient,
-    enableVectors: true,
-    vectorDimension: config.vectorDimension,
-  });
-  await dbStorage.initialize();
-  console.log("✓ Database storage ready (Supabase + pgvector)");
+  if (config.supabaseUrl && config.supabaseAnonKey) {
+    supabaseClient = createClient(
+      config.supabaseUrl,
+      config.supabaseServiceKey ?? config.supabaseAnonKey
+    );
+    const supabaseStorage = new SupabaseStorage({
+      client: supabaseClient as unknown as StorageSupabaseClient,
+      enableVectors: true,
+      vectorDimension: config.vectorDimension,
+    });
+    await supabaseStorage.initialize();
+    dbStorage = supabaseStorage;
+    console.log("✓ Database storage ready (Supabase + pgvector)");
+  } else {
+    const memoryStorage = new MemoryDbStorage();
+    dbStorage = memoryStorage as unknown as IProvenanceStorage & IVectorStorage;
+    console.warn(
+      "⚠ SUPABASE_URL / SUPABASE_ANON_KEY not set — using in-memory storage (data lost on restart)"
+    );
+  }
 
-  // 3. Initialize file storage
-  const fileStorage = new PinataStorage({
-    jwt: config.pinataJwt,
-    gateway: config.pinataGateway,
-  });
-  await fileStorage.initialize();
-  console.log("✓ File storage ready (Pinata IPFS)");
+  // 2. Initialize file storage
+  // Falls back to in-memory file storage when Pinata JWT is not configured
+  let fileStorage: IFileStorage;
+
+  if (config.pinataJwt) {
+    const pinata = new PinataStorage({
+      jwt: config.pinataJwt,
+      gateway: config.pinataGateway,
+    });
+    await pinata.initialize();
+    fileStorage = pinata;
+    console.log("✓ File storage ready (Pinata IPFS)");
+  } else {
+    fileStorage = new MemoryFileStorage();
+    console.warn(
+      "⚠ PINATA_JWT not set — using in-memory file storage (data lost on restart)"
+    );
+  }
 
   // 4. Initialize encrypted storage wrapper
   const encryptedStorage = new EncryptedFileStorage(

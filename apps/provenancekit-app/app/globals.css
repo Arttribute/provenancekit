@@ -86,6 +86,26 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ── ProvenanceKit UI CSS variables ─────────────────────────── */
+:root {
+  --pk-surface: var(--card);
+  --pk-surface-border: var(--border);
+  --pk-surface-muted: var(--muted);
+  --pk-foreground: var(--foreground);
+  --pk-muted-foreground: var(--muted-foreground);
+  --pk-radius: var(--radius);
+  --pk-node-resource: oklch(0.546 0.215 262.88);
+  --pk-node-resource-muted: oklch(0.546 0.215 262.88 / 8%);
+  --pk-node-resource-border: oklch(0.546 0.215 262.88 / 30%);
+  --pk-node-action: oklch(0.558 0.288 302.32);
+  --pk-node-action-muted: oklch(0.558 0.288 302.32 / 8%);
+  --pk-node-action-border: oklch(0.558 0.288 302.32 / 30%);
+  --pk-node-entity: oklch(0.609 0.175 160.16);
+  --pk-node-entity-muted: oklch(0.609 0.175 160.16 / 8%);
+  --pk-node-entity-border: oklch(0.609 0.175 160.16 / 30%);
+  --pk-role-ai: oklch(0.558 0.288 302.32);
+}
+
 * {
   border-color: var(--border);
 }

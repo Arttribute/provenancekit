@@ -2,6 +2,15 @@ export * from "./client";
 export * from "./errors";
 export * from "./types";
 export { type ApiClientOptions } from "./api";
+export {
+  createViemAdapter,
+  type IChainAdapter,
+  type RecordActionParams,
+  type RecordActionResult,
+  type ViemAdapterOptions,
+  type ViemWalletClient,
+  type ViemPublicClient,
+} from "./chain";
 
 // Extension inspection helpers — use these to read provenance data from bundles
 export {

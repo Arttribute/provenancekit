@@ -229,6 +229,26 @@ export {
   hasOwnershipTransfer,
 } from "./ownership";
 
+// x402 HTTP payment extension
+export {
+  X402_NAMESPACE,
+  X402Extension,
+  X402Requirements,
+  X402Proof,
+  X402Split,
+  withX402Requirements,
+  withX402Proof,
+  withX402Split,
+  getX402,
+  getX402Requirements,
+  getX402Proof,
+  getX402Split,
+  hasX402,
+  requiresX402Payment,
+  isX402Verified,
+  totalX402SplitBps,
+} from "./x402";
+
 /**
  * All extension namespace constants for convenience.
  */
@@ -247,4 +267,5 @@ export const NAMESPACES = {
   OWNERSHIP_CLAIM: "ext:ownership:claim@1.0.0",
   OWNERSHIP_TRANSFER: "ext:ownership:transfer@1.0.0",
   AUTHORIZATION: "ext:authorization@1.0.0",
+  X402: "ext:x402@1.0.0",
 } as const;

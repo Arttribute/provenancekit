@@ -3,11 +3,18 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "docs:dev": "pnpm --filter provenancekit-docs dev",
+    "dev": "pnpm run dev:all",
+    "dev:all": "concurrently --names \"api,app,chat,canvas\" --prefix-colors \"cyan,green,yellow,magenta\" \"pnpm --filter provenancekit-api dev\" \"pnpm --filter provenancekit-app dev\" \"pnpm --filter @provenancekit/example-chat dev\" \"pnpm --filter @provenancekit/example-canvas dev\"",
+    "dev:api": "pnpm --filter provenancekit-api dev",
+    "dev:app": "pnpm --filter provenancekit-app dev",
+    "dev:chat": "pnpm --filter @provenancekit/example-chat dev",
+    "dev:canvas": "pnpm --filter @provenancekit/example-canvas dev",
+    "dev:docs": "pnpm --filter provenancekit-docs dev",
     "build": "pnpm -r --filter './packages/*' run build",
     "test": "pnpm -r --filter './packages/*' run test",
     "lint": "pnpm -r --filter './packages/*' run lint",
     "typecheck": "pnpm -r --filter './packages/*' run typecheck",
+    "docs:dev": "pnpm --filter provenancekit-docs dev",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "pnpm build && changeset publish"
@@ -22,6 +29,7 @@
   },
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {
-    "@changesets/cli": "^2.29.8"
+    "@changesets/cli": "^2.29.8",
+    "concurrently": "^9.2.1"
   }
 }
