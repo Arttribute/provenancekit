@@ -1,6 +1,7 @@
 /**
  * ProvenanceKit helpers for recording AI chat provenance.
  *
+ * Uses the official @provenancekit/sdk — no raw API fetch calls.
  * Design principle: provider-agnostic. Works with OpenAI, Anthropic, Google,
  * or any custom model. The `provider` + `model` fields in ext:ai@1.0.0 carry
  * the attribution.
@@ -42,10 +43,16 @@ export function hashPrompt(messages: Array<{ role: string; content: string }>): 
 }
 
 /**
- * Record provenance for a single AI chat response.
- * Call this server-side after every AI generation.
+ * Record provenance for a single AI chat response using the PK SDK.
  *
- * @returns The CID of the provenance record, or null if PK is not configured
+ * Flow:
+ *   1. Upsert human entity (the user)
+ *   2. Upsert AI agent entity (the model)
+ *   3. Upload the prompt via pk.file() — stores content, records a "provide" action
+ *   4. Upload the response via pk.file() — stores content, records a "generate" action
+ *      with the prompt CID as input and ext:ai@1.0.0 carrying provider/model metadata
+ *
+ * @returns The CID of the recorded response resource, or null if PK is not configured
  */
 export async function recordChatProvenance(opts: {
   pkConfig: ProvenanceKitConfig | null;
@@ -63,42 +70,54 @@ export async function recordChatProvenance(opts: {
   try {
     const pk = createPKClient(opts.pkConfig);
 
-    // Get/create user entity
-    const userEntity = await pk.upsertEntity({
+    // 1. Upsert human entity
+    const userId = await pk.entity({
+      role: "human",
       name: opts.userPrivyDid,
-      type: "person",
     });
 
-    // Get/create AI agent entity — uniquely identified by provider:model
-    const agentEntity = await pk.upsertEntity({
+    // 2. Upsert AI agent entity, identified by provider:model
+    const agentId = await pk.entity({
+      role: "ai",
       name: `${opts.provider}/${opts.model}`,
-      type: "software",
-      isAIAgent: true,
-      provider: opts.provider,
-      model: opts.model,
+      aiAgent: {
+        model: { provider: opts.provider, model: opts.model },
+      },
     });
 
-    // Upload the prompt and response to IPFS
-    const [promptCid, responseCid] = await Promise.all([
-      pk.uploadContent(JSON.stringify(opts.prompt), "application/json"),
-      pk.uploadContent(opts.response, "text/plain"),
-    ]);
-
-    // Record the generation action
-    const result = await pk.recordChatAction({
-      performedBy: agentEntity.id,
-      requestedBy: userEntity.id,
-      inputCids: [promptCid],
-      outputCid: responseCid,
-      provider: opts.provider,
-      model: opts.model,
-      promptHash: hashPrompt(opts.prompt),
-      tokens: opts.tokens,
+    // 3. Upload prompt content and record a "provide" action
+    const promptBlob = new Blob([JSON.stringify(opts.prompt)], {
+      type: "application/json",
+    });
+    const promptResult = await pk.file(promptBlob, {
+      entity: { id: userId, role: "human", name: opts.userPrivyDid },
+      action: { type: "provide" },
+      resourceType: "text",
     });
 
-    return result.resource.cid;
+    // 4. Upload response content and record the "generate" action,
+    //    linking the prompt as input and attaching AI metadata
+    const responseBlob = new Blob([opts.response], { type: "text/plain" });
+    const responseResult = await pk.file(responseBlob, {
+      entity: { id: agentId, role: "ai", name: `${opts.provider}/${opts.model}` },
+      action: {
+        type: "generate",
+        inputCids: [promptResult.cid],
+        extensions: {
+          "ext:ai@1.0.0": {
+            provider: opts.provider,
+            model: opts.model,
+            promptHash: hashPrompt(opts.prompt),
+            tokens: opts.tokens,
+          },
+        },
+      },
+      resourceType: "text",
+    });
+
+    return responseResult.cid;
   } catch (error) {
-    // Provenance failures should not break the chat — log and continue
+    // Provenance failures must not break the chat — log and continue
     console.warn("[PK] Failed to record provenance:", error);
     return null;
   }

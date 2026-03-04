@@ -8,7 +8,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Image, Type, Repeat2, Shield, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { PostType } from "@/types";
 
 const schema = z.object({
   type: z.enum(["text", "image", "video", "audio", "blog"]).default("text"),
@@ -22,7 +21,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-const TYPE_OPTIONS: Array<{ type: PostType; icon: React.ReactNode; label: string }> = [
+const TYPE_OPTIONS: Array<{ type: z.infer<typeof schema>["type"]; icon: React.ReactNode; label: string }> = [
   { type: "text", icon: <Type className="h-4 w-4" />, label: "Text" },
   { type: "image", icon: <Image className="h-4 w-4" />, label: "Image" },
 ];

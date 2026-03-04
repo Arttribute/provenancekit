@@ -1,86 +1,72 @@
 /**
  * ProvenanceKit helpers for recording canvas content provenance.
  *
+ * Uses the official @provenancekit/sdk — no raw API fetch calls.
+ *
  * Two main flows:
- *   1. New post: create → record in PK with creator entity + license + payment
- *   2. Remix: transform → record in PK with original CID as input
+ *   1. New post: pk.file() uploads content and records a "create" action
+ *      with license + payment extensions in one call.
+ *   2. Remix: pk.file() uploads remix content and records a "transform" action
+ *      with the original CID as input.
  *
  * Revenue distribution:
- *   The distribution calculator walks the provenance graph and returns
- *   basis-point shares for each contributor. These are used to deploy a
- *   0xSplits contract on-chain.
+ *   pk.distribution() walks the provenance graph and returns basis-point
+ *   shares for each contributor. These are used to deploy a 0xSplits contract.
  */
 
-import type { CanvasUser, Post } from "@/types";
+import { ProvenanceKit } from "@provenancekit/sdk";
+import type { CanvasUser } from "@/types";
 
-interface PKClientOptions {
-  apiKey: string;
-  apiUrl: string;
+function createPK(apiKey: string, apiUrl: string): ProvenanceKit {
+  return new ProvenanceKit({ baseUrl: apiUrl, apiKey });
 }
 
-interface EntityResult {
-  id: string;
-}
-
-interface ActionResult {
-  action: { id: string };
-  resource: { cid: string };
-}
-
-interface DistributionEntry {
+export interface DistributionEntry {
   entityId: string;
   wallet?: string;
-  share: number; // basis points
+  /** Basis points (0–10000) */
+  bps: number;
+  /** Human-readable percentage string, e.g. "33.33" */
+  percentage: string;
 }
 
 export class CanvasPKClient {
-  private apiKey: string;
-  private apiUrl: string;
+  private pk: ProvenanceKit;
 
-  constructor({ apiKey, apiUrl }: PKClientOptions) {
-    this.apiKey = apiKey;
-    this.apiUrl = apiUrl;
+  constructor({ apiKey, apiUrl }: { apiKey: string; apiUrl: string }) {
+    this.pk = createPK(apiKey, apiUrl);
   }
 
-  private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${this.apiUrl}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-        ...init?.headers,
-      },
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? `PK error: ${res.status}`);
-    }
-    return res.json() as Promise<T>;
+  /** Create or update an entity; returns its ID. */
+  async upsertEntity(opts: {
+    name: string;
+    type: string;
+    wallet?: string;
+  }): Promise<{ id: string }> {
+    // Map canvas "type" to EAA "role"
+    const role =
+      opts.type === "organization" ? "organization" : "human";
+
+    const id = await this.pk.entity({ role, name: opts.name, wallet: opts.wallet });
+    return { id };
   }
 
-  async upsertEntity(opts: { name: string; type: string; wallet?: string }) {
-    return this.fetch<EntityResult>("/v1/entities", {
-      method: "POST",
-      body: JSON.stringify(opts),
-    });
-  }
-
-  /** Record a new post as a "create" action */
+  /**
+   * Upload content and record a "create" action with license + payment extensions.
+   * Combines the old uploadContent() + recordNewPost() two-step into one SDK call.
+   */
   async recordNewPost(opts: {
     authorEntityId: string;
-    contentCid: string;
+    contentBlob: Blob;
     licenseType: string;
     commercial: boolean;
     aiTraining: "permitted" | "reserved" | "unspecified";
     paymentWallet?: string;
-  }): Promise<ActionResult> {
-    return this.fetch<ActionResult>("/v1/actions", {
-      method: "POST",
-      body: JSON.stringify({
+  }): Promise<{ action: { id: string }; resource: { cid: string } }> {
+    const result = await this.pk.file(opts.contentBlob, {
+      entity: { id: opts.authorEntityId, role: "human" },
+      action: {
         type: "create",
-        performedBy: opts.authorEntityId,
-        inputs: [],
-        outputs: [{ ref: opts.contentCid, scheme: "cid" }],
         extensions: {
           "ext:license@1.0.0": {
             type: opts.licenseType,
@@ -94,51 +80,53 @@ export class CanvasPKClient {
             },
           }),
         },
-      }),
+      },
     });
+
+    return {
+      action: { id: result.actionId ?? "" },
+      resource: { cid: result.cid },
+    };
   }
 
-  /** Record a remix as a "transform" action with original as input */
+  /**
+   * Upload remix content and record a "transform" action with the original as input.
+   * Combines the old uploadContent() + recordRemix() two-step into one SDK call.
+   */
   async recordRemix(opts: {
     remixerEntityId: string;
     originalCid: string;
-    remixCid: string;
+    remixBlob: Blob;
     remixNote?: string;
-  }): Promise<ActionResult> {
-    return this.fetch<ActionResult>("/v1/actions", {
-      method: "POST",
-      body: JSON.stringify({
+  }): Promise<{ action: { id: string }; resource: { cid: string } }> {
+    const result = await this.pk.file(opts.remixBlob, {
+      entity: { id: opts.remixerEntityId, role: "human" },
+      action: {
         type: "transform",
-        performedBy: opts.remixerEntityId,
-        inputs: [{ ref: opts.originalCid, scheme: "cid" }],
-        outputs: [{ ref: opts.remixCid, scheme: "cid" }],
+        inputCids: [opts.originalCid],
         extensions: {
           "ext:attribution@1.0.0": {
             note: opts.remixNote ?? "Remix",
           },
         },
-      }),
+      },
     });
+
+    return {
+      action: { id: result.actionId ?? "" },
+      resource: { cid: result.cid },
+    };
   }
 
-  /** Calculate revenue distribution for a CID (walks provenance graph) */
+  /** Calculate revenue distribution for a CID (walks the provenance graph). */
   async getDistribution(cid: string): Promise<DistributionEntry[]> {
-    return this.fetch<DistributionEntry[]>(`/v1/resources/${cid}/distribution`);
-  }
-
-  async uploadContent(content: string | Blob, mimeType = "text/plain"): Promise<string> {
-    const blob = typeof content === "string" ? new Blob([content], { type: mimeType }) : content;
-    const form = new FormData();
-    form.append("file", blob);
-
-    const res = await fetch(`${this.apiUrl}/v1/resources/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-      body: form,
-    });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const data = await res.json();
-    return data.cid as string;
+    const dist = await this.pk.distribution(cid);
+    return dist.entries.map((e) => ({
+      entityId: e.entityId,
+      wallet: e.payment?.address,
+      bps: e.bps,
+      percentage: e.percentage,
+    }));
   }
 }
 

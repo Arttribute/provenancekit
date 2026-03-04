@@ -105,8 +105,7 @@ export async function POST(req: NextRequest) {
     const pk = createCanvasPKClient(user);
     if (pk) {
       try {
-        // Upload content to IPFS
-        const contentCid = await pk.uploadContent(content, "text/plain");
+        const contentBlob = new Blob([content], { type: "text/plain" });
 
         // Get/create author entity
         const authorEntity = await pk.upsertEntity({
@@ -122,7 +121,7 @@ export async function POST(req: NextRequest) {
             const result = await pk.recordRemix({
               remixerEntityId: authorEntity.id,
               originalCid: original.provenanceCid,
-              remixCid: contentCid,
+              remixBlob: contentBlob,
               remixNote,
             });
             post.provenanceCid = result.resource.cid;
@@ -137,7 +136,7 @@ export async function POST(req: NextRequest) {
         } else {
           const result = await pk.recordNewPost({
             authorEntityId: authorEntity.id,
-            contentCid,
+            contentBlob,
             licenseType,
             commercial: !["CC-BY-NC-4.0", "all-rights-reserved"].includes(licenseType),
             aiTraining: aiTraining as "permitted" | "reserved" | "unspecified",

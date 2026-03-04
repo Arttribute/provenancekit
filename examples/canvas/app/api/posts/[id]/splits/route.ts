@@ -65,7 +65,11 @@ export async function POST(
     postId: id,
     contractAddress: mockContractAddress,
     chainId: parseInt(process.env.NEXT_PUBLIC_CHAIN_ID || "84532"), // Base Sepolia
-    recipients: distribution,
+    recipients: distribution.map((e) => ({
+      entityId: e.entityId,
+      wallet: e.wallet ?? "",
+      share: e.bps,
+    })),
     deployedAt: new Date(),
     deployedBy: deployerId,
   };
