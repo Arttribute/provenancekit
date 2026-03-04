@@ -1,21 +1,17 @@
 "use client";
 
-import { use, useRef, useState, useEffect } from "react";
+import { use, useState, useCallback, useEffect, useRef } from "react";
 import { useChat } from "ai/react";
 import { usePrivy } from "@privy-io/react-auth";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import { Send, Bot, User, Shield, Loader2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { ShieldCheck, ArrowLeft } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { MessageList } from "@/components/chat/message-list";
+import { ChatInput } from "@/components/chat/chat-input";
+import { ModelSelector } from "@/components/chat/model-selector";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import type { SupportedProvider } from "@/lib/provenance";
-
-const PROVIDER_COLORS: Record<SupportedProvider, string> = {
-  openai: "bg-green-500",
-  anthropic: "bg-amber-500",
-  google: "bg-blue-500",
-  custom: "bg-purple-500",
-};
+import type { ChatMessage, Conversation, AIProvider } from "@/types";
 
 export default function ConversationPage({
   params,
@@ -24,118 +20,139 @@ export default function ConversationPage({
 }) {
   const { id } = use(params);
   const { user } = usePrivy();
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const userId = user?.id;
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading } =
+  // ─── Fetch conversation metadata ─────────────────────────────────────────
+  const { data: conversation } = useQuery<Conversation>({
+    queryKey: ["conversation", id, userId],
+    queryFn: async () => {
+      const res = await fetch(`/api/conversations/${id}?userId=${userId}`);
+      if (!res.ok) throw new Error("Failed to fetch conversation");
+      return res.json();
+    },
+    enabled: !!userId,
+  });
+
+  // ─── Fetch historical messages from DB ───────────────────────────────────
+  const { data: historyData, isFetching: isFetchingHistory, refetch: refetchMessages } = useQuery<{
+    messages: ChatMessage[];
+  }>({
+    queryKey: ["messages", id, userId],
+    queryFn: async () => {
+      const res = await fetch(`/api/conversations/${id}/messages?userId=${userId}`);
+      if (!res.ok) throw new Error("Failed to fetch messages");
+      return res.json();
+    },
+    enabled: !!userId,
+    staleTime: 0, // always re-fetch after sends
+  });
+
+  const dbMessages = historyData?.messages ?? [];
+  const hasHistory = dbMessages.length > 0;
+
+  // ─── useChat for streaming ────────────────────────────────────────────────
+  const { messages: streamMessages, input, setInput, handleSubmit, isLoading, reload } =
     useChat({
       api: "/api/chat",
-      body: { conversationId: id, userId: user?.id },
+      body: {
+        conversationId: id,
+        userId,
+        // Fallback values — the API reads canonical values from DB
+        provider: conversation?.provider ?? "openai",
+        model: conversation?.model ?? "gpt-4o",
+      },
+      // Don't send history — the API reads it from DB context (system prompt only)
+      initialMessages: [],
+      onFinish: () => {
+        // After streaming completes, refresh messages from DB (now has provenance CIDs)
+        setTimeout(() => {
+          refetchMessages();
+          queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+        }, 500); // small delay to let DB write complete
+      },
     });
 
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  // ─── Model change ────────────────────────────────────────────────────────
+  async function handleModelChange(provider: AIProvider, model: string) {
+    if (!userId) return;
+    await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, provider, model }),
+    });
+    queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
+  }
+
+  // ─── Submit wrapper (clear input, use stream, then refresh DB) ───────────
+  function handleFormSubmit(e: React.FormEvent) {
+    handleSubmit(e);
+  }
+
+  const sessionId = conversation?.provenance?.sessionId;
 
   return (
     <div className="flex flex-col h-full">
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 && (
-          <div className="flex items-center justify-center h-full text-center">
-            <div className="space-y-2">
-              <Bot className="h-8 w-8 text-muted-foreground mx-auto" />
-              <p className="text-sm text-muted-foreground">
-                Start the conversation. All responses are provenance-tracked.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={cn(
-              "flex gap-3 max-w-3xl mx-auto",
-              msg.role === "user" ? "justify-end" : "justify-start"
-            )}
-          >
-            {msg.role === "assistant" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted mt-1">
-                <Bot className="h-4 w-4" />
-              </div>
-            )}
-
-            <div
-              className={cn(
-                "rounded-xl px-4 py-2.5 text-sm max-w-[80%]",
-                msg.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              )}
+      {/* Conversation header */}
+      <div className="flex items-center justify-between border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-2 min-w-0">
+          <h1 className="text-sm font-medium truncate">
+            {conversation?.title ?? "New conversation"}
+          </h1>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Model selector */}
+          <ModelSelector
+            provider={conversation?.provider ?? "openai"}
+            model={conversation?.model ?? "gpt-4o"}
+            onChange={handleModelChange}
+            disabled={isLoading}
+            size="sm"
+          />
+          {/* Provenance explorer link (shown when session has provenance records) */}
+          {conversation?.provenanceCid && (
+            <Button
+              variant="ghost"
+              size="sm"
+              asChild
+              className="h-7 gap-1 text-xs text-emerald-600 dark:text-emerald-400"
             >
-              {msg.role === "assistant" ? (
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                  {msg.content}
-                </ReactMarkdown>
-              ) : (
-                <p>{msg.content}</p>
-              )}
-
-              {/* Provenance badge (shown for assistant messages when CID is available) */}
-              {msg.role === "assistant" && (msg as any).annotations?.provenanceCid && (
-                <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground border-t pt-2">
-                  <Shield className="h-3 w-3 text-green-500" />
-                  <span>Provenance recorded</span>
-                  <code className="font-mono text-xs opacity-70">
-                    {((msg as any).annotations.provenanceCid as string).slice(0, 12)}…
-                  </code>
-                </div>
-              )}
-            </div>
-
-            {msg.role === "user" && (
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground mt-1">
-                <User className="h-4 w-4" />
-              </div>
-            )}
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex gap-3 max-w-3xl mx-auto">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted">
-              <Bot className="h-4 w-4" />
-            </div>
-            <div className="bg-muted rounded-xl px-4 py-2.5">
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            </div>
-          </div>
-        )}
-
-        <div ref={bottomRef} />
+              <Link href={`/provenance/${conversation.provenanceCid}`}>
+                <ShieldCheck className="h-3 w-3" />
+                Provenance
+              </Link>
+            </Button>
+          )}
+        </div>
       </div>
 
-      {/* Input */}
-      <div className="border-t p-4">
-        <form
-          onSubmit={handleSubmit}
-          className="flex gap-2 max-w-3xl mx-auto"
-        >
-          <input
-            className="flex-1 rounded-xl border bg-background px-4 py-2.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-            placeholder="Type a message…"
+      {/* Message list */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <MessageList
+          dbMessages={dbMessages}
+          streamMessages={streamMessages}
+          isLoading={isLoading}
+          isFetchingHistory={isFetchingHistory && !hasHistory}
+        />
+      </div>
+
+      {/* Input area */}
+      <div className="border-t px-4 py-3 bg-background">
+        <div className="max-w-3xl mx-auto">
+          <ChatInput
             value={input}
-            onChange={handleInputChange}
-            disabled={isLoading}
+            onChange={setInput}
+            onSubmit={handleFormSubmit}
+            isLoading={isLoading}
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-            <Send className="h-4 w-4" />
-            <span className="sr-only">Send</span>
-          </Button>
-        </form>
-        <p className="text-center text-xs text-muted-foreground mt-2">
-          Every AI response is provenance-tracked via ProvenanceKit
-        </p>
+          <p className="text-center text-xs text-muted-foreground mt-2">
+            Every AI response is automatically provenance-tracked via{" "}
+            <Link href="/provenance" className="underline hover:text-foreground">
+              ProvenanceKit
+            </Link>
+          </p>
+        </div>
       </div>
     </div>
   );

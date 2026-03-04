@@ -34,12 +34,21 @@ export async function initDb(): Promise<void> {
   const users = database.collection("users");
   const follows = database.collection("follows");
 
+  const comments = database.collection("comments");
+  const likes = database.collection("likes");
+
   await Promise.all([
     posts.createIndex({ authorId: 1, createdAt: -1 }),
+    posts.createIndex({ isPublished: 1, createdAt: -1 }),
+    posts.createIndex({ isPublished: 1, likesCount: -1, viewCount: -1, createdAt: -1 }),
     posts.createIndex({ tags: 1 }),
     posts.createIndex({ originalPostId: 1 }),
+    posts.createIndex({ provenanceCid: 1 }, { sparse: true }),
     users.createIndex({ username: 1 }, { unique: true }),
     users.createIndex({ privyDid: 1 }, { unique: true }),
     follows.createIndex({ followerId: 1, followingId: 1 }, { unique: true }),
+    follows.createIndex({ followingId: 1 }),
+    comments.createIndex({ postId: 1, createdAt: 1 }),
+    likes.createIndex({ userId: 1, postId: 1 }, { unique: true }),
   ]);
 }

@@ -1,26 +1,57 @@
-import { MessageSquare, Plus } from "lucide-react";
-import Link from "next/link";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { EmptyState } from "@/components/chat/empty-state";
+import { useQuery } from "@tanstack/react-query";
+import type { Conversation, UserSettings } from "@/types";
 
 export default function ChatHomePage() {
+  const { user } = usePrivy();
+  const router = useRouter();
+  const qc = useQueryClient();
+
+  // Load user settings to pick up saved model preference
+  const { data: settingsData } = useQuery<{ settings: UserSettings }>({
+    queryKey: ["settings", user?.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/settings?userId=${user?.id}`);
+      return res.json();
+    },
+    enabled: !!user?.id,
+  });
+
+  const { mutate: createConversation, isPending } = useMutation({
+    mutationFn: async (firstMessage?: string) => {
+      const settings = settingsData?.settings;
+      const res = await fetch("/api/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.id,
+          provider: settings?.defaultProvider ?? "openai",
+          model: settings?.defaultModel ?? "gpt-4o",
+          title: firstMessage
+            ? firstMessage.slice(0, 60) + (firstMessage.length > 60 ? "…" : "")
+            : "New conversation",
+        }),
+      });
+      return res.json() as Promise<Conversation>;
+    },
+    onSuccess: (conv) => {
+      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      router.push(`/chat/${conv._id}`);
+    },
+  });
+
   return (
-    <div className="flex h-full items-center justify-center">
-      <div className="text-center space-y-4 max-w-sm">
-        <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto" />
-        <div>
-          <h2 className="font-semibold text-lg">Start a conversation</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Select a conversation from the sidebar or start a new one. Every
-            message is provenance-tracked.
-          </p>
-        </div>
-        <Link
-          href="/chat/new"
-          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="h-4 w-4" />
-          New conversation
-        </Link>
-      </div>
+    <div className="flex flex-col h-full">
+      <EmptyState
+        onPromptClick={(prompt) => {
+          if (!isPending) createConversation(prompt);
+        }}
+      />
     </div>
   );
 }

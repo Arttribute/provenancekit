@@ -24,11 +24,12 @@
   "license": "ISC",
   "pnpm": {
     "overrides": {
-      "@xenova/transformers>sharp": "0.33.5"
+      "@xenova/transformers>sharp": "0.33.5",
+      "react-dom": "19.2.3"
     }
   },
   "engines": {
-    "node": ">=24.0.0 <25.0.0"
+    "node": ">=24.0.0"
   },
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {

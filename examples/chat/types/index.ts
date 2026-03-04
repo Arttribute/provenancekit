@@ -14,17 +14,25 @@ export interface ChatUser {
   updatedAt: Date;
 }
 
-export interface ProvenanceKitConfig {
-  _id: string;
-  userId: string;
-  apiKey: string;   // encrypted in production
-  apiUrl: string;
-  projectId?: string;
-  enabled: boolean;
-  createdAt: Date;
+export type AIProvider = "openai" | "anthropic" | "google" | "custom";
+
+export interface ModelInfo {
+  provider: AIProvider;
+  model: string;
+  displayName: string;
+  contextWindow?: string;
+  description?: string;
 }
 
-export type AIProvider = "openai" | "anthropic" | "google" | "custom";
+export interface UserSettings {
+  _id: string;
+  userId: string; // privyDid
+  defaultProvider: AIProvider;
+  defaultModel: string;
+  systemPrompt?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 export interface Conversation {
   _id: string;
@@ -35,10 +43,18 @@ export interface Conversation {
   /** The specific model ID, e.g. "gpt-4o", "claude-opus-4-6", "gemini-2.0-flash" */
   model: string;
   systemPrompt?: string;
+  messageCount: number;
   createdAt: Date;
   updatedAt: Date;
-  /** CID of the provenance session record for this conversation */
+  /** CID of the last AI response in this conversation */
   provenanceCid?: string;
+  /** ProvenanceKit session tracking fields */
+  provenance?: {
+    sessionId: string; // UUID generated at conversation creation; passed to pk.file() as sessionId
+    firstCid?: string;
+    lastCid?: string;
+    totalMessages: number;
+  };
 }
 
 export interface MessagePart {
@@ -54,16 +70,19 @@ export interface ChatMessage {
   role: "user" | "assistant" | "system";
   content: string;
   contentParts?: MessagePart[];
-  /** ProvenanceKit action ID for this AI generation */
-  actionId?: string;
-  /** CID of the provenance record for this message */
-  provenanceCid?: string;
-  /** The provider used for this message */
+  /** The provider used for this message (assistant only) */
   provider?: AIProvider;
-  /** The model used for this message */
+  /** The model used for this message (assistant only) */
   model?: string;
   /** Token usage (for AI responses) */
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   finishReason?: string;
   createdAt: Date;
+  /** ProvenanceKit provenance data (assistant messages only) */
+  provenance?: {
+    cid: string; // response resource CID (primary identifier)
+    actionId?: string; // PK action ID for the generate action
+    promptCid?: string; // CID of the corresponding user prompt resource
+    sessionId?: string; // mirrors conversation.provenance.sessionId
+  };
 }
