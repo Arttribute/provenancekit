@@ -28,6 +28,8 @@ import similar from "./handlers/similar.js";
 import session from "./handlers/session.js";
 import { provenanceRoute } from "./handlers/provenance.js";
 import graph from "./handlers/graph.js";
+import health from "./handlers/health.js";
+import { provenanceRoute } from "./handlers/provenance.js";
 import { searchRoute } from "./handlers/search.js";
 import payments from "./handlers/payments.js";
 import media from "./handlers/media.js";

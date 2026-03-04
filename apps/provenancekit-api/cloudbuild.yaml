@@ -44,10 +44,10 @@ steps:
     args:
       - run
       - deploy
-      - arttribute-replay-api-prod
+      - arttribute-provenancekit-api-prod
       - --region=europe-west1
       - --platform=managed
-      - --image=europe-west1-docker.pkg.dev/$PROJECT_ID/replay/replay-api:prod
+      - --image=europe-west1-docker.pkg.dev/$PROJECT_ID/provenancekit/provenancekit-api:prod
 
     timeout: 1800s
 # options:
