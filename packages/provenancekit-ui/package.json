@@ -1,29 +1,58 @@
 {
   "name": "@provenancekit/ui",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Standard UI components for displaying provenance information",
   "main": "dist/index.js",
+  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./styles.css": "./dist/styles.css"
+  },
   "scripts": {
     "build": "tsup",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit"
   },
   "keywords": [
+    "provenance",
     "attribution",
-    "sdk",
-    "replay",
-    "ui"
+    "ui",
+    "react",
+    "components"
   ],
   "author": "bashy@arttribute.io",
   "license": "MIT",
   "packageManager": "pnpm@10.12.4",
   "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "tsup": "^8.5.0"
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/extensions": "workspace:*",
+    "@provenancekit/sdk": "workspace:*",
+    "@radix-ui/react-dialog": "^1.1.14",
+    "@radix-ui/react-popover": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-tooltip": "^1.2.7",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.525.0",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "tsup": "^8.5.0",
+    "typescript": "^5"
   },
   "peerDependencies": {
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "tailwindcss": "^4"
   }
 }

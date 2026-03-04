@@ -1,4 +1,4 @@
-import { ReplayError, ApiErrorBody } from "./errors";
+import { ProvenanceKitError, ApiErrorBody } from "./errors";
 
 export interface ApiClientOptions {
   baseUrl?: string;
@@ -12,7 +12,10 @@ export class Api {
   private readonly f: typeof fetch;
 
   constructor(opts: ApiClientOptions) {
-    this.base = (opts.baseUrl ?? "http://localhost:3000").replace(/\/$/, "");
+    this.base = (
+      opts.baseUrl ??
+      "https://arttribute-provenancekit-api-prod-848878149972.europe-west1.run.app"
+    ).replace(/\/$/, "");
     this.key = opts.apiKey;
     this.f = opts.fetchFn ?? fetch;
   }
@@ -28,8 +31,8 @@ export class Api {
       try {
         body = JSON.parse(txt);
       } catch {}
-      if (body?.error) throw ReplayError.fromResponse(res.status, body);
-      throw new ReplayError("Server", txt || res.statusText, res.status);
+      if (body?.error) throw ProvenanceKitError.fromResponse(res.status, body);
+      throw new ProvenanceKitError("Server", txt || res.statusText, res.status);
     }
     return txt ? (JSON.parse(txt) as T) : (undefined as unknown as T);
   }

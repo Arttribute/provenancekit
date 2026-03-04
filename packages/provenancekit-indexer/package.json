@@ -1,0 +1,53 @@
+{
+  "name": "@provenancekit/indexer",
+  "version": "0.0.1",
+  "description": "Blockchain event indexer for ProvenanceKit - syncs on-chain provenance to storage",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "peerDependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/storage": "workspace:*",
+    "viem": "^2.0.0"
+  },
+  "devDependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/storage": "workspace:*",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0",
+    "tsup": "^8.0.0",
+    "viem": "^2.0.0",
+    "vitest": "^1.6.0"
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "provenance",
+    "indexer",
+    "blockchain",
+    "ethereum",
+    "events",
+    "sync"
+  ],
+  "license": "MIT"
+}

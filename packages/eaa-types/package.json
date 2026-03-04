@@ -1,8 +1,25 @@
 {
-  "name": "@arttribute/eaa-types",
-  "version": "0.0.1",
-  "description": "Entity • Action • Attribution type definitions and Zod schemas",
+  "name": "@provenancekit/eaa-types",
+  "version": "0.0.2",
+  "description": "Pure provenance primitives for Human-AI collaborative works. Entity • Action • Attribution (EAA) type definitions with extensible architecture.",
   "license": "MIT",
+  "keywords": [
+    "provenance",
+    "eaa",
+    "attribution",
+    "ai",
+    "typescript",
+    "zod"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/eaa-types"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
@@ -12,20 +29,32 @@
   "sideEffects": false,
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "require": "./dist/index.cjs",
-      "import": "./dist/index.mjs",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/index.mjs"
     }
   },
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "build": "tsup",
     "dev": "tsup src/index.ts --watch --format esm,cjs --dts",
-    "lint": "eslint src --ext .ts"
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run format:check"
   },
   "dependencies": {
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "gts": "^7.0.0",
+    "prettier": "^3.7.4",
     "tsup": "^8.0.2",
     "typescript": "^5.4.0"
   },

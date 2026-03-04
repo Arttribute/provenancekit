@@ -15,14 +15,8 @@ r.get("/bundle/:cid", async (c) => {
       recovery: "Call /bundle/{CID}",
     });
 
-  try {
-    const bundle = await fetchBundle(cid);
-    return c.json(bundle);
-  } catch (e) {
-    if (e instanceof Error && e.message === "resource not found")
-      throw new ProvenanceKitError("NotFound", "Resource not found");
-    throw e;
-  }
+  const bundle = await fetchBundle(cid);
+  return c.json(bundle);
 });
 
 export default r;

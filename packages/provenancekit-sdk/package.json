@@ -1,24 +1,58 @@
 {
   "name": "@provenancekit/sdk",
-  "version": "1.0.0",
-  "description": "",
-  "main": "src/index.ts",
+  "version": "0.1.0",
+  "description": "Framework-agnostic SDK for capturing, persisting, and querying provenance of AI actions and resources.",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./signing": {
+      "types": "./dist/signing.d.ts",
+      "import": "./dist/signing.mjs",
+      "require": "./dist/signing.cjs"
+    }
+  },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "tsup",
+    "test": "vitest run"
   },
   "keywords": [
     "attribution",
     "sdk",
-    "provenance"
+    "provenance",
+    "LLM",
+    "audit",
+    "traceability",
+    "observability",
+    "c2pa",
+    "payments"
   ],
   "author": "bashy@arttribute.io",
   "license": "MIT",
   "packageManager": "pnpm@10.12.4",
   "devDependencies": {
-    "typescript": "^5.8.3"
+    "@types/node": "^24.0.14",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.0.18"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
   },
   "dependencies": {
-    "@arttribute/eaa-types": "^0.0.1",
-    "@types/node": "^24.0.14"
+    "@provenancekit/eaa-types": "workspace:*",
+    "@noble/ed25519": "^3.0.0",
+    "@provenancekit/privacy": "workspace:*",
+    "@provenancekit/extensions": "workspace:*"
   }
 }

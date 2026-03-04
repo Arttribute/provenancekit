@@ -1,0 +1,82 @@
+{
+  "name": "@provenancekit/privacy",
+  "version": "0.1.0",
+  "description": "Privacy-preserving utilities for ProvenanceKit - encryption, commitments, and access control",
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "privacy",
+    "encryption",
+    "decryption",
+    "commitment",
+    "zk",
+    "lit-protocol",
+    "ipfs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/provenancekit-privacy"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup src/index.ts --watch --format esm,cjs --dts",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@noble/ciphers": "^1.0.0",
+    "@noble/curves": "^1.6.0",
+    "@noble/hashes": "^1.5.0"
+  },
+  "peerDependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/storage": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "@provenancekit/storage": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/storage": "workspace:*",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

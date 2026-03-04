@@ -1,18 +1,28 @@
+/**
+ * Embedding Service
+ *
+ * Generates embeddings and performs vector similarity search
+ * using Xenova transformers and @provenancekit/storage.
+ */
+
 import { XenovaUniversalProvider } from "./xenova-universal.provider.js";
-import { db } from "../../db/client.js";
-import { resource } from "../../db/schema.js";
-import { sql } from "drizzle-orm";
-import { vecLiteral } from "../utils.js";
+import { getContext } from "../context.js";
+import { config } from "../config.js";
+import { encrypt, toEnvelope } from "@provenancekit/privacy";
+import type { IEncryptedVectorStorage } from "@provenancekit/storage";
+
+export type ResourceKind = "text" | "image" | "audio" | "video" | "tool";
 
 export class EmbeddingService {
   constructor(private p = new XenovaUniversalProvider()) {}
 
-  async vector(
-    kind: "text" | "image" | "audio" | "video",
-    dataUriOrUrl: string
-  ) {
+  /**
+   * Generate an embedding vector for content.
+   */
+  async vector(kind: ResourceKind, dataUriOrUrl: string): Promise<number[]> {
     switch (kind) {
       case "text":
+      case "tool":
         return this.p.encodeText(dataUriOrUrl);
       case "image":
         return this.p.encodeImage(dataUriOrUrl);
@@ -23,62 +33,91 @@ export class EmbeddingService {
     }
   }
 
-  async store(cid: string, vec: number[]) {
-    await db
-      .update(resource)
-      .set({ embedding: vec })
-      .where(sql`cid = ${cid}`);
+  /**
+   * Store an embedding for a resource.
+   */
+  async store(ref: string, vec: number[]): Promise<void> {
+    const { dbStorage } = getContext();
+    await dbStorage.storeEmbedding(ref, vec);
+    console.log("Stored embedding for ref:", ref);
   }
 
-  /** Cosine-similarity search */
+  /**
+   * Cosine-similarity search with verdict classification.
+   */
   async match(vec: number[], { high = 0.85, low = 0.75, topK = 5 } = {}) {
-    const rows = await db.execute<{ cid: string; score: number }>(
-      sql`select cid,
-                 1 - (embedding <=> ${vec}) as score
-          from resource
-          where embedding is not null
-          order by score desc
-          limit ${topK}`
-    );
+    const { dbStorage } = getContext();
+    const results = await dbStorage.findSimilar(vec, { limit: topK });
 
-    if (!rows.length) return { verdict: "no-match", matches: [] };
+    if (!results.length) return { verdict: "no-match" as const, matches: [] };
 
-    const best = rows[0];
-    if (best.score >= high) return { verdict: "auto", matches: rows };
-    if (best.score >= low) return { verdict: "review", matches: rows };
-    return { verdict: "no-match", matches: rows };
+    const matches = results.map((r) => ({ cid: r.ref, score: r.score }));
+    const best = matches[0];
+
+    if (best.score >= high) return { verdict: "auto" as const, matches };
+    if (best.score >= low) return { verdict: "review" as const, matches };
+    return { verdict: "no-match" as const, matches };
   }
 
+  /**
+   * Find similar resources with filtering.
+   */
   async matchFiltered(
     vec: number[],
     opts: { topK?: number; minScore?: number; type?: string } = {}
-  ) {
+  ): Promise<Array<{ cid: string; type?: string; score: number }>> {
     const { topK = 5, minScore = 0, type } = opts;
 
-    /* (1) stringify -> '[0.12,-0.34,…]' */
-    const lit = vecLiteral(vec);
+    if (!vec || !vec.length) {
+      return [];
+    }
 
-    /* (2) use it as a *parameter* and cast inside SQL  ------------ */
-    const rows = await db.execute<{
-      cid: string;
-      type: string;
-      score: number;
-    }>(sql`
-    SELECT cid,
-           type,
-           1 - (embedding <=> ${lit}::vector) AS score   -- 👈 cast here
-    FROM   resource
-    WHERE  embedding IS NOT NULL
-           ${type ? sql`AND type = ${type}` : sql``}
-    ORDER  BY score DESC
-    LIMIT  ${topK}
-  `);
+    const { dbStorage } = getContext();
+    const results = await dbStorage.findSimilar(vec, {
+      limit: topK,
+      minScore,
+      type,
+    });
 
-    return rows.filter((r) => r.score >= minScore);
+    return results.map((r) => ({ cid: r.ref, score: r.score }));
   }
 
-  async matchTop1(vec: number[], minScore = 0.95, type?: string) {
+  /**
+   * Find the top match above a minimum score.
+   */
+  async matchTop1(
+    vec: number[],
+    minScore = config.duplicateThreshold,
+    type?: string
+  ): Promise<{ cid: string; score: number } | undefined> {
     const res = await this.matchFiltered(vec, { topK: 1, minScore, type });
     return res[0];
+  }
+
+  /**
+   * Encrypt an embedding vector and store it as an opaque blob.
+   *
+   * The vector is serialized as Float32Array bytes, encrypted with the
+   * resource's encryption key, and stored as a JSON EncryptionEnvelope.
+   * The server never sees the plaintext vector — only the key holder
+   * can decrypt and search it client-side.
+   */
+  async storeEncrypted(
+    ref: string,
+    vec: number[],
+    key: Uint8Array,
+    kind?: string
+  ): Promise<void> {
+    const { dbStorage } = getContext();
+    const bytes = new Uint8Array(new Float32Array(vec).buffer);
+    const result = encrypt(bytes, key);
+    const envelope = toEnvelope(result);
+    const blob = JSON.stringify(envelope);
+    await (dbStorage as unknown as IEncryptedVectorStorage).storeEncryptedEmbedding(
+      ref,
+      blob,
+      kind
+    );
+    console.log("Stored encrypted embedding for ref:", ref);
   }
 }

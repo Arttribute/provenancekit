@@ -1,9 +1,15 @@
-import { defineConfig } from 'tsup'
+import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ['src/index.ts'],
-  format: ['esm', 'cjs'],
+  entry: {
+    index: "src/index.ts",
+    styles: "src/styles/provenancekit.css",
+  },
+  format: ["esm", "cjs"],
   dts: true,
-  external: ['react', 'react-dom'],
-  clean: true
-})
+  external: ["react", "react-dom"],
+  clean: true,
+  esbuildOptions(options) {
+    options.jsx = "automatic";
+  },
+});

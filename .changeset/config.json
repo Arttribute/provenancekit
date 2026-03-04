@@ -1,0 +1,27 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [
+    [
+      "@provenancekit/sdk",
+      "@provenancekit/storage",
+      "@provenancekit/extensions",
+      "@provenancekit/privacy",
+      "@provenancekit/payments",
+      "@provenancekit/git",
+      "@provenancekit/media",
+      "@provenancekit/indexer",
+      "@provenancekit/contracts"
+    ]
+  ],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [
+    "provenancekit-api",
+    "provenancekit-app",
+    "@provenancekit/ui"
+  ]
+}

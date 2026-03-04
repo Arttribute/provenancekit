@@ -19,7 +19,7 @@ export interface ApiErrorBody {
   };
 }
 
-export class ReplayError extends Error {
+export class ProvenanceKitError extends Error {
   readonly code: ErrorCode;
   readonly status: number;
   readonly recovery?: string;
@@ -41,7 +41,7 @@ export class ReplayError extends Error {
 
   static fromResponse(status: number, body: ApiErrorBody) {
     const { code, message, recovery, details } = body.error;
-    return new ReplayError(code, message, status, recovery, details);
+    return new ProvenanceKitError(code, message, status, recovery, details);
   }
 
   toString() {

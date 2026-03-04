@@ -1,0 +1,96 @@
+{
+  "name": "@provenancekit/git",
+  "version": "0.1.0",
+  "description": "Git integration for ProvenanceKit - Track commits, blame analysis, AI detection, and GitHub integration",
+  "license": "MIT",
+  "keywords": [
+    "provenance",
+    "git",
+    "attribution",
+    "blame",
+    "ai-detection",
+    "github",
+    "commits",
+    "contributions"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/provenancekit/provenancekit.git",
+    "directory": "packages/provenancekit-git"
+  },
+  "homepage": "https://provenancekit.org",
+  "bugs": {
+    "url": "https://github.com/provenancekit/provenancekit/issues"
+  },
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.cjs",
+      "import": "./dist/index.mjs"
+    },
+    "./tracker": {
+      "types": "./dist/tracker/index.d.ts",
+      "require": "./dist/tracker/index.cjs",
+      "import": "./dist/tracker/index.mjs"
+    },
+    "./ai": {
+      "types": "./dist/ai/index.d.ts",
+      "require": "./dist/ai/index.cjs",
+      "import": "./dist/ai/index.mjs"
+    },
+    "./integrations/github": {
+      "types": "./dist/integrations/github.d.ts",
+      "require": "./dist/integrations/github.cjs",
+      "import": "./dist/integrations/github.mjs"
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "type-check": "tsc --noEmit",
+    "check": "npm run type-check && npm run lint && npm run format:check",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/extensions": "workspace:*",
+    "simple-git": "^3.27.0",
+    "zod": "^3.23.8"
+  },
+  "peerDependencies": {
+    "@octokit/rest": "^21.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@octokit/rest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@octokit/rest": "^21.0.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.53.0",
+    "@typescript-eslint/parser": "^8.53.0",
+    "eslint": "^9.39.2",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.4",
+    "prettier": "^3.7.4",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.0",
+    "vitest": "^1.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
