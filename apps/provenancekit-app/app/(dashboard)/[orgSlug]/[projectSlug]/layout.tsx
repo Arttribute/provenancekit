@@ -1,5 +1,5 @@
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getOrgBySlug, getProjectBySlug, getUserOrgs } from "@/lib/queries";
 import { Sidebar } from "@/components/layout/sidebar";
 import { TopNav } from "@/components/layout/top-nav";
@@ -11,16 +11,16 @@ interface Props {
 
 export default async function ProjectLayout({ children, params }: Props) {
   const { orgSlug, projectSlug } = await params;
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
   const [orgData, orgs] = await Promise.all([
-    getOrgBySlug(orgSlug, session.user.id),
-    getUserOrgs(session.user.id),
+    getOrgBySlug(orgSlug, user.privyDid),
+    getUserOrgs(user.privyDid),
   ]);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
   return (

@@ -1,39 +1,31 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { CreateApiKeyForm } from "@/components/api-keys/create-api-key-form";
 
-interface Props {
-  params: Promise<{ orgSlug: string; projectSlug: string }>;
-}
+interface Props { params: Promise<{ orgSlug: string; projectSlug: string }> }
 
 export const metadata: Metadata = { title: "New API Key" };
 
 export default async function NewApiKeyPage({ params }: Props) {
   const { orgSlug, projectSlug } = await params;
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
-  const orgData = await getOrgBySlug(orgSlug, session.user.id);
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight">Create API Key</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          The secret key is shown only once. Store it securely.
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">The secret key is shown only once. Store it securely.</p>
       </div>
-      <CreateApiKeyForm
-        projectId={project.id}
-        orgSlug={orgSlug}
-        projectSlug={projectSlug}
-      />
+      <CreateApiKeyForm projectId={String(project._id)} orgSlug={orgSlug} projectSlug={projectSlug} />
     </div>
   );
 }

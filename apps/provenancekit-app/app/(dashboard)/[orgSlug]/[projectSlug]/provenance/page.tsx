@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,29 +16,12 @@ import {
   AlertCircle,
   ArrowRight,
 } from "lucide-react";
-import { pkApiFetch } from "@/lib/pk-api";
+import { createPK } from "@/lib/pk-api";
+import type { ProvenanceGraph, GraphNode, GraphEdge } from "@provenancekit/sdk";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
   searchParams: Promise<{ cid?: string; depth?: string }>;
-}
-
-interface GraphNode {
-  id: string;
-  type: "resource" | "action" | "entity";
-  label: string;
-  data: Record<string, unknown>;
-}
-
-interface GraphEdge {
-  from: string;
-  to: string;
-  type: "produces" | "consumes" | "tool" | "performedBy";
-}
-
-interface ProvenanceGraph {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
 }
 
 export const metadata: Metadata = { title: "Provenance Graph" };
@@ -115,26 +98,24 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
   const { orgSlug, projectSlug } = await params;
   const { cid, depth = "5" } = await searchParams;
 
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
-  const orgData = await getOrgBySlug(orgSlug, session.user.id);
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
   let graph: ProvenanceGraph | null = null;
   let fetchError: string | null = null;
 
   if (cid?.trim()) {
-    const result = await pkApiFetch<ProvenanceGraph>(
-      `/graph/${encodeURIComponent(cid.trim())}?depth=${depth}`
-    );
-    if (result.ok && result.data) {
-      graph = result.data;
-    } else {
-      fetchError = result.error ?? "Failed to fetch provenance graph";
+    try {
+      const pk = createPK();
+      graph = await pk.graph(cid.trim(), parseInt(depth, 10));
+    } catch (e) {
+      fetchError = e instanceof Error ? e.message : "Failed to fetch provenance graph";
     }
   }
 

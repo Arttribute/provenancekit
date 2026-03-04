@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 
 export default async function OrgsPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
   redirect("/dashboard");
 }

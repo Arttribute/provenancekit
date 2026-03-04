@@ -1,20 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { eq, and } from "drizzle-orm";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db/client";
-import { organizations, organizationMembers } from "@/lib/db/schema";
-import { generateApiKey } from "@/lib/api-keys";
+import { getAuthUser } from "@/lib/auth";
+import { connectDb } from "@/lib/mongodb";
+import { Organization, OrgMember } from "@/lib/db/collections";
 
 const CreateOrgSchema = z.object({
   name: z.string().min(2).max(64),
   slug: z.string().min(2).max(40).regex(/^[a-z0-9-]+$/),
-  userId: z.string(),
 });
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const user = await getAuthUser(req.headers.get("Authorization"));
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,15 +25,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { name, slug } = parsed.data;
-  const userId = session.user.id;
 
-  // Check slug uniqueness
-  const [existing] = await db
-    .select({ id: organizations.id })
-    .from(organizations)
-    .where(eq(organizations.slug, slug))
-    .limit(1);
+  await connectDb();
 
+  const existing = await Organization.findOne({ slug }).lean();
   if (existing) {
     return NextResponse.json(
       { error: "An organization with this slug already exists" },
@@ -44,15 +36,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const [org] = await db
-    .insert(organizations)
-    .values({ name, slug, ownerId: userId })
-    .returning();
+  const org = await Organization.create({ name, slug, ownerId: user.privyDid });
 
-  // Add creator as owner member
-  await db.insert(organizationMembers).values({
-    orgId: org.id,
-    userId,
+  await OrgMember.create({
+    orgId: String(org._id),
+    userId: user.privyDid,
     role: "owner",
   });
 

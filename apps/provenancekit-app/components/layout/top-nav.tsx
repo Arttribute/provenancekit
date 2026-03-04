@@ -1,6 +1,7 @@
 "use client";
 
-import { useSession, signOut } from "next-auth/react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Bell, LogOut, Settings, User } from "lucide-react";
 import {
@@ -22,37 +23,58 @@ interface TopNavProps {
 }
 
 export function TopNav({ orgs, currentOrgSlug }: TopNavProps) {
-  const { data: session } = useSession();
-  const user = session?.user;
+  const { user, logout } = usePrivy();
+  const router = useRouter();
 
-  const initials = user?.name
-    ? user.name
+  const displayName =
+    user?.google?.name ??
+    user?.github?.name ??
+    user?.email?.address ??
+    user?.wallet?.address?.slice(0, 8) ??
+    "";
+
+  const email =
+    user?.email?.address ??
+    user?.google?.email ??
+    user?.github?.email ??
+    "";
+
+  const avatar =
+    (user?.google as { profilePictureUrl?: string } | undefined)?.profilePictureUrl ??
+    (user?.github as { profilePictureUrl?: string } | undefined)?.profilePictureUrl ??
+    undefined;
+
+  const initials = displayName
+    ? displayName
         .split(" ")
-        .map((n) => n[0])
+        .map((n: string) => n[0])
         .join("")
         .toUpperCase()
         .slice(0, 2)
-    : user?.email?.slice(0, 2).toUpperCase() ?? "?";
+    : email?.slice(0, 2).toUpperCase() ?? "?";
+
+  async function handleSignOut() {
+    await fetch("/api/auth/session", { method: "DELETE" });
+    await logout();
+    router.replace("/login");
+  }
 
   return (
     <header className="flex h-14 items-center border-b bg-background px-4 gap-3">
-      {/* Org switcher */}
       <OrgSwitcher orgs={orgs} currentSlug={currentOrgSlug} />
 
       <div className="flex-1" />
 
-      {/* Actions */}
       <Button variant="ghost" size="icon" className="relative">
         <Bell className="h-4 w-4" />
         <span className="sr-only">Notifications</span>
       </Button>
 
-      {/* User menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={user?.image ?? undefined} alt={user?.name ?? ""} />
+              <AvatarImage src={avatar} alt={displayName} />
               <AvatarFallback className="text-xs">{initials}</AvatarFallback>
             </Avatar>
           </Button>
@@ -60,9 +82,9 @@ export function TopNav({ orgs, currentOrgSlug }: TopNavProps) {
         <DropdownMenuContent className="w-56" align="end" forceMount>
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium leading-none">{user?.name}</p>
+              <p className="text-sm font-medium leading-none">{displayName}</p>
               <p className="text-xs leading-none text-muted-foreground">
-                {user?.email}
+                {email}
               </p>
             </div>
           </DropdownMenuLabel>
@@ -82,7 +104,7 @@ export function TopNav({ orgs, currentOrgSlug }: TopNavProps) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="flex items-center gap-2 text-destructive focus:text-destructive"
-            onSelect={() => signOut({ callbackUrl: "/login" })}
+            onSelect={handleSignOut}
           >
             <LogOut className="h-4 w-4" />
             Sign out

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,53 +16,12 @@ import {
   FileBox,
   CheckCircle2,
 } from "lucide-react";
-import { pkApiFetch } from "@/lib/pk-api";
+import { createPK } from "@/lib/pk-api";
+import type { ProvenanceBundle, Distribution } from "@provenancekit/sdk";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
   searchParams: Promise<{ cid?: string }>;
-}
-
-interface Resource {
-  address?: { ref?: string; scheme?: string };
-  type?: string;
-  createdAt?: string;
-  createdBy?: string;
-}
-
-interface Action {
-  id?: string;
-  type?: string;
-  performedBy?: string;
-  timestamp?: string;
-  inputs?: Array<{ ref?: string }>;
-  outputs?: Array<{ ref?: string }>;
-}
-
-interface Entity {
-  id?: string;
-  role?: string;
-  name?: string;
-  wallet?: string;
-}
-
-interface Attribution {
-  entityId?: string;
-  actionId?: string;
-  role?: string;
-  timestamp?: string;
-}
-
-interface ProvenanceBundle {
-  resources: Resource[];
-  actions: Action[];
-  entities: Entity[];
-  attributions: Attribution[];
-}
-
-interface DistributionEntry {
-  entityId: string;
-  share: number;
 }
 
 export const metadata: Metadata = { title: "Resources" };
@@ -92,36 +51,33 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
   const { orgSlug, projectSlug } = await params;
   const { cid } = await searchParams;
 
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
-  const orgData = await getOrgBySlug(orgSlug, session.user.id);
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
   let bundle: ProvenanceBundle | null = null;
-  let distribution: DistributionEntry[] | null = null;
+  let distribution: Distribution | null = null;
   let fetchError: string | null = null;
 
   if (cid?.trim()) {
+    const pk = createPK();
     const [bundleResult, distResult] = await Promise.all([
-      pkApiFetch<ProvenanceBundle>(`/v1/resources/${encodeURIComponent(cid.trim())}/bundle`),
-      pkApiFetch<DistributionEntry[]>(
-        `/v1/resources/${encodeURIComponent(cid.trim())}/distribution`
-      ),
+      pk.bundle(cid.trim()).catch((e: Error) => ({ error: e.message })),
+      pk.distribution(cid.trim()).catch(() => null),
     ]);
 
-    if (bundleResult.ok && bundleResult.data) {
-      bundle = bundleResult.data;
-    } else {
-      fetchError = bundleResult.error ?? "Failed to fetch resource bundle";
+    if (bundleResult && !("error" in bundleResult)) {
+      bundle = bundleResult as ProvenanceBundle;
+    } else if (bundleResult && "error" in bundleResult) {
+      fetchError = (bundleResult as { error: string }).error;
     }
 
-    if (distResult.ok && distResult.data) {
-      distribution = distResult.data;
-    }
+    distribution = distResult as Distribution | null;
   }
 
   return (
@@ -290,7 +246,6 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
                         )}
                       </div>
                       <Field label="id" value={e.id} />
-                      <Field label="wallet" value={e.wallet} />
                     </div>
                   );
                 })}
@@ -321,11 +276,6 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
                             {attr.role}
                           </Badge>
                         )}
-                        {attr.timestamp && (
-                          <span className="text-muted-foreground">
-                            {new Date(attr.timestamp).toLocaleDateString()}
-                          </span>
-                        )}
                       </div>
                     </div>
                   );
@@ -335,15 +285,15 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
           )}
 
           {/* Revenue distribution */}
-          {distribution && distribution.length > 0 && (
+          {distribution && distribution.entries.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm">Revenue Distribution</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 space-y-3">
-                {distribution.map((entry, i) => {
+                {distribution.entries.map((entry, i) => {
                   const entity = bundle.entities.find((e) => e.id === entry.entityId);
-                  const pct = ((entry.share / 10000) * 100).toFixed(1);
+                  const pct = entry.percentage;
                   return (
                     <div key={i} className="space-y-1">
                       <div className="flex justify-between text-xs">

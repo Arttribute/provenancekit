@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getUserOrgs } from "@/lib/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,19 +11,16 @@ import type { Metadata } from "next";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
-  const orgs = await getUserOrgs(session.user.id);
+  const orgs = await getUserOrgs(user.privyDid);
 
   return (
     <div className="p-6 space-y-8 max-w-5xl mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome back{session.user.name ? `, ${session.user.name.split(" ")[0]}` : ""}
-          </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Welcome back</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             Manage your provenance organizations and projects
           </p>
@@ -36,7 +33,6 @@ export default async function DashboardPage() {
         </Button>
       </div>
 
-      {/* Orgs */}
       {orgs.length === 0 ? (
         <EmptyState />
       ) : (
@@ -55,21 +51,15 @@ export default async function DashboardPage() {
                       </div>
                       <div>
                         <CardTitle className="text-base">{org.name}</CardTitle>
-                        <CardDescription className="text-xs">
-                          @{org.slug}
-                        </CardDescription>
+                        <CardDescription className="text-xs">@{org.slug}</CardDescription>
                       </div>
                     </div>
-                    <Badge variant="outline" className="text-xs capitalize">
-                      {org.role}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs capitalize">{org.role}</Badge>
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0">
                   <div className="flex items-center justify-between">
-                    <Badge variant="secondary" className="capitalize">
-                      {org.plan}
-                    </Badge>
+                    <Badge variant="secondary" className="capitalize">{org.plan}</Badge>
                     <Button variant="ghost" size="sm" asChild>
                       <Link href={`/${org.slug}`} className="flex items-center gap-1">
                         Open <ArrowRight className="h-3 w-3" />
@@ -79,8 +69,6 @@ export default async function DashboardPage() {
                 </CardContent>
               </Card>
             ))}
-
-            {/* Create new org card */}
             <Card className="border-dashed hover:border-primary/50 hover:bg-muted/30 transition-colors cursor-pointer">
               <Link href="/orgs/new" className="flex h-full items-center justify-center p-6">
                 <div className="text-center space-y-2">
@@ -88,9 +76,7 @@ export default async function DashboardPage() {
                     <Plus className="h-5 w-5 text-muted-foreground" />
                   </div>
                   <p className="text-sm font-medium">Create organization</p>
-                  <p className="text-xs text-muted-foreground">
-                    Set up a new provenance namespace
-                  </p>
+                  <p className="text-xs text-muted-foreground">Set up a new provenance namespace</p>
                 </div>
               </Link>
             </Card>
@@ -98,29 +84,12 @@ export default async function DashboardPage() {
         </div>
       )}
 
-      {/* Quick links */}
       <div className="rounded-xl border bg-muted/30 p-6 space-y-3">
         <h2 className="text-sm font-semibold">Quick Start</h2>
         <div className="grid gap-3 sm:grid-cols-3">
-          <QuickLink
-            icon={<Building2 className="h-4 w-4" />}
-            title="Create an org"
-            description="Set up your team or personal namespace"
-            href="/orgs/new"
-          />
-          <QuickLink
-            icon={<FolderKanban className="h-4 w-4" />}
-            title="Start a project"
-            description="Configure storage, IPFS, and blockchain"
-            href="/orgs/new"
-          />
-          <QuickLink
-            icon={<ArrowRight className="h-4 w-4" />}
-            title="Read the docs"
-            description="Integrate the SDK in minutes"
-            href="https://docs.provenancekit.org"
-            external
-          />
+          <QuickLink icon={<Building2 className="h-4 w-4" />} title="Create an org" description="Set up your team or personal namespace" href="/orgs/new" />
+          <QuickLink icon={<FolderKanban className="h-4 w-4" />} title="Start a project" description="Configure storage, IPFS, and blockchain" href="/orgs/new" />
+          <QuickLink icon={<ArrowRight className="h-4 w-4" />} title="Read the docs" description="Integrate the SDK in minutes" href="https://docs.provenancekit.org" external />
         </div>
       </div>
     </div>
@@ -136,40 +105,20 @@ function EmptyState() {
       <div>
         <h2 className="text-lg font-semibold">No organizations yet</h2>
         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
-          Create your first organization to start tracking provenance for your
-          AI-powered projects.
+          Create your first organization to start tracking provenance for your AI-powered projects.
         </p>
       </div>
       <Button asChild>
-        <Link href="/orgs/new">
-          <Plus className="h-4 w-4 mr-2" />
-          Create your first org
-        </Link>
+        <Link href="/orgs/new"><Plus className="h-4 w-4 mr-2" />Create your first org</Link>
       </Button>
     </div>
   );
 }
 
-function QuickLink({
-  icon,
-  title,
-  description,
-  href,
-  external,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  href: string;
-  external?: boolean;
-}) {
+function QuickLink({ icon, title, description, href, external }: { icon: React.ReactNode; title: string; description: string; href: string; external?: boolean }) {
   return (
-    <a
-      href={href}
-      target={external ? "_blank" : undefined}
-      rel={external ? "noopener noreferrer" : undefined}
-      className="flex items-start gap-3 rounded-lg border bg-background p-4 hover:shadow-sm transition-shadow"
-    >
+    <a href={href} target={external ? "_blank" : undefined} rel={external ? "noopener noreferrer" : undefined}
+      className="flex items-start gap-3 rounded-lg border bg-background p-4 hover:shadow-sm transition-shadow">
       <div className="mt-0.5 text-muted-foreground">{icon}</div>
       <div>
         <p className="text-sm font-medium">{title}</p>
