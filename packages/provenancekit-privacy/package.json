@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/privacy",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Privacy-preserving utilities for ProvenanceKit - encryption, commitments, and access control",
   "license": "MIT",
   "keywords": [
