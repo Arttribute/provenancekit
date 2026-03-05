@@ -7,7 +7,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Key, BarChart3, Database, GitBranch, Link2, Plus, Activity, CheckCircle } from "lucide-react";
-import { formatRelativeTime } from "@/lib/utils";
 
 interface Props { params: Promise<{ orgSlug: string; projectSlug: string }> }
 

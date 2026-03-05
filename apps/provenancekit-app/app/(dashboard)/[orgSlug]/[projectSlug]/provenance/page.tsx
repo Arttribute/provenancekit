@@ -17,7 +17,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { createPK } from "@/lib/pk-api";
-import type { ProvenanceGraph, GraphNode, GraphEdge } from "@provenancekit/sdk";
+import type { ProvenanceGraph, GraphNode } from "@provenancekit/sdk";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;

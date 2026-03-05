@@ -25,7 +25,7 @@ interface Props {
   initialAvatar: string;
 }
 
-export function UserSettingsForm({ privyDid, initialName, initialEmail, initialAvatar }: Props) {
+export function UserSettingsForm({ privyDid, initialName, initialEmail }: Props) {
   const { user: privyUser, logout, linkEmail, linkGoogle, linkGithub, linkWallet } = usePrivy();
   const router = useRouter();
 
