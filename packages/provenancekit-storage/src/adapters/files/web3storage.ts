@@ -109,7 +109,7 @@ export class Web3StorageStorage implements IFileStorage {
     this.ensureInitialized();
 
     try {
-      const blob = new Blob([data]);
+      const blob = new Blob([new Uint8Array(data)]);
       const file = new File([blob], metadata?.name ?? "file", {
         type: metadata?.mimeType,
       });
