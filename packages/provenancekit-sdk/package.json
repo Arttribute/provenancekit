@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Framework-agnostic SDK for capturing, persisting, and querying provenance of AI actions and resources.",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
