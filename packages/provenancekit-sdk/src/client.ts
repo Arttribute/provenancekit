@@ -272,6 +272,14 @@ export class ProvenanceKit {
     role: string;
     name?: string;
     publicKey?: string;
+    /** Wallet address for payment attribution */
+    wallet?: string;
+    /** AI agent model config — include when role is "ai" */
+    aiAgent?: {
+      model: { provider: string; model: string; version?: string };
+      delegatedBy?: string;
+      autonomyLevel?: "autonomous" | "supervised" | "assistive";
+    };
   }) {
     const r = await this.api.postJSON<{ id: string }>("/entity", e);
     return r.id;

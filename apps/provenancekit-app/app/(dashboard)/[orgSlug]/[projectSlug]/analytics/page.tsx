@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getOrgBySlug, getProjectBySlug, getProjectUsageSummary } from "@/lib/queries";
+import { getServerUser } from "@/lib/auth";
+import { getOrgBySlug, getProjectBySlug, getProjectUsageSummary, getProjectUsageByDay } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BarChart3, Activity, CheckCircle, AlertTriangle } from "lucide-react";
+import { UsageChart } from "@/components/analytics/usage-chart";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
@@ -13,16 +14,21 @@ export const metadata: Metadata = { title: "Analytics" };
 
 export default async function AnalyticsPage({ params }: Props) {
   const { orgSlug, projectSlug } = await params;
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
 
-  const orgData = await getOrgBySlug(orgSlug, session.user.id);
+  const user = await getServerUser();
+  if (!user) redirect("/login");
+
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
-  const usage = await getProjectUsageSummary(project.id);
+  const projectId = String(project._id);
+  const [usage, dailyData] = await Promise.all([
+    getProjectUsageSummary(projectId),
+    getProjectUsageByDay(projectId),
+  ]);
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -52,7 +58,7 @@ export default async function AnalyticsPage({ params }: Props) {
         />
       </div>
 
-      {/* Chart placeholder */}
+      {/* Chart */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -61,25 +67,7 @@ export default async function AnalyticsPage({ params }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-center h-48 rounded-lg bg-muted/30 border border-dashed">
-            <p className="text-sm text-muted-foreground">
-              Chart visualization coming soon
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Endpoint breakdown */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Endpoint Breakdown</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-sm text-muted-foreground">
-              No usage data yet — start using the API to see analytics here
-            </p>
-          </div>
+          <UsageChart data={dailyData} />
         </CardContent>
       </Card>
     </div>
@@ -100,9 +88,7 @@ function StatCard({
       <CardContent className="pt-4 pb-4">
         <div className="flex items-center gap-2 text-muted-foreground mb-1">
           {icon}
-          <span className="text-xs font-medium uppercase tracking-wider">
-            {label}
-          </span>
+          <span className="text-xs font-medium uppercase tracking-wider">{label}</span>
         </div>
         <p className="text-2xl font-bold">{value}</p>
       </CardContent>

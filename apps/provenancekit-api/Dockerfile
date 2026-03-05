@@ -1,4 +1,4 @@
-FROM public.ecr.aws/docker/library/node:22.11.0 AS base
+FROM public.ecr.aws/docker/library/node:24.14 AS base
 
 
 FROM base AS builder

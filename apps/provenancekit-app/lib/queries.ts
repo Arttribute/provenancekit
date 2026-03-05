@@ -1,149 +1,181 @@
 /**
- * Server-side data fetching helpers (Drizzle queries).
+ * Server-side data fetching helpers (Mongoose queries).
  * Used in RSC layouts/pages only — never imported client-side.
  */
-import { eq, and, desc, count, gte, sql } from "drizzle-orm";
-import { db } from "@/lib/db/client";
+import { connectDb } from "@/lib/mongodb";
 import {
-  organizations,
-  organizationMembers,
-  projects,
-  apiKeys,
-  usageRecords,
-} from "@/lib/db/schema";
+  User,
+  Organization,
+  OrgMember,
+  Project,
+  ApiKey,
+  UsageRecord,
+} from "@/lib/db/collections";
 import type { OrgWithRole, ProjectWithOrg } from "@/types";
 
 /** Get all orgs where a user is a member, with their role. */
-export async function getUserOrgs(userId: string): Promise<OrgWithRole[]> {
-  const rows = await db
-    .select({
-      id: organizations.id,
-      name: organizations.name,
-      slug: organizations.slug,
-      plan: organizations.plan,
-      role: organizationMembers.role,
-    })
-    .from(organizationMembers)
-    .innerJoin(organizations, eq(organizationMembers.orgId, organizations.id))
-    .where(eq(organizationMembers.userId, userId))
-    .orderBy(organizations.name);
+export async function getUserOrgs(privyDid: string): Promise<OrgWithRole[]> {
+  await connectDb();
 
-  return rows as OrgWithRole[];
+  const memberships = await OrgMember.find({ userId: privyDid }).lean();
+  if (memberships.length === 0) return [];
+
+  const orgIds = memberships.map((m) => String(m.orgId));
+  const orgs = await Organization.find({ _id: { $in: orgIds } })
+    .sort({ name: 1 })
+    .lean();
+
+  return orgs.map((org) => {
+    const membership = memberships.find((m) => String(m.orgId) === String(org._id));
+    return {
+      id: String(org._id),
+      name: org.name,
+      slug: org.slug,
+      plan: org.plan,
+      role: membership?.role ?? "viewer",
+    };
+  });
 }
 
 /** Get a single org by slug (with membership check). */
-export async function getOrgBySlug(slug: string, userId: string) {
-  const [row] = await db
-    .select({
-      org: organizations,
-      role: organizationMembers.role,
-    })
-    .from(organizations)
-    .innerJoin(
-      organizationMembers,
-      and(
-        eq(organizationMembers.orgId, organizations.id),
-        eq(organizationMembers.userId, userId)
-      )
-    )
-    .where(eq(organizations.slug, slug))
-    .limit(1);
+export async function getOrgBySlug(slug: string, privyDid: string) {
+  await connectDb();
 
-  return row ?? null;
+  const org = await Organization.findOne({ slug }).lean();
+  if (!org) return null;
+
+  const member = await OrgMember.findOne({
+    orgId: String(org._id),
+    userId: privyDid,
+  }).lean();
+  if (!member) return null;
+
+  return { org, role: member.role };
 }
 
 /** Get all projects in an org. */
 export async function getOrgProjects(orgId: string): Promise<ProjectWithOrg[]> {
-  const rows = await db
-    .select({
-      id: projects.id,
-      name: projects.name,
-      slug: projects.slug,
-      description: projects.description,
-      orgId: projects.orgId,
-      orgSlug: organizations.slug,
-      storageType: projects.storageType,
-      chainId: projects.chainId,
-    })
-    .from(projects)
-    .innerJoin(organizations, eq(projects.orgId, organizations.id))
-    .where(eq(projects.orgId, orgId))
-    .orderBy(projects.name);
+  await connectDb();
 
-  return rows as ProjectWithOrg[];
+  const [org, projectList] = await Promise.all([
+    Organization.findById(orgId).lean(),
+    Project.find({ orgId }).sort({ name: 1 }).lean(),
+  ]);
+
+  return projectList.map((p) => ({
+    id: String(p._id),
+    name: p.name,
+    slug: p.slug,
+    description: p.description,
+    orgId: p.orgId,
+    orgSlug: org?.slug ?? "",
+    storageType: p.storageType,
+    chainId: p.chainId,
+  }));
 }
 
 /** Get a single project by slug within an org. */
 export async function getProjectBySlug(orgId: string, slug: string) {
-  const [row] = await db
-    .select()
-    .from(projects)
-    .where(and(eq(projects.orgId, orgId), eq(projects.slug, slug)))
-    .limit(1);
-  return row ?? null;
+  await connectDb();
+  return Project.findOne({ orgId, slug }).lean();
+}
+
+/** Get a project by its _id string. */
+export async function getProjectById(projectId: string) {
+  await connectDb();
+  return Project.findById(projectId).lean();
 }
 
 /** Get non-revoked API keys for a project. */
 export async function getProjectApiKeys(projectId: string) {
-  return db
-    .select({
-      id: apiKeys.id,
-      name: apiKeys.name,
-      prefix: apiKeys.prefix,
-      permissions: apiKeys.permissions,
-      createdAt: apiKeys.createdAt,
-      expiresAt: apiKeys.expiresAt,
-      lastUsedAt: apiKeys.lastUsedAt,
-      revokedAt: apiKeys.revokedAt,
-    })
-    .from(apiKeys)
-    .where(eq(apiKeys.projectId, projectId))
-    .orderBy(desc(apiKeys.createdAt));
+  await connectDb();
+  return ApiKey.find({ projectId })
+    .sort({ createdAt: -1 })
+    .select("_id name prefix permissions createdAt expiresAt lastUsedAt revokedAt")
+    .lean();
 }
 
 /** Usage summary for a project (last 30 days). */
 export async function getProjectUsageSummary(projectId: string) {
+  await connectDb();
+
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const [total] = await db
-    .select({ count: count() })
-    .from(usageRecords)
-    .where(
-      and(
-        eq(usageRecords.projectId, projectId),
-        gte(usageRecords.timestamp, thirtyDaysAgo)
-      )
-    );
-
-  const [successes] = await db
-    .select({ count: count() })
-    .from(usageRecords)
-    .where(
-      and(
-        eq(usageRecords.projectId, projectId),
-        gte(usageRecords.timestamp, thirtyDaysAgo),
-        sql`${usageRecords.statusCode} >= 200 AND ${usageRecords.statusCode} < 300`
-      )
-    );
-
-  const totalCount = total?.count ?? 0;
-  const successCount = successes?.count ?? 0;
+  const [totalCalls, successCount] = await Promise.all([
+    UsageRecord.countDocuments({
+      projectId,
+      timestamp: { $gte: thirtyDaysAgo },
+    }),
+    UsageRecord.countDocuments({
+      projectId,
+      timestamp: { $gte: thirtyDaysAgo },
+      statusCode: { $gte: 200, $lt: 300 },
+    }),
+  ]);
 
   return {
-    totalCalls: totalCount,
-    successRate: totalCount > 0 ? (successCount / totalCount) * 100 : 0,
+    totalCalls,
+    successRate: totalCalls > 0 ? (successCount / totalCalls) * 100 : 0,
     period: "month" as const,
   };
 }
 
+/** Usage records grouped by day for the analytics chart (last 30 days). */
+export async function getProjectUsageByDay(projectId: string) {
+  await connectDb();
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const rows = await UsageRecord.aggregate([
+    { $match: { projectId, timestamp: { $gte: thirtyDaysAgo } } },
+    {
+      $group: {
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
+        total: { $sum: 1 },
+        success: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $gte: ["$statusCode", 200] },
+                  { $lt: ["$statusCode", 300] },
+                ],
+              },
+              1,
+              0,
+            ],
+          },
+        },
+      },
+    },
+    { $sort: { _id: 1 } },
+  ]);
+
+  return rows.map((r) => ({
+    date: r._id as string,
+    total: r.total as number,
+    success: r.success as number,
+  }));
+}
+
 /** Org member list. */
 export async function getOrgMembers(orgId: string) {
-  return db
-    .select({
-      userId: organizationMembers.userId,
-      role: organizationMembers.role,
-      joinedAt: organizationMembers.joinedAt,
-    })
-    .from(organizationMembers)
-    .where(eq(organizationMembers.orgId, orgId));
+  await connectDb();
+  return OrgMember.find({ orgId }).lean();
+}
+
+/** Check if a user is a member of an org and return their role. */
+export async function getOrgMembership(
+  orgId: string,
+  privyDid: string
+): Promise<string | null> {
+  await connectDb();
+  const member = await OrgMember.findOne({ orgId, userId: privyDid }).lean();
+  return member?.role ?? null;
+}
+
+/** Get a user document by privyDid. */
+export async function getUserByPrivyDid(privyDid: string) {
+  await connectDb();
+  return User.findOne({ privyDid }).lean();
 }

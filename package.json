@@ -24,8 +24,31 @@
   "license": "ISC",
   "pnpm": {
     "overrides": {
-      "@xenova/transformers>sharp": "0.33.5"
-    }
+      "@xenova/transformers>sharp": "0.33.5",
+      "react-dom": "19.2.3"
+    },
+    "supportedArchitectures": {
+      "os": [
+        "current"
+      ],
+      "cpu": [
+        "current"
+      ],
+      "libc": [
+        "current"
+      ]
+    },
+    "ignoredOptionalDependencies": [
+      "@img/sharp-libvips-linux-arm64",
+      "@img/sharp-libvips-linux-x64",
+      "@img/sharp-libvips-win32-x64",
+      "@img/sharp-linux-arm64",
+      "@img/sharp-linux-x64",
+      "@img/sharp-win32-x64"
+    ]
+  },
+  "engines": {
+    "node": ">=24.0.0"
   },
   "packageManager": "pnpm@10.12.1",
   "devDependencies": {

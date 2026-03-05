@@ -3,7 +3,7 @@
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Plus, Compass } from "lucide-react";
 import { PostCard } from "@/components/feed/post-card";
 import type { Post } from "@/types";
 
@@ -13,18 +13,24 @@ export default function FeedPage() {
   const { data: posts = [], isLoading } = useQuery<Post[]>({
     queryKey: ["feed", user?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/posts?feed=1&userId=${user?.id}`);
+      const res = await fetch(`/api/posts?userId=${user?.id}`);
       return res.json();
     },
     enabled: !!user?.id,
   });
 
+  const displayName =
+    user?.google?.name ??
+    user?.github?.name ??
+    user?.email?.address?.split("@")[0] ??
+    "there";
+
   return (
     <div className="space-y-4">
       {/* Create prompt */}
       <div className="flex items-center gap-3 rounded-xl border bg-card p-4">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-medium">
-          {user?.email?.slice(0, 2).toUpperCase() ?? "?"}
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-sm font-semibold shrink-0">
+          {displayName.slice(0, 2).toUpperCase()}
         </div>
         <Link
           href="/create"
@@ -34,7 +40,7 @@ export default function FeedPage() {
         </Link>
         <Link
           href="/create"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Link>
@@ -51,14 +57,24 @@ export default function FeedPage() {
         <div className="text-center py-16 space-y-3">
           <p className="text-lg font-medium">Nothing in your feed yet</p>
           <p className="text-sm text-muted-foreground">
-            Follow creators or start posting to see content here
+            Follow creators on Explore to see their posts here, or create your first post.
           </p>
-          <Link
-            href="/explore"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-          >
-            Explore content
-          </Link>
+          <div className="flex items-center justify-center gap-3">
+            <Link
+              href="/explore"
+              className="inline-flex items-center gap-1.5 justify-center rounded-md border px-4 py-2 text-sm font-medium hover:bg-muted transition-colors"
+            >
+              <Compass className="h-4 w-4" />
+              Explore
+            </Link>
+            <Link
+              href="/create"
+              className="inline-flex items-center gap-1.5 justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Create
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-4">

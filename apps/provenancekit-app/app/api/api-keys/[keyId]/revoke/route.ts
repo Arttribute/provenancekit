@@ -1,61 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
-import { eq, and } from "drizzle-orm";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db/client";
-import { apiKeys, projects, organizationMembers } from "@/lib/db/schema";
+import { getAuthUser } from "@/lib/auth";
+import { connectDb } from "@/lib/mongodb";
+import { ApiKey, Project, OrgMember } from "@/lib/db/collections";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   const { keyId } = await params;
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const user = await getAuthUser(req.headers.get("Authorization"));
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Get the key + verify access through org membership
-  const [key] = await db
-    .select({
-      id: apiKeys.id,
-      projectId: apiKeys.projectId,
-      revokedAt: apiKeys.revokedAt,
-    })
-    .from(apiKeys)
-    .where(eq(apiKeys.id, keyId))
-    .limit(1);
-
-  if (!key) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (key.revokedAt)
+  await connectDb();
+  const apiKey = await ApiKey.findById(keyId).lean();
+  if (!apiKey) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (apiKey.revokedAt)
     return NextResponse.json({ error: "Already revoked" }, { status: 409 });
 
-  const [project] = await db
-    .select({ orgId: projects.orgId })
-    .from(projects)
-    .where(eq(projects.id, key.projectId))
-    .limit(1);
-
+  const project = await Project.findById(apiKey.projectId).lean();
   if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const [member] = await db
-    .select({ role: organizationMembers.role })
-    .from(organizationMembers)
-    .where(
-      and(
-        eq(organizationMembers.orgId, project.orgId),
-        eq(organizationMembers.userId, session.user.id)
-      )
-    )
-    .limit(1);
-
-  if (!member || member.role === "viewer") {
+  const member = await OrgMember.findOne({
+    orgId: project.orgId,
+    userId: user.privyDid,
+  }).lean();
+  if (!member || member.role === "viewer")
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  await db
-    .update(apiKeys)
-    .set({ revokedAt: new Date() })
-    .where(eq(apiKeys.id, keyId));
-
+  await ApiKey.findByIdAndUpdate(keyId, { revokedAt: new Date() });
   return NextResponse.json({ success: true });
 }

@@ -1,23 +1,30 @@
 /**
  * Posts API — create posts with automatic ProvenanceKit recording.
  *
+ * ProvenanceKit integration:
+ *   Uses a single platform-level API key (PROVENANCEKIT_API_KEY env var).
+ *   All users are PK entities identified by their Privy DID.
+ *   Provenance recording is non-blocking (fails silently if PK is down).
+ *
  * POST /api/posts
- *   Creates a new post or remix, uploads content to IPFS via PK API,
- *   records the create/transform action in ProvenanceKit, and deploys
- *   a 0xSplits contract if the post is monetized.
+ *   Creates a new post or remix, uploads content to PK/IPFS,
+ *   records the create/transform action, and saves to MongoDB.
  *
  * GET /api/posts?feed=1&userId=<id>
- *   Returns the feed for a user (followed creators + own posts).
+ *   Feed for a user (posts from followed creators + own).
  *
  * GET /api/posts?explore=1
- *   Returns trending/recent public posts.
+ *   Trending/recent public posts for the explore page.
+ *
+ * GET /api/posts?authorId=<id>
+ *   All posts by a specific author.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { v4 as uuidv4 } from "uuid";
 import { getDb } from "@/lib/mongodb";
-import { createCanvasPKClient } from "@/lib/provenance";
-import type { Post, CanvasUser } from "@/types";
+import { getPlatformClient } from "@/lib/provenance";
+import type { Post, CanvasUser, Follow } from "@/types";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
@@ -34,17 +41,36 @@ export async function GET(req: NextRequest) {
     posts = await collection
       .find({ authorId, isPublished: true })
       .sort({ createdAt: -1 })
-      .limit(20)
-      .toArray();
-  } else if (explore) {
-    posts = await collection
-      .find({ isPublished: true })
-      .sort({ likesCount: -1, createdAt: -1 })
       .limit(30)
       .toArray();
-  } else {
+  } else if (explore) {
+    const sort = searchParams.get("sort") ?? "trending";
+    const sortObj =
+      sort === "recent"
+        ? { createdAt: -1 }
+        : { likesCount: -1, viewCount: -1, createdAt: -1 };
+
+    posts = await collection
+      .find({ isPublished: true })
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .sort(sortObj as any)
+      .limit(30)
+      .toArray();
+  } else if (userId) {
     // Feed: own posts + followed creators
-    // Simplified: just return all posts for now
+    const follows = await db
+      .collection<Follow>("follows")
+      .find({ followerId: userId })
+      .toArray();
+    const followingIds = follows.map((f) => f.followingId);
+    const feedAuthorIds = [userId, ...followingIds];
+
+    posts = await collection
+      .find({ authorId: { $in: feedAuthorIds }, isPublished: true })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .toArray();
+  } else {
     posts = await collection
       .find({ isPublished: true })
       .sort({ createdAt: -1 })
@@ -68,25 +94,35 @@ export async function POST(req: NextRequest) {
     x402Price,
     originalPostId,
     remixNote,
+    mediaRefs = [],
   } = body;
 
   if (!authorId || !content) {
-    return NextResponse.json({ error: "authorId and content are required" }, { status: 400 });
+    return NextResponse.json(
+      { error: "authorId and content are required" },
+      { status: 400 }
+    );
   }
 
   const db = await getDb();
 
-  // Get user's PK config
-  const user = await db.collection<CanvasUser>("users").findOne({ privyDid: authorId });
+  const author = await db
+    .collection<CanvasUser>("users")
+    .findOne({ privyDid: authorId });
 
   const post: Post = {
     _id: uuidv4(),
     authorId,
+    authorUsername: author?.username,
+    authorDisplayName: author?.displayName,
+    authorAvatar: author?.avatar,
     type: originalPostId ? "remix" : type,
     content,
-    mediaRefs: [],
+    mediaRefs,
     originalPostId,
     remixNote,
+    licenseType,
+    aiTraining,
     tags,
     isPremium,
     x402Price,
@@ -100,67 +136,85 @@ export async function POST(req: NextRequest) {
     updatedAt: new Date(),
   };
 
-  // Record provenance (non-blocking failure)
-  if (user) {
-    const pk = createCanvasPKClient(user);
-    if (pk) {
-      try {
-        // Upload content to IPFS
-        const contentCid = await pk.uploadContent(content, "text/plain");
+  // Record provenance via the platform PK client (non-blocking)
+  const pk = getPlatformClient();
+  if (pk) {
+    try {
+      const commercial = !["CC-BY-NC-4.0", "all-rights-reserved"].includes(licenseType);
+      const displayName = author?.displayName || author?.username || authorId.slice(0, 8);
+      const wallet = author?.wallet;
 
-        // Get/create author entity
-        const authorEntity = await pk.upsertEntity({
-          name: user.username || user.privyDid,
-          type: "person",
-          wallet: user.wallet,
-        });
+      const textForPK = mediaRefs.length > 0
+        ? content + "\n[media: " + mediaRefs.map((m: { mimeType: string }) => m.mimeType).join(", ") + "]"
+        : content;
+      const contentBlob = new Blob([textForPK], { type: "text/plain" });
 
-        if (originalPostId) {
-          // Find original post's provenance CID
-          const original = await db.collection<Post>("posts").findOne({ _id: originalPostId });
-          if (original?.provenanceCid) {
-            const result = await pk.recordRemix({
-              remixerEntityId: authorEntity.id,
-              originalCid: original.provenanceCid,
-              remixCid: contentCid,
-              remixNote,
-            });
-            post.provenanceCid = result.resource.cid;
-            post.actionId = result.action.id;
+      if (originalPostId) {
+        const original = await db
+          .collection<Post>("posts")
+          .findOne({ _id: originalPostId });
 
-            // Update remix count on original
-            await db.collection("posts").updateOne(
-              { _id: originalPostId },
-              { $inc: { remixCount: 1 } }
-            );
-          }
-        } else {
-          const result = await pk.recordNewPost({
-            authorEntityId: authorEntity.id,
-            contentCid,
+        if (original?.provenanceCid) {
+          const result = await pk.recordRemix({
+            remixerPrivyDid: authorId,
+            remixerDisplayName: displayName,
+            remixerWallet: wallet,
+            originalCid: original.provenanceCid,
+            remixBlob: contentBlob,
+            remixNote,
             licenseType,
-            commercial: !["CC-BY-NC-4.0", "all-rights-reserved"].includes(licenseType),
             aiTraining: aiTraining as "permitted" | "reserved" | "unspecified",
-            paymentWallet: user.wallet,
           });
-          post.provenanceCid = result.resource.cid;
-          post.actionId = result.action.id;
+          post.provenanceCid = result.cid;
+          post.actionId = result.actionId;
+          post.provenanceStatus = "verified";
+          post.originalAuthorId = original.authorId;
         }
-      } catch (err) {
-        console.warn("[Canvas PK] Provenance recording failed:", err);
+
+        await db
+          .collection("posts")
+          .updateOne({ _id: originalPostId }, { $inc: { remixCount: 1 } });
+      } else {
+        const result = await pk.recordNewPost({
+          authorPrivyDid: authorId,
+          authorDisplayName: displayName,
+          authorWallet: wallet,
+          contentBlob,
+          licenseType,
+          commercial,
+          aiTraining: aiTraining as "permitted" | "reserved" | "unspecified",
+          tags,
+        });
+        post.provenanceCid = result.cid;
+        post.actionId = result.actionId;
+        post.provenanceStatus = "verified";
+
+        if (author && !author.provenanceEntityId) {
+          await db
+            .collection("users")
+            .updateOne(
+              { privyDid: authorId },
+              { $set: { provenanceEntityId: authorId } }
+            );
+        }
       }
+    } catch (err) {
+      console.warn("[Canvas PK] Provenance recording failed (non-fatal):", err);
+      post.provenanceStatus = "none";
     }
+  } else {
+    post.provenanceStatus = "none";
   }
 
-  await db.collection("posts").insertOne(post);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await db.collection("posts").insertOne(post as any);
 
-  // Increment author post count
-  if (user) {
-    await db.collection("users").updateOne(
+  await db
+    .collection("users")
+    .updateOne(
       { privyDid: authorId },
-      { $inc: { postsCount: 1 } }
+      { $inc: { postsCount: 1 }, $set: { updatedAt: new Date() } }
     );
-  }
 
   return NextResponse.json(post, { status: 201 });
 }

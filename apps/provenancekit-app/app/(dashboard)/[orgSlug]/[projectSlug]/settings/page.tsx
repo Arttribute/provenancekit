@@ -1,24 +1,22 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
-import { auth } from "@/lib/auth";
+import { getServerUser } from "@/lib/auth";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { ProjectSettingsForm } from "@/components/settings/project-settings-form";
 
-interface Props {
-  params: Promise<{ orgSlug: string; projectSlug: string }>;
-}
+interface Props { params: Promise<{ orgSlug: string; projectSlug: string }> }
 
 export const metadata: Metadata = { title: "Project Settings" };
 
 export default async function ProjectSettingsPage({ params }: Props) {
   const { orgSlug, projectSlug } = await params;
-  const session = await auth();
-  if (!session?.user?.id) redirect("/login");
+  const user = await getServerUser();
+  if (!user) redirect("/login");
 
-  const orgData = await getOrgBySlug(orgSlug, session.user.id);
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(orgData.org.id, projectSlug);
+  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
   if (!project) notFound();
 
   return (

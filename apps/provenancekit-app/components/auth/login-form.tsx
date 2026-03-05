@@ -1,68 +1,87 @@
 "use client";
 
-import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
-import { Github } from "lucide-react";
+import { Github, Wallet } from "lucide-react";
 
 export function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [loading, setLoading] = useState<string | null>(null);
-  const [emailSent, setEmailSent] = useState(false);
+  const { ready, authenticated, login, getAccessToken, user } = usePrivy();
+  const router = useRouter();
 
-  async function handleOAuth(provider: string) {
-    setLoading(provider);
-    await signIn(provider, { callbackUrl: "/dashboard" });
-  }
+  // After Privy login, exchange token for session cookie and redirect
+  useEffect(() => {
+    if (!ready || !authenticated || !user) return;
 
-  async function handleEmail(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email) return;
-    setLoading("email");
-    await signIn("resend", { email, callbackUrl: "/dashboard", redirect: false });
-    setEmailSent(true);
-    setLoading(null);
-  }
+    async function establishSession() {
+      try {
+        const token = await getAccessToken();
+        if (!token) return;
 
-  if (emailSent) {
+        const wallet = user?.wallet?.address ??
+          (user?.linkedAccounts?.find(
+            (a: { type: string }) => a.type === "wallet"
+          ) as { address?: string } | undefined)?.address;
+
+        await fetch("/api/auth/session", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            email: user?.email?.address,
+            wallet,
+            name: user?.google?.name ?? user?.github?.name ?? undefined,
+          }),
+        });
+
+        router.replace("/dashboard");
+      } catch {
+        // silently continue
+      }
+    }
+
+    establishSession();
+  }, [ready, authenticated, user, getAccessToken, router]);
+
+  if (!ready) {
     return (
-      <div className="text-center space-y-3 p-6 rounded-xl border bg-card">
-        <div className="text-2xl">✉️</div>
-        <h2 className="font-semibold">Check your email</h2>
-        <p className="text-sm text-muted-foreground">
-          We sent a magic link to <strong>{email}</strong>. Click the link to
-          sign in.
-        </p>
-        <Button variant="ghost" size="sm" onClick={() => setEmailSent(false)}>
-          Try a different email
-        </Button>
+      <div className="flex items-center justify-center py-8">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (authenticated) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <span className="ml-3 text-sm text-muted-foreground">
+          Signing you in…
+        </span>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* OAuth buttons */}
       <div className="space-y-2">
         <Button
           className="w-full"
           variant="outline"
-          onClick={() => handleOAuth("github")}
-          disabled={loading !== null}
+          onClick={() => login()}
         >
           <Github className="mr-2 h-4 w-4" />
-          {loading === "github" ? "Connecting…" : "Continue with GitHub"}
+          Continue with GitHub
         </Button>
         <Button
           className="w-full"
           variant="outline"
-          onClick={() => handleOAuth("google")}
-          disabled={loading !== null}
+          onClick={() => login()}
         >
-          {/* Google icon as SVG */}
+          {/* Google icon */}
           <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
             <path
               d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -81,38 +100,34 @@ export function LoginForm() {
               fill="#EA4335"
             />
           </svg>
-          {loading === "google" ? "Connecting…" : "Continue with Google"}
+          Continue with Google
         </Button>
-      </div>
-
-      <div className="flex items-center gap-3">
-        <Separator className="flex-1" />
-        <span className="text-xs text-muted-foreground">or</span>
-        <Separator className="flex-1" />
-      </div>
-
-      {/* Magic link */}
-      <form onSubmit={handleEmail} className="space-y-3">
-        <div className="space-y-1.5">
-          <Label htmlFor="email">Email address</Label>
-          <Input
-            id="email"
-            type="email"
-            placeholder="you@example.com"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            disabled={loading !== null}
-          />
-        </div>
         <Button
-          type="submit"
           className="w-full"
-          disabled={loading !== null || !email}
+          variant="outline"
+          onClick={() => login()}
         >
-          {loading === "email" ? "Sending…" : "Continue with Email"}
+          <Wallet className="mr-2 h-4 w-4" />
+          Continue with Wallet
         </Button>
-      </form>
+      </div>
+
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">or</span>
+        </div>
+      </div>
+
+      <Button className="w-full" onClick={() => login()}>
+        Continue with Email
+      </Button>
+
+      <p className="text-center text-xs text-muted-foreground">
+        All methods managed securely by Privy
+      </p>
     </div>
   );
 }

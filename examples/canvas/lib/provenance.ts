@@ -1,153 +1,209 @@
 /**
- * ProvenanceKit helpers for recording canvas content provenance.
+ * ProvenanceKit platform client for Canvas.
  *
- * Two main flows:
- *   1. New post: create → record in PK with creator entity + license + payment
- *   2. Remix: transform → record in PK with original CID as input
+ * Architecture:
+ *   Canvas is a platform app that holds ONE server-side PK API key
+ *   (PROVENANCEKIT_API_KEY env var). All users' content is recorded
+ *   within this single project. Each user is identified as a PK entity
+ *   using their Privy DID as the entityId — stable and globally unique.
  *
- * Revenue distribution:
- *   The distribution calculator walks the provenance graph and returns
- *   basis-point shares for each contributor. These are used to deploy a
- *   0xSplits contract on-chain.
+ *   Users do NOT manage their own PK API keys. The platform handles
+ *   provenance on their behalf.
+ *
+ * Usage pattern:
+ *   const pk = getPlatformPKClient();
+ *   if (!pk) { // PK not configured, skip provenance gracefully }
  */
 
-import type { CanvasUser, Post } from "@/types";
+import { ProvenanceKit } from "@provenancekit/sdk";
 
-interface PKClientOptions {
-  apiKey: string;
-  apiUrl: string;
+const PK_API_URL =
+  process.env.PROVENANCEKIT_API_URL ?? "https://api.provenancekit.org";
+const PK_API_KEY = process.env.PROVENANCEKIT_API_KEY;
+
+/** Returns the platform-level ProvenanceKit SDK instance, or null if unconfigured. */
+export function getPlatformPKClient(): ProvenanceKit | null {
+  if (!PK_API_KEY) return null;
+  return new ProvenanceKit({ baseUrl: PK_API_URL, apiKey: PK_API_KEY });
 }
 
-interface EntityResult {
-  id: string;
-}
-
-interface ActionResult {
-  action: { id: string };
-  resource: { cid: string };
-}
-
-interface DistributionEntry {
+export interface DistributionEntry {
   entityId: string;
   wallet?: string;
-  share: number; // basis points
+  /** Basis points (0–10000) */
+  bps: number;
+  /** Human-readable percentage string, e.g. "33.33" */
+  percentage: string;
 }
 
+/**
+ * CanvasPKClient — thin wrapper around the SDK with Canvas-specific helpers.
+ * All methods are async and swallow non-fatal errors.
+ */
 export class CanvasPKClient {
-  private apiKey: string;
-  private apiUrl: string;
+  private pk: ProvenanceKit;
 
-  constructor({ apiKey, apiUrl }: PKClientOptions) {
-    this.apiKey = apiKey;
-    this.apiUrl = apiUrl;
+  constructor(pk: ProvenanceKit) {
+    this.pk = pk;
   }
 
-  private async fetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${this.apiUrl}${path}`, {
-      ...init,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${this.apiKey}`,
-        ...init?.headers,
-      },
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(body.error ?? `PK error: ${res.status}`);
-    }
-    return res.json() as Promise<T>;
-  }
-
-  async upsertEntity(opts: { name: string; type: string; wallet?: string }) {
-    return this.fetch<EntityResult>("/v1/entities", {
-      method: "POST",
-      body: JSON.stringify(opts),
-    });
-  }
-
-  /** Record a new post as a "create" action */
+  /**
+   * Upload content and record a "create" action.
+   * Attaches license, payment, and AI-training extensions.
+   */
   async recordNewPost(opts: {
-    authorEntityId: string;
-    contentCid: string;
+    authorPrivyDid: string;
+    authorDisplayName: string;
+    authorWallet?: string;
+    contentBlob: Blob;
     licenseType: string;
     commercial: boolean;
     aiTraining: "permitted" | "reserved" | "unspecified";
-    paymentWallet?: string;
-  }): Promise<ActionResult> {
-    return this.fetch<ActionResult>("/v1/actions", {
-      method: "POST",
-      body: JSON.stringify({
+    tags?: string[];
+  }): Promise<{ actionId: string; cid: string; entityId: string }> {
+    const result = await this.pk.file(opts.contentBlob, {
+      entity: {
+        id: opts.authorPrivyDid,
+        role: "human",
+        name: opts.authorDisplayName,
+      },
+      action: {
         type: "create",
-        performedBy: opts.authorEntityId,
-        inputs: [],
-        outputs: [{ ref: opts.contentCid, scheme: "cid" }],
         extensions: {
           "ext:license@1.0.0": {
             type: opts.licenseType,
             commercial: opts.commercial,
             aiTraining: opts.aiTraining,
           },
-          ...(opts.paymentWallet && {
+          ...(opts.authorWallet && {
             "ext:payment@1.0.0": {
               method: "splits",
-              recipient: opts.paymentWallet,
+              recipient: opts.authorWallet,
+            },
+          }),
+          ...(opts.tags?.length && {
+            "ext:tags@1.0.0": { tags: opts.tags },
+          }),
+        },
+      },
+    });
+
+    return {
+      actionId: result.actionId ?? "",
+      cid: result.cid,
+      entityId: result.entityId ?? opts.authorPrivyDid,
+    };
+  }
+
+  /**
+   * Upload remix content and record a "transform" action with the original as input.
+   */
+  async recordRemix(opts: {
+    remixerPrivyDid: string;
+    remixerDisplayName: string;
+    remixerWallet?: string;
+    originalCid: string;
+    remixBlob: Blob;
+    remixNote?: string;
+    licenseType?: string;
+    aiTraining?: "permitted" | "reserved" | "unspecified";
+  }): Promise<{ actionId: string; cid: string; entityId: string }> {
+    const result = await this.pk.file(opts.remixBlob, {
+      entity: {
+        id: opts.remixerPrivyDid,
+        role: "human",
+        name: opts.remixerDisplayName,
+      },
+      action: {
+        type: "transform",
+        inputCids: [opts.originalCid],
+        extensions: {
+          ...(opts.remixNote && {
+            "ext:attribution@1.0.0": { note: opts.remixNote },
+          }),
+          ...(opts.licenseType && {
+            "ext:license@1.0.0": {
+              type: opts.licenseType,
+              commercial: !["CC-BY-NC-4.0", "all-rights-reserved"].includes(opts.licenseType),
+              aiTraining: opts.aiTraining ?? "unspecified",
+            },
+          }),
+          ...(opts.remixerWallet && {
+            "ext:payment@1.0.0": {
+              method: "splits",
+              recipient: opts.remixerWallet,
             },
           }),
         },
-      }),
+      },
     });
+
+    return {
+      actionId: result.actionId ?? "",
+      cid: result.cid,
+      entityId: result.entityId ?? opts.remixerPrivyDid,
+    };
   }
 
-  /** Record a remix as a "transform" action with original as input */
-  async recordRemix(opts: {
-    remixerEntityId: string;
-    originalCid: string;
-    remixCid: string;
-    remixNote?: string;
-  }): Promise<ActionResult> {
-    return this.fetch<ActionResult>("/v1/actions", {
-      method: "POST",
-      body: JSON.stringify({
-        type: "transform",
-        performedBy: opts.remixerEntityId,
-        inputs: [{ ref: opts.originalCid, scheme: "cid" }],
-        outputs: [{ ref: opts.remixCid, scheme: "cid" }],
+  /**
+   * Upload a media file and record a "create" action for it.
+   * Used when a post has attached images/video/audio.
+   */
+  async recordMediaUpload(opts: {
+    authorPrivyDid: string;
+    authorDisplayName: string;
+    mediaBlob: Blob;
+    mimeType: string;
+    licenseType?: string;
+    aiTraining?: "permitted" | "reserved" | "unspecified";
+  }): Promise<{ cid: string; actionId: string }> {
+    const result = await this.pk.file(opts.mediaBlob, {
+      entity: { id: opts.authorPrivyDid, role: "human", name: opts.authorDisplayName },
+      action: {
+        type: "create",
         extensions: {
-          "ext:attribution@1.0.0": {
-            note: opts.remixNote ?? "Remix",
-          },
+          ...(opts.licenseType && {
+            "ext:license@1.0.0": {
+              type: opts.licenseType,
+              commercial: !["CC-BY-NC-4.0", "all-rights-reserved"].includes(opts.licenseType),
+              aiTraining: opts.aiTraining ?? "unspecified",
+            },
+          }),
         },
-      }),
+      },
     });
+    return { cid: result.cid, actionId: result.actionId ?? "" };
   }
 
-  /** Calculate revenue distribution for a CID (walks provenance graph) */
+  /** Calculate revenue distribution for a CID (walks the provenance graph). */
   async getDistribution(cid: string): Promise<DistributionEntry[]> {
-    return this.fetch<DistributionEntry[]>(`/v1/resources/${cid}/distribution`);
+    const dist = await this.pk.distribution(cid);
+    return dist.entries.map((e) => ({
+      entityId: e.entityId,
+      wallet: e.payment?.address,
+      bps: e.bps,
+      percentage: e.percentage,
+    }));
   }
 
-  async uploadContent(content: string | Blob, mimeType = "text/plain"): Promise<string> {
-    const blob = typeof content === "string" ? new Blob([content], { type: mimeType }) : content;
-    const form = new FormData();
-    form.append("file", blob);
+  /** Get the full provenance bundle for a CID. */
+  async getBundle(cid: string) {
+    return this.pk.bundle(cid);
+  }
 
-    const res = await fetch(`${this.apiUrl}/v1/resources/upload`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${this.apiKey}` },
-      body: form,
-    });
-    if (!res.ok) throw new Error(`Upload failed: ${res.status}`);
-    const data = await res.json();
-    return data.cid as string;
+  /** Get the provenance graph for a CID. */
+  async getGraph(cid: string, depth = 3) {
+    return this.pk.graph(cid, depth);
   }
 }
 
-export function createCanvasPKClient(
-  user: Pick<CanvasUser, "provenancekitApiKey" | "provenancekitApiUrl">
-): CanvasPKClient | null {
-  if (!user.provenancekitApiKey || !user.provenancekitApiUrl) return null;
-  return new CanvasPKClient({
-    apiKey: user.provenancekitApiKey,
-    apiUrl: user.provenancekitApiUrl,
-  });
+/**
+ * Get the platform CanvasPKClient, or null if PROVENANCEKIT_API_KEY is not set.
+ * Safe to call in any API route — returns null when PK is not configured so
+ * the route can skip provenance recording without crashing.
+ */
+export function getPlatformClient(): CanvasPKClient | null {
+  const pk = getPlatformPKClient();
+  if (!pk) return null;
+  return new CanvasPKClient(pk);
 }

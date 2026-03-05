@@ -7,6 +7,8 @@ export async function POST(
 ) {
   const { id } = await params;
   const db = await getDb();
-  await db.collection("posts").updateOne({ _id: id }, { $inc: { likesCount: 1 } });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const asId = (s: string): any => s;
+  await db.collection("posts").updateOne({ _id: asId(id) }, { $inc: { likesCount: 1 } });
   return NextResponse.json({ success: true });
 }

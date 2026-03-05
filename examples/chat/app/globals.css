@@ -66,3 +66,52 @@ body {
   color: var(--foreground);
   font-family: system-ui, -apple-system, sans-serif;
 }
+
+/* ── ProvenanceKit UI component theming ───────────────────────────────────── */
+/* Maps @provenancekit/ui CSS custom properties to the app's design system.   */
+:root {
+  --pk-surface: var(--card);
+  --pk-surface-border: var(--border);
+  --pk-surface-muted: var(--muted);
+  --pk-foreground: var(--foreground);
+  --pk-muted-foreground: var(--muted-foreground);
+  --pk-badge-bg: oklch(0.97 0.05 150); /* emerald tint for verified state */
+  --pk-badge-fg: oklch(0.3 0.1 150);
+  --pk-badge-border: oklch(0.8 0.1 150);
+  --pk-radius: var(--radius);
+}
+
+.dark {
+  --pk-surface: oklch(0.205 0 0);
+  --pk-surface-border: oklch(1 0 0 / 10%);
+  --pk-surface-muted: oklch(0.269 0 0);
+  --pk-foreground: oklch(0.985 0 0);
+  --pk-muted-foreground: oklch(0.708 0 0);
+  --pk-badge-bg: oklch(0.2 0.05 150);
+  --pk-badge-fg: oklch(0.8 0.1 150);
+  --pk-badge-border: oklch(0.4 0.1 150);
+}
+
+/* Prose styles for markdown message content */
+.prose pre {
+  background-color: var(--muted);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+}
+.prose code {
+  font-size: 0.85em;
+  background-color: var(--muted);
+  border-radius: 3px;
+  padding: 0.15em 0.3em;
+}
+.prose pre code {
+  background: none;
+  padding: 0;
+}
+.prose p { margin: 0.5em 0; }
+.prose p:first-child { margin-top: 0; }
+.prose p:last-child { margin-bottom: 0; }
+.prose ul, .prose ol { padding-left: 1.25em; margin: 0.5em 0; }
+.prose h1, .prose h2, .prose h3 { font-weight: 600; margin: 0.75em 0 0.25em; }
+.prose blockquote { border-left: 3px solid var(--border); padding-left: 0.75em; color: var(--muted-foreground); }

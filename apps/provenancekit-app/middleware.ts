@@ -1,24 +1,25 @@
-import { auth } from "@/lib/auth";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
-export default auth((req) => {
+export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public routes that don't need auth
+  // Public routes — no auth required
   const isPublic =
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
-    pathname.startsWith("/api/mcp") || // MCP server uses its own API key auth
+    pathname.startsWith("/api/mcp") || // MCP uses its own API key auth
     pathname === "/";
 
-  if (!isPublic && !req.auth) {
-    const loginUrl = new URL("/login", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
+  if (isPublic) return NextResponse.next();
+
+  // Check for session cookie
+  const session = req.cookies.get("pk-session")?.value;
+  if (!session) {
+    return NextResponse.redirect(new URL("/", req.url));
   }
 
   return NextResponse.next();
-});
+}
 
 export const config = {
   matcher: [
