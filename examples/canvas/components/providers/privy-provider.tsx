@@ -3,9 +3,11 @@
 import { PrivyProvider as PrivyBase } from "@privy-io/react-auth";
 
 export function PrivyProvider({ children }: { children: React.ReactNode }) {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (!appId) return <>{children}</>;
   return (
     <PrivyBase
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? ""}
+      appId={appId}
       config={{
         loginMethods: ["email", "google", "github", "wallet"],
         appearance: { theme: "light", accentColor: "#0a0a0a" },

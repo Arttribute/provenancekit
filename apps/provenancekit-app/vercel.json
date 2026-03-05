@@ -1,4 +1,4 @@
 {
-  "installCommand": "corepack enable pnpm && corepack prepare pnpm@10.12.1 --activate && cd ../.. && pnpm install --no-frozen-lockfile",
-  "buildCommand": "cd ../.. && pnpm --filter './packages/*' run build && pnpm --filter provenancekit-app build"
+  "installCommand": "npm install",
+  "buildCommand": "npm run build"
 }

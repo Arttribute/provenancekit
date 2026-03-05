@@ -30,13 +30,10 @@ export function CreateOrgForm({ userId }: { userId: string }) {
     register,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
   });
-
-  const name = watch("name");
 
   // Auto-fill slug from name
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {

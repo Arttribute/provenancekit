@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { Suspense, useState, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -33,7 +33,7 @@ const TYPE_OPTIONS = [
   { type: "blog"  as const, icon: <FileText className="h-4 w-4" />,  label: "Blog" },
 ];
 
-export default function CreatePage() {
+function CreatePageInner() {
   const { user } = usePrivy();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -388,5 +388,13 @@ export default function CreatePage() {
         </div>
       </form>
     </div>
+  );
+}
+
+export default function CreatePage() {
+  return (
+    <Suspense>
+      <CreatePageInner />
+    </Suspense>
   );
 }

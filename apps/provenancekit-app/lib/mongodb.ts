@@ -4,7 +4,6 @@ const MONGODB_URI =
   process.env.MONGODB_URI ?? "mongodb://localhost:27017/provenancekit-app";
 
 declare global {
-  // eslint-disable-next-line no-var
   var _pkMongoosePromise: Promise<typeof mongoose> | undefined;
 }
 
