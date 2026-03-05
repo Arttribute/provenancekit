@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/extensions",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Type-safe extension schemas and helpers for ProvenanceKit EAA types",
   "license": "MIT",
   "keywords": [
