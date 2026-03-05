@@ -5,6 +5,7 @@
   "fixed": [],
   "linked": [
     [
+      "@provenancekit/eaa-types",
       "@provenancekit/sdk",
       "@provenancekit/storage",
       "@provenancekit/extensions",
@@ -13,7 +14,8 @@
       "@provenancekit/git",
       "@provenancekit/media",
       "@provenancekit/indexer",
-      "@provenancekit/contracts"
+      "@provenancekit/contracts",
+      "@provenancekit/ui"
     ]
   ],
   "access": "public",
@@ -22,6 +24,7 @@
   "ignore": [
     "provenancekit-api",
     "provenancekit-app",
-    "@provenancekit/ui"
+    "@provenancekit/example-chat",
+    "@provenancekit/example-canvas"
   ]
 }

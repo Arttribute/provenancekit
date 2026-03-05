@@ -29,13 +29,17 @@
     },
     "supportedArchitectures": {
       "os": [
-        "current"
+        "current",
+        "linux"
       ],
       "cpu": [
-        "current"
+        "current",
+        "x64",
+        "arm64"
       ],
       "libc": [
-        "current"
+        "current",
+        "glibc"
       ]
     },
     "ignoredOptionalDependencies": [

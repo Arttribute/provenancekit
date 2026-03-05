@@ -50,6 +50,12 @@
     "tsup": "^8.5.0",
     "typescript": "^5"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
