@@ -6,12 +6,13 @@ steps:
     args:
       - "-c"
       - |
+        set -e
         corepack enable pnpm
         corepack prepare pnpm@10.12.1 --activate
         pnpm install --no-frozen-lockfile
-        pnpm --filter './packages/*' run build
+        pnpm --filter './packages/*' --filter '!@provenancekit/contracts' run build
         pnpm --filter provenancekit-api run build
-        pnpm deploy --filter provenancekit-api --prod apps/provenancekit-api/standalone
+        pnpm deploy --filter provenancekit-api --prod --legacy apps/provenancekit-api/standalone
         cp -r apps/provenancekit-api/dist apps/provenancekit-api/standalone/dist
 
   - name: "gcr.io/cloud-builders/docker"
