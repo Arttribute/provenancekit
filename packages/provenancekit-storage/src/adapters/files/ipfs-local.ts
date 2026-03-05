@@ -111,7 +111,7 @@ export class LocalIPFSStorage
 
     try {
       const formData = new FormData();
-      const blob = new Blob([data]);
+      const blob = new Blob([new Uint8Array(data)]);
       formData.append("file", blob, metadata?.name ?? "file");
 
       const response = await this.fetchFn(
@@ -331,7 +331,7 @@ export class LocalIPFSStorage
       const formData = new FormData();
 
       for (const [path, data] of files) {
-        const blob = new Blob([data]);
+        const blob = new Blob([new Uint8Array(data)]);
         formData.append("file", blob, path);
       }
 

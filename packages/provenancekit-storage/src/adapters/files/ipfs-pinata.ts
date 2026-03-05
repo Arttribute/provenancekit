@@ -134,7 +134,7 @@ export class PinataStorage implements IFileStorage, IPinnableStorage {
     try {
       // Create FormData for file upload
       const formData = new FormData();
-      const blob = new Blob([data]);
+      const blob = new Blob([new Uint8Array(data)]);
       formData.append("file", blob, metadata?.name ?? "file");
 
       // Add pinata metadata if provided
