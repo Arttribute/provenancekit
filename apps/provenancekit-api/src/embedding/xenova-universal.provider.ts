@@ -9,7 +9,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readFile, writeFile, unlink } from "node:fs/promises";
+import { readFile, writeFile, unlink, mkdir, readdir, rm } from "node:fs/promises";
 import ffmpeg from "fluent-ffmpeg";
 import WavefileMod from "wavefile";
 
@@ -24,6 +24,10 @@ function mimeToExt(mime: string): string {
   if (mime.includes("jpg")) return ".jpg";
   if (mime.includes("webp")) return ".webp";
   if (mime.includes("gif")) return ".gif";
+  if (mime.includes("webm")) return ".webm";
+  if (mime.includes("quicktime") || mime.includes("mov")) return ".mov";
+  if (mime.includes("x-msvideo") || mime.includes("avi")) return ".avi";
+  if (mime.includes("x-matroska") || mime.includes("mkv")) return ".mkv";
   if (mime.includes("mp4")) return ".mp4";
   if (mime.includes("mp3")) return ".mp3";
   if (mime.includes("wav")) return ".wav";
@@ -164,7 +168,73 @@ export class XenovaUniversalProvider implements EmbeddingProvider {
     }
   }
 
-  async encodeVideo(_: string): Promise<Vec> {
-    throw new Error("Video embedding not yet implemented");
+  async encodeVideo(src: string): Promise<Vec> {
+    const { bytes, mime } = await toBytes(src);
+    const base = join(tmpdir(), randomUUID());
+    const inPath = base + mimeToExt(mime);
+    const framesDir = base + "_frames";
+
+    await writeFile(inPath, bytes);
+    await mkdir(framesDir);
+
+    try {
+      // Extract 1 frame every 5 seconds from the first 100 seconds (≤20 frames).
+      // fps=1/5 produces evenly-spaced keyframes without needing scene detection.
+      await new Promise<void>((res, rej) =>
+        ffmpeg(inPath)
+          .inputOptions(["-t", "100"])
+          .outputOptions(["-vf", "fps=1/5"])
+          .output(join(framesDir, "frame_%04d.jpg"))
+          .on("end", () => res())
+          .on("error", rej)
+          .run()
+      );
+
+      let frameFiles = (await readdir(framesDir))
+        .filter((f) => f.endsWith(".jpg"))
+        .sort();
+
+      // Fallback for very short videos (<5s): grab a single frame
+      if (!frameFiles.length) {
+        await new Promise<void>((res, rej) =>
+          ffmpeg(inPath)
+            .outputOptions(["-vf", "fps=1", "-frames:v", "1"])
+            .output(join(framesDir, "frame_%04d.jpg"))
+            .on("end", () => res())
+            .on("error", rej)
+            .run()
+        );
+        frameFiles = (await readdir(framesDir))
+          .filter((f) => f.endsWith(".jpg"))
+          .sort();
+      }
+
+      if (!frameFiles.length) {
+        throw new Error("No frames could be extracted from video");
+      }
+
+      // Encode each frame with CLIP (reuses the cached image pipeline)
+      const frameVecs: Vec[] = [];
+      for (const frameFile of frameFiles) {
+        const framePath = join(framesDir, frameFile);
+        const frameBytes = await readFile(framePath);
+        const dataUri = `data:image/jpeg;base64,${frameBytes.toString("base64")}`;
+        frameVecs.push(await this.encodeImage(dataUri));
+      }
+
+      // Mean-pool frame vectors then L2-normalize into a single composite vector
+      const dim = frameVecs[0].length;
+      const pooled = new Array<number>(dim).fill(0);
+      for (const vec of frameVecs) {
+        for (let i = 0; i < dim; i++) pooled[i] += vec[i];
+      }
+      for (let i = 0; i < dim; i++) pooled[i] /= frameVecs.length;
+
+      const norm = Math.sqrt(pooled.reduce((s, x) => s + x * x, 0));
+      return pooled.map((x) => x / norm);
+    } finally {
+      await rm(framesDir, { recursive: true, force: true }).catch(() => {});
+      await unlink(inPath).catch(() => {});
+    }
   }
 }
