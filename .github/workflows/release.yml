@@ -15,14 +15,15 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: write       # changesets: push version commits + tags
-      pull-requests: write  # changesets: create/update Version Packages PR
+      contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -100,5 +101,5 @@ jobs:
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
