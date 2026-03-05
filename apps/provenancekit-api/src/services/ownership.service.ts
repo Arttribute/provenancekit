@@ -25,8 +25,8 @@ import {
   withVerification,
   type ClaimStatus,
 } from "@provenancekit/extensions";
-import { verifyAction, type ActionSignPayload } from "@provenancekit/sdk";
-import { supportsTransactions } from "@provenancekit/storage";
+import { verifyAction, type ActionSignPayload, type ActionProof } from "@provenancekit/sdk";
+import { supportsTransactions, type IProvenanceStorage } from "@provenancekit/storage";
 import { getContext } from "../context.js";
 import { config } from "../config.js";
 import { ProvenanceKitError } from "../errors.js";
@@ -107,9 +107,7 @@ export interface ExecuteTransferInput {
  * adapted for ownership actions (no outputs to bind).
  */
 async function verifyOwnershipProof(
-  proof:
-    | { algorithm: string; publicKey: string; signature: string; timestamp: string }
-    | undefined,
+  proof: ActionProof | undefined,
   entity: { id: string; publicKey?: string },
   actionType: string,
   inputCids: string[],
@@ -136,7 +134,7 @@ async function verifyOwnershipProof(
     };
 
     try {
-      const valid = await verifyAction(payload, proof as Parameters<typeof verifyAction>[1]);
+      const valid = await verifyAction(payload, proof);
       if (valid) {
         return { status: "verified", detail: "Proof verified against registered key" };
       }
@@ -384,8 +382,7 @@ export async function executeOwnershipTransfer(
   // 7. Atomically persist action + update ownership state
   // Use transaction if available, fall back to sequential operations
   if (supportsTransactions(dbStorage)) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await dbStorage.transaction(async (tx: any) => {
+    await dbStorage.transaction(async (tx: IProvenanceStorage) => {
       await tx.createAction(action);
       await tx.transferOwnershipState(input.targetRef, input.toEntityId, actionId);
     });

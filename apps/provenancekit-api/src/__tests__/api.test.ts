@@ -15,7 +15,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { MemoryDbStorage } from "@provenancekit/storage/adapters/db/memory";
 import { MemoryFileStorage } from "@provenancekit/storage/adapters/files/memory";
 import { cidRef } from "@provenancekit/eaa-types";
-import type { IProvenanceStorage, IVectorStorage } from "@provenancekit/storage";
+import type { IProvenanceStorage } from "@provenancekit/storage";
 
 // ─── Mock Setup ──────────────────────────────────────────────────────────────
 
@@ -52,8 +52,7 @@ function makeTestContext(
   memFile: MemoryFileStorage
 ) {
   return {
-    // Cast: tests don't invoke vector-search paths so the missing methods are fine
-    dbStorage: memDb as unknown as IProvenanceStorage & IVectorStorage,
+    dbStorage: memDb as IProvenanceStorage,
     fileStorage: memFile,
     encryptedStorage: {
       upload: vi.fn().mockResolvedValue({ cid: "bafy-encrypted", url: "ipfs://bafy-encrypted" }),
@@ -333,7 +332,7 @@ describe("ProvenanceKit API", () => {
       const body = await res.json() as Record<string, unknown>;
       // ProvenanceBundle has shape: { context, entities, resources, actions, attributions }
       expect(Array.isArray(body.resources)).toBe(true);
-      expect((body.resources as unknown[]).length).toBeGreaterThan(0);
+      expect((body.resources as unknown[]).length).toBeGreaterThan(0); // body is Record<string, unknown>
     });
   });
 

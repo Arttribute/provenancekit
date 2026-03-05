@@ -9,7 +9,7 @@ import { XenovaUniversalProvider } from "./xenova-universal.provider.js";
 import { getContext } from "../context.js";
 import { config } from "../config.js";
 import { encrypt, toEnvelope } from "@provenancekit/privacy";
-import type { IEncryptedVectorStorage } from "@provenancekit/storage";
+import { supportsVectors, supportsEncryptedVectors } from "@provenancekit/storage";
 
 export type ResourceKind = "text" | "image" | "audio" | "video" | "tool";
 
@@ -38,8 +38,8 @@ export class EmbeddingService {
    */
   async store(ref: string, vec: number[]): Promise<void> {
     const { dbStorage } = getContext();
+    if (!supportsVectors(dbStorage)) return;
     await dbStorage.storeEmbedding(ref, vec);
-    console.log("Stored embedding for ref:", ref);
   }
 
   /**
@@ -47,6 +47,7 @@ export class EmbeddingService {
    */
   async match(vec: number[], { high = 0.85, low = 0.75, topK = 5 } = {}) {
     const { dbStorage } = getContext();
+    if (!supportsVectors(dbStorage)) return { verdict: "no-match" as const, matches: [] };
     const results = await dbStorage.findSimilar(vec, { limit: topK });
 
     if (!results.length) return { verdict: "no-match" as const, matches: [] };
@@ -73,6 +74,7 @@ export class EmbeddingService {
     }
 
     const { dbStorage } = getContext();
+    if (!supportsVectors(dbStorage)) return [];
     const results = await dbStorage.findSimilar(vec, {
       limit: topK,
       minScore,
@@ -109,15 +111,13 @@ export class EmbeddingService {
     kind?: string
   ): Promise<void> {
     const { dbStorage } = getContext();
+    if (!supportsEncryptedVectors(dbStorage)) {
+      throw new Error("Encrypted vector storage not supported by current backend");
+    }
     const bytes = new Uint8Array(new Float32Array(vec).buffer);
     const result = encrypt(bytes, key);
     const envelope = toEnvelope(result);
     const blob = JSON.stringify(envelope);
-    await (dbStorage as unknown as IEncryptedVectorStorage).storeEncryptedEmbedding(
-      ref,
-      blob,
-      kind
-    );
-    console.log("Stored encrypted embedding for ref:", ref);
+    await dbStorage.storeEncryptedEmbedding(ref, blob, kind);
   }
 }

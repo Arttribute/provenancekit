@@ -15,8 +15,7 @@
 
 import { Hono } from "hono";
 import { v4 as uuidv4 } from "uuid";
-import { cidRef } from "@provenancekit/eaa-types";
-import type { ContentReference } from "@provenancekit/eaa-types";
+import type { Action, Attribution, ContentReference } from "@provenancekit/eaa-types";
 import {
   upsertEntity,
   type CreateEntityInput,
@@ -96,7 +95,6 @@ r.post("/actions", async (c) => {
     inputs?: ContentReference[];
     outputs?: ContentReference[];
     extensions?: Record<string, unknown>;
-    note?: string;
   };
 
   if (!body.performedBy) {
@@ -120,37 +118,34 @@ r.post("/actions", async (c) => {
   const inputs = body.inputs ?? [];
   const outputs = body.outputs ?? [];
 
-  const action = {
+  const action: Action = {
     id: actionId,
-    type: body.type ?? "create",
+    type: (body.type ?? "create") as Action["type"],
     performedBy: body.performedBy,
     inputs,
     outputs,
     timestamp: now,
     extensions: body.extensions,
-    ...(body.note && { note: body.note }),
   };
 
-  await dbStorage.saveAction(action as Parameters<typeof dbStorage.saveAction>[0]);
+  await dbStorage.createAction(action);
 
   // Record attribution for the primary performer
-  const performerAttribution = {
+  const performerAttribution: Attribution = {
     entityId: body.performedBy,
     actionId,
-    role: "creator" as const,
-    timestamp: now,
+    role: "creator",
   };
-  await dbStorage.saveAttribution(performerAttribution as Parameters<typeof dbStorage.saveAttribution>[0]);
+  await dbStorage.createAttribution(performerAttribution);
 
   // Record attribution for the requester (if different)
   if (body.requestedBy && body.requestedBy !== body.performedBy) {
-    const requesterAttribution = {
+    const requesterAttribution: Attribution = {
       entityId: body.requestedBy,
       actionId,
-      role: "contributor" as const,
-      timestamp: now,
+      role: "contributor",
     };
-    await dbStorage.saveAttribution(requesterAttribution as Parameters<typeof dbStorage.saveAttribution>[0]);
+    await dbStorage.createAttribution(requesterAttribution);
   }
 
   // For outputs that look like CIDs, ensure a resource record exists
@@ -186,7 +181,7 @@ r.post("/resources/upload", async (c) => {
   const buffer = Buffer.from(await form.file.arrayBuffer());
   const cid = await fileStorage.upload(buffer, {
     mimeType: form.file.type || "application/octet-stream",
-    filename: form.file.name || "upload",
+    name: form.file.name || "upload",
   });
 
   return c.json({ cid }, 201);
@@ -220,7 +215,7 @@ r.get("/resources/:cid/distribution", async (c) => {
   // Build distribution as basis-point shares
   const byEntity: Record<string, number> = {};
   for (const attr of attributions) {
-    const entityId = attr.entityId ?? attr.performedBy;
+    const entityId = attr.entityId;
     if (entityId) {
       byEntity[entityId] = (byEntity[entityId] ?? 0) + 1;
     }
