@@ -1,21 +1,11 @@
 /**
  * ProvenanceKit helpers for recording AI chat provenance.
  *
- * Uses the official @provenancekit/sdk — no raw API fetch calls.
- * Design principle: app-level PK client from env. Provider-agnostic;
- * works with OpenAI, Anthropic, Google, or any custom model.
+ * Uses @provenancekit/sdk — no raw API calls.
  *
- * Provenance flow per message pair:
- *   1. Upsert human entity  (the user, identified by Privy DID)
- *   2. Upsert AI agent entity (the model, identified by provider/model)
- *   3. Upload prompt → "provide" action (records user input as a resource)
- *   4. Upload response → "generate" action with:
- *        - prompt CID as input (explicit lineage)
- *        - ext:ai@1.0.0: provider, model, promptHash, tokensUsed
- *        - sessionId: links this message to the full conversation session
- *
- * ext:license@1.0.0 and ext:witness@1.0.0 are planned Phase 2 additions
- * (require post-hoc action amendment not yet exposed in SDK).
+ * Tracks:
+ *   - recordChatProvenance: text prompt/response pairs with ext:ai@1.0.0
+ *   - recordImageProvenance: DALL-E generated images with ext:ai@1.0.0
  */
 
 import { createHash } from "crypto";
@@ -24,28 +14,23 @@ import type { AIProvider, ModelInfo } from "@/types";
 
 export type SupportedProvider = AIProvider;
 
-/** Well-known model catalogue — used for display, model selection, and ext:ai metadata */
 export const KNOWN_MODELS: ModelInfo[] = [
-  // OpenAI — primary provider
-  { provider: "openai", model: "gpt-4o", displayName: "GPT-4o", contextWindow: "128k", description: "Most capable GPT-4o model" },
+  { provider: "openai", model: "gpt-4o", displayName: "GPT-4o", contextWindow: "128k", description: "Most capable, multimodal" },
   { provider: "openai", model: "gpt-4o-mini", displayName: "GPT-4o mini", contextWindow: "128k", description: "Fast and cost-efficient" },
   { provider: "openai", model: "o3-mini", displayName: "o3-mini", contextWindow: "200k", description: "Advanced reasoning model" },
-  // Anthropic
-  { provider: "anthropic", model: "claude-opus-4-6", displayName: "Claude Opus 4.6", contextWindow: "200k", description: "Anthropic's most capable model" },
+  { provider: "anthropic", model: "claude-opus-4-6", displayName: "Claude Opus 4.6", contextWindow: "200k", description: "Anthropic's most capable" },
   { provider: "anthropic", model: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", contextWindow: "200k", description: "Balanced performance" },
-  // Google
-  { provider: "google", model: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash", contextWindow: "1M", description: "Fast multimodal model" },
-  { provider: "google", model: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", contextWindow: "1M", description: "Google's most capable model" },
+  { provider: "google", model: "gemini-2.0-flash", displayName: "Gemini 2.0 Flash", contextWindow: "1M", description: "Fast multimodal" },
+  { provider: "google", model: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", contextWindow: "1M", description: "Google's most capable" },
 ];
 
 export function getModelInfo(provider: SupportedProvider, model: string): ModelInfo | undefined {
   return KNOWN_MODELS.find((m) => m.provider === provider && m.model === model);
 }
 
-/** SHA-256 hash of canonicalized message thread for privacy-preserving prompt fingerprinting */
-export function hashPrompt(messages: Array<{ role: string; content: string }>): string {
+export function hashPrompt(messages: Array<{ role: string; content: unknown }>): string {
   const canonical = JSON.stringify(
-    messages.map((m) => ({ role: m.role, content: m.content }))
+    messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) }))
   );
   return "sha256:" + createHash("sha256").update(canonical).digest("hex");
 }
@@ -57,43 +42,29 @@ export interface ProvenanceResult {
 }
 
 /**
- * Record provenance for a single AI chat response using the PK SDK.
- *
- * @returns ProvenanceResult with CIDs, or null if PK is not configured or fails
+ * Record provenance for a text chat response.
  */
 export async function recordChatProvenance(opts: {
   userPrivyDid: string;
   provider: SupportedProvider;
   model: string;
-  prompt: Array<{ role: string; content: string }>;
+  prompt: Array<{ role: string; content: unknown }>;
   response: string;
   tokens: number;
-  sessionId: string | null; // PK session ID for the conversation (null = no session grouping)
+  sessionId: string | null;
 }): Promise<ProvenanceResult | null> {
   const pk = getPKClient();
-  if (!pk) return null; // PK not configured — chat works fine without provenance
+  if (!pk) return null;
 
   try {
-    // 1. Upsert human entity (identified by Privy DID)
-    const humanEntityId = await pk.entity({
-      role: "human",
-      name: opts.userPrivyDid,
-    });
-
-    // 2. Upsert AI agent entity (identified by provider/model string)
+    const humanEntityId = await pk.entity({ role: "human", name: opts.userPrivyDid });
     const agentEntityId = await pk.entity({
       role: "ai",
       name: `${opts.provider}/${opts.model}`,
-      aiAgent: {
-        model: { provider: opts.provider, model: opts.model },
-        autonomyLevel: "assistive",
-      },
+      aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
     });
 
-    // 3. Upload prompt content — records a "provide" action (user gave the prompt)
-    const promptText = JSON.stringify(
-      opts.prompt.map((m) => ({ role: m.role, content: m.content }))
-    );
+    const promptText = JSON.stringify(opts.prompt.map((m) => ({ role: m.role, content: m.content })));
     const promptBlob = new Blob([promptText], { type: "application/json" });
     const promptResult = await pk.file(promptBlob, {
       entity: { id: humanEntityId, role: "human", name: opts.userPrivyDid },
@@ -102,9 +73,6 @@ export async function recordChatProvenance(opts: {
       ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
     });
 
-    // 4. Upload response content — records a "generate" action
-    //    Input: prompt CID (explicit provenance lineage)
-    //    Extension: ext:ai@1.0.0 carries provider/model attribution metadata
     const responseBlob = new Blob([opts.response], { type: "text/plain" });
     const responseResult = await pk.file(responseBlob, {
       entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
@@ -124,14 +92,60 @@ export async function recordChatProvenance(opts: {
       ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
     });
 
-    return {
-      cid: responseResult.cid,
-      actionId: responseResult.actionId,
-      promptCid: promptResult.cid,
-    };
+    return { cid: responseResult.cid, actionId: responseResult.actionId, promptCid: promptResult.cid };
   } catch (error) {
-    // Provenance failures must not break chat — log and continue gracefully
-    console.warn("[PK] Failed to record provenance:", error);
+    console.warn("[PK] recordChatProvenance failed:", error);
+    return null;
+  }
+}
+
+/**
+ * Record provenance for a DALL-E generated image.
+ * The image is recorded as a resource with ext:ai@1.0.0 citing the prompt CID as input.
+ */
+export async function recordImageProvenance(opts: {
+  userPrivyDid: string;
+  provider: SupportedProvider;
+  model: string; // "dall-e-3"
+  prompt: string;
+  imageUrl: string;
+  inputCids: string[]; // prompt CID(s) from the parent chat exchange
+  sessionId: string | null;
+}): Promise<ProvenanceResult | null> {
+  const pk = getPKClient();
+  if (!pk || !opts.imageUrl) return null;
+
+  try {
+    const agentEntityId = await pk.entity({
+      role: "ai",
+      name: `${opts.provider}/${opts.model}`,
+      aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "autonomous" },
+    });
+
+    // Fetch the image and upload as a PK resource
+    const imageResp = await fetch(opts.imageUrl);
+    const imageBlob = await imageResp.blob();
+
+    const result = await pk.file(imageBlob, {
+      entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
+      action: {
+        type: "generate",
+        inputCids: opts.inputCids,
+        extensions: {
+          "ext:ai@1.0.0": {
+            provider: opts.provider,
+            model: opts.model,
+            promptHash: "sha256:" + createHash("sha256").update(opts.prompt).digest("hex"),
+          },
+        },
+      },
+      resourceType: "image",
+      ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+    });
+
+    return { cid: result.cid, actionId: result.actionId };
+  } catch (error) {
+    console.warn("[PK] recordImageProvenance failed:", error);
     return null;
   }
 }

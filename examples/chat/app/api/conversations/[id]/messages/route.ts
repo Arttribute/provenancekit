@@ -1,39 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import type { Conversation, ChatMessage } from "@/types";
+import { connectDB, ConversationModel, MessageModel } from "@/lib/db";
 
 type Params = { params: Promise<{ id: string }> };
 
-/**
- * GET /api/conversations/[id]/messages
- * Returns all messages for a conversation, sorted chronologically.
- * Verifies the requesting user owns the conversation.
- */
-export async function GET(req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  await connectDB();
   const { id } = await params;
   const userId = req.nextUrl.searchParams.get("userId");
 
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  const db = await getDb();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conversation: any = await ConversationModel.findById(id).lean();
+  if (!conversation) return NextResponse.json({ error: "Not found" }, { status: 404 });
+  if (conversation.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  // Verify ownership
-  const conversation = await db
-    .collection<Conversation>("conversations")
-    .findOne({ _id: id });
-
-  if (!conversation) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
-  if (conversation.userId !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  const messages = await db
-    .collection<ChatMessage>("messages")
-    .find({ conversationId: id })
-    .sort({ createdAt: 1 })
-    .toArray();
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const messages: any[] = await MessageModel.find({ conversationId: id }).sort({ createdAt: 1 }).lean();
   return NextResponse.json({ messages });
 }

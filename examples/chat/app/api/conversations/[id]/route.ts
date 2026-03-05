@@ -1,79 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/mongodb";
-import type { Conversation, AIProvider } from "@/types";
+import { connectDB, ConversationModel, MessageModel } from "@/lib/db";
+import type { AIProvider } from "@/types";
 
 type Params = { params: Promise<{ id: string }> };
 
-// MongoDB driver defaults _id to ObjectId, but we use string UUIDs.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const byId = (id: string) => ({ _id: id } as any);
-
-/**
- * GET /api/conversations/[id]
- */
-export async function GET(req: NextRequest, { params }: Params) {
+export async function GET(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  await connectDB();
   const { id } = await params;
   const userId = req.nextUrl.searchParams.get("userId");
 
-  const db = await getDb();
-  const conversation = await db
-    .collection<Conversation>("conversations")
-    .findOne(byId(id));
-
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const conversation: any = await ConversationModel.findById(id).lean();
   if (!conversation) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (userId && conversation.userId !== userId) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  if (userId && conversation.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   return NextResponse.json(conversation);
 }
 
-/**
- * PATCH /api/conversations/[id]
- */
-export async function PATCH(req: NextRequest, { params }: Params) {
+export async function PATCH(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  await connectDB();
   const { id } = await params;
-  const body = await req.json();
+  const body = await req.json() as { userId?: string; model?: string; provider?: string; title?: string; systemPrompt?: string };
   const { userId, model, provider, title, systemPrompt } = body;
 
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  const db = await getDb();
-  const existing = await db.collection<Conversation>("conversations").findOne(byId(id));
+  const existing = await ConversationModel.findById(id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (existing.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const updates: Partial<Conversation> = { updatedAt: new Date() };
-  if (model) updates.model = model;
-  if (provider) updates.provider = provider as AIProvider;
-  if (title) updates.title = title;
-  if (systemPrompt !== undefined) updates.systemPrompt = systemPrompt;
+  // Use set() to avoid conflict with Mongoose's built-in .model property
+  const updates: Record<string, unknown> = {};
+  if (model) updates["model"] = model;
+  if (provider) updates["provider"] = provider as AIProvider;
+  if (title) updates["title"] = title;
+  if (systemPrompt !== undefined) updates["systemPrompt"] = systemPrompt;
 
-  const result = await db
-    .collection<Conversation>("conversations")
-    .findOneAndUpdate(byId(id), { $set: updates }, { returnDocument: "after" });
+  existing.set(updates);
+  await existing.save();
 
-  return NextResponse.json(result);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return NextResponse.json(existing.toObject() as any);
 }
 
-/**
- * DELETE /api/conversations/[id]
- */
-export async function DELETE(req: NextRequest, { params }: Params) {
+export async function DELETE(req: NextRequest, { params }: Params): Promise<NextResponse> {
+  await connectDB();
   const { id } = await params;
-  const body = await req.json().catch(() => ({}));
+  const body = await req.json().catch(() => ({})) as { userId?: string };
   const userId = body.userId ?? req.nextUrl.searchParams.get("userId");
 
   if (!userId) return NextResponse.json({ error: "userId required" }, { status: 400 });
 
-  const db = await getDb();
-  const existing = await db.collection<Conversation>("conversations").findOne(byId(id));
+  const existing = await ConversationModel.findById(id);
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
   if (existing.userId !== userId) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   await Promise.all([
-    db.collection("conversations").deleteOne(byId(id)),
-    db.collection("messages").deleteMany({ conversationId: id }),
+    ConversationModel.deleteOne({ _id: id }),
+    MessageModel.deleteMany({ conversationId: id }),
   ]);
 
   return NextResponse.json({ success: true });

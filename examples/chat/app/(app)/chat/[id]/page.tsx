@@ -1,17 +1,17 @@
 "use client";
 
-import { use, useState, useCallback, useEffect, useRef } from "react";
+import { use, useCallback, useEffect } from "react";
 import { useChat } from "ai/react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck, ArrowLeft } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { MessageList } from "@/components/chat/message-list";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ModelSelector } from "@/components/chat/model-selector";
 import { Button } from "@/components/ui/button";
-import type { ChatMessage, Conversation, AIProvider } from "@/types";
+import type { ChatMessage, Conversation, AIProvider, FileAttachment } from "@/types";
 
 export default function ConversationPage({
   params,
@@ -20,11 +20,11 @@ export default function ConversationPage({
 }) {
   const { id } = use(params);
   const { user } = usePrivy();
-  const router = useRouter();
   const queryClient = useQueryClient();
   const userId = user?.id;
+  const searchParams = useSearchParams();
+  const firstMessage = searchParams.get("q");
 
-  // ─── Fetch conversation metadata ─────────────────────────────────────────
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["conversation", id, userId],
     queryFn: async () => {
@@ -35,7 +35,6 @@ export default function ConversationPage({
     enabled: !!userId,
   });
 
-  // ─── Fetch historical messages from DB ───────────────────────────────────
   const { data: historyData, isFetching: isFetchingHistory, refetch: refetchMessages } = useQuery<{
     messages: ChatMessage[];
   }>({
@@ -46,35 +45,42 @@ export default function ConversationPage({
       return res.json();
     },
     enabled: !!userId,
-    staleTime: 0, // always re-fetch after sends
+    staleTime: 0,
   });
 
   const dbMessages = historyData?.messages ?? [];
-  const hasHistory = dbMessages.length > 0;
 
-  // ─── useChat for streaming ────────────────────────────────────────────────
-  const { messages: streamMessages, input, setInput, handleSubmit, isLoading, reload } =
-    useChat({
-      api: "/api/chat",
-      body: {
-        conversationId: id,
-        userId,
-        // Fallback values — the API reads canonical values from DB
-        provider: conversation?.provider ?? "openai",
-        model: conversation?.model ?? "gpt-4o",
-      },
-      // Don't send history — the API reads it from DB context (system prompt only)
-      initialMessages: [],
-      onFinish: () => {
-        // After streaming completes, refresh messages from DB (now has provenance CIDs)
-        setTimeout(() => {
-          refetchMessages();
-          queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
-        }, 500); // small delay to let DB write complete
-      },
-    });
+  const {
+    messages: streamMessages,
+    input,
+    setInput,
+    handleSubmit,
+    isLoading,
+    append,
+  } = useChat({
+    api: "/api/chat",
+    body: {
+      conversationId: id,
+      userId,
+      provider: conversation?.provider ?? "openai",
+      model: conversation?.model ?? "gpt-4o",
+    },
+    initialMessages: [],
+    onFinish: () => {
+      setTimeout(() => {
+        refetchMessages();
+        queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+      }, 800);
+    },
+  });
 
-  // ─── Model change ────────────────────────────────────────────────────────
+  // Auto-send first message passed via ?q= param (from chat home page)
+  useEffect(() => {
+    if (!firstMessage || !userId || isLoading || dbMessages.length > 0 || streamMessages.length > 0) return;
+    append({ role: "user", content: firstMessage });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [firstMessage, userId]);
+
   async function handleModelChange(provider: AIProvider, model: string) {
     if (!userId) return;
     await fetch(`/api/conversations/${id}`, {
@@ -85,24 +91,37 @@ export default function ConversationPage({
     queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
   }
 
-  // ─── Submit wrapper (clear input, use stream, then refresh DB) ───────────
-  function handleFormSubmit(e: React.FormEvent) {
-    handleSubmit(e);
-  }
+  const handleFormSubmit = useCallback(
+    (e: React.FormEvent, attachments?: FileAttachment[]) => {
+      e.preventDefault();
+      if (!input.trim() && (!attachments || attachments.length === 0)) return;
 
-  const sessionId = conversation?.provenance?.sessionId;
+      const imageAttachments = (attachments ?? []).filter((a) => a.mimeType.startsWith("image/"));
+
+      if (imageAttachments.length > 0) {
+        const parts: Array<{ type: "text" | "image"; text?: string; image?: string }> = [];
+        if (input.trim()) parts.push({ type: "text", text: input.trim() });
+        for (const att of imageAttachments) {
+          if (att.url) parts.push({ type: "image", image: att.url });
+        }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        append({ role: "user", content: parts as any });
+        setInput("");
+      } else {
+        handleSubmit(e);
+      }
+    },
+    [input, handleSubmit, append, setInput]
+  );
 
   return (
     <div className="flex flex-col h-full">
-      {/* Conversation header */}
+      {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-sm font-medium truncate">
-            {conversation?.title ?? "New conversation"}
-          </h1>
-        </div>
+        <h1 className="text-sm font-medium truncate min-w-0">
+          {conversation?.title ?? "New conversation"}
+        </h1>
         <div className="flex items-center gap-2 shrink-0">
-          {/* Model selector */}
           <ModelSelector
             provider={conversation?.provider ?? "openai"}
             model={conversation?.model ?? "gpt-4o"}
@@ -110,14 +129,9 @@ export default function ConversationPage({
             disabled={isLoading}
             size="sm"
           />
-          {/* Provenance explorer link (shown when session has provenance records) */}
           {conversation?.provenanceCid && (
-            <Button
-              variant="ghost"
-              size="sm"
-              asChild
-              className="h-7 gap-1 text-xs text-emerald-600 dark:text-emerald-400"
-            >
+            <Button variant="ghost" size="sm" asChild
+              className="h-7 gap-1 text-xs text-emerald-600 dark:text-emerald-400">
               <Link href={`/provenance/${conversation.provenanceCid}`}>
                 <ShieldCheck className="h-3 w-3" />
                 Provenance
@@ -127,17 +141,17 @@ export default function ConversationPage({
         </div>
       </div>
 
-      {/* Message list */}
+      {/* Messages */}
       <div className="flex-1 overflow-hidden flex flex-col">
         <MessageList
           dbMessages={dbMessages}
           streamMessages={streamMessages}
           isLoading={isLoading}
-          isFetchingHistory={isFetchingHistory && !hasHistory}
+          isFetchingHistory={isFetchingHistory && dbMessages.length === 0}
         />
       </div>
 
-      {/* Input area */}
+      {/* Input */}
       <div className="border-t px-4 py-3 bg-background">
         <div className="max-w-3xl mx-auto">
           <ChatInput
@@ -147,10 +161,11 @@ export default function ConversationPage({
             isLoading={isLoading}
           />
           <p className="text-center text-xs text-muted-foreground mt-2">
-            Every AI response is automatically provenance-tracked via{" "}
+            Every response is provenance-tracked via{" "}
             <Link href="/provenance" className="underline hover:text-foreground">
               ProvenanceKit
             </Link>
+            {" · "}Try <strong>generate an image</strong> or <strong>read this aloud</strong>
           </p>
         </div>
       </div>

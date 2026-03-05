@@ -11,8 +11,6 @@
   "dependencies": {
     "@provenancekit/eaa-types": "workspace:*",
     "@hono/node-server": "^1.15.0",
-    "@img/sharp-libvips-linux-x64": "1.0.6",
-    "@img/sharp-linux-x64": "0.33.5",
     "@provenancekit/extensions": "workspace:*",
     "@provenancekit/sdk": "workspace:*",
     "@provenancekit/media": "workspace:*",
@@ -33,8 +31,12 @@
     "wavefile": "^11.0.0",
     "zod": "^3.25.69"
   },
+  "optionalDependencies": {
+    "@img/sharp-libvips-linux-x64": "1.0.6",
+    "@img/sharp-linux-x64": "0.33.5",
+    "@img/sharp-win32-x64": "0.33.5"
+  },
   "devDependencies": {
-    "@img/sharp-win32-x64": "0.33.5",
     "@types/node": "^20.11.17",
     "@types/uuid": "^10.0.0",
     "tsx": "^4.7.1",
