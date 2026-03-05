@@ -1,5 +1,3 @@
-import { readFile } from "node:fs/promises";
-
 export const toDataURI = (
   bytes: Uint8Array,
   mime = "application/octet-stream"
@@ -16,10 +14,3 @@ export function inferKindFromMime(
   return undefined;
 }
 
-/**  Turn a JS float[] into a pgvector literal  '[0.1,-0.2,…]' */
-export function vecLiteral(v: number[]): string {
-  // pgvector wants brackets and comma-separated decimals.
-  return (
-    "[" + v.map((x) => (Number.isFinite(x) ? x : 0).toFixed(6)).join(",") + "]"
-  );
-}

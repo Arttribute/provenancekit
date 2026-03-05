@@ -15,7 +15,7 @@ import type { SupabaseClient as StorageSupabaseClient } from "@provenancekit/sto
 import { MemoryDbStorage } from "@provenancekit/storage/adapters/db/memory";
 import { MemoryFileStorage } from "@provenancekit/storage/adapters/files/memory";
 import { PinataStorage } from "@provenancekit/storage/adapters/files/ipfs-pinata";
-import type { IProvenanceStorage, IVectorStorage } from "@provenancekit/storage";
+import type { IProvenanceStorage } from "@provenancekit/storage";
 import type { IFileStorage } from "@provenancekit/storage/files";
 import {
   EncryptedFileStorage,
@@ -84,7 +84,7 @@ export interface IAttestationProvider {
 
 export interface AppContext {
   /** Database storage (Supabase with pgvector, or in-memory for local dev) */
-  dbStorage: IProvenanceStorage & IVectorStorage;
+  dbStorage: IProvenanceStorage;
 
   /** File storage (Pinata IPFS, or in-memory for local dev) */
   fileStorage: IFileStorage;
@@ -142,7 +142,7 @@ export async function initializeContext(): Promise<AppContext> {
   // 1. Initialize database storage
   // Falls back to in-memory storage when Supabase is not configured (local dev)
   let supabaseClient: RealSupabaseClient | null = null;
-  let dbStorage: IProvenanceStorage & IVectorStorage;
+  let dbStorage: IProvenanceStorage;
 
   if (config.supabaseUrl && config.supabaseAnonKey) {
     supabaseClient = createClient(
@@ -150,6 +150,9 @@ export async function initializeContext(): Promise<AppContext> {
       config.supabaseServiceKey ?? config.supabaseAnonKey
     );
     const supabaseStorage = new SupabaseStorage({
+      // The real SupabaseClient generic return types differ from our minimal
+      // StorageSupabaseClient interface even though they're structurally
+      // compatible at runtime. The double cast bridges this TypeScript limitation.
       client: supabaseClient as unknown as StorageSupabaseClient,
       enableVectors: true,
       vectorDimension: config.vectorDimension,
@@ -158,8 +161,7 @@ export async function initializeContext(): Promise<AppContext> {
     dbStorage = supabaseStorage;
     console.log("✓ Database storage ready (Supabase + pgvector)");
   } else {
-    const memoryStorage = new MemoryDbStorage();
-    dbStorage = memoryStorage as unknown as IProvenanceStorage & IVectorStorage;
+    dbStorage = new MemoryDbStorage();
     console.warn(
       "⚠ SUPABASE_URL / SUPABASE_ANON_KEY not set — using in-memory storage (data lost on restart)"
     );
@@ -185,6 +187,8 @@ export async function initializeContext(): Promise<AppContext> {
   }
 
   // 4. Initialize encrypted storage wrapper
+  // IFileStorage is a superset of MinimalFileStorage at runtime; the double cast
+  // bridges a TypeScript incompatibility in optional retrieve() parameter signatures.
   const encryptedStorage = new EncryptedFileStorage(
     fileStorage as unknown as MinimalFileStorage
   );

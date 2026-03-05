@@ -5,7 +5,7 @@ import { EmbeddingService } from "../embedding/service.js";
 import { inferKindFromMime } from "../utils.js";
 import { ProvenanceKitError } from "../errors.js";
 import { getContext } from "../context.js";
-import type { IEncryptedVectorStorage } from "@provenancekit/storage";
+import { supportsEncryptedVectors } from "@provenancekit/storage";
 
 const embedder = new EmbeddingService();
 
@@ -107,16 +107,15 @@ r.get("/embeddings/encrypted", async (c) => {
   const limit = Number(c.req.query("limit") ?? 1000);
 
   const { dbStorage } = getContext();
-  const storage = dbStorage as unknown as IEncryptedVectorStorage;
 
-  if (typeof storage.listEncryptedEmbeddings !== "function") {
+  if (!supportsEncryptedVectors(dbStorage)) {
     throw new ProvenanceKitError(
       "Unsupported",
       "Encrypted vector storage not supported by current backend"
     );
   }
 
-  const results = await storage.listEncryptedEmbeddings({ since, kind, limit });
+  const results = await dbStorage.listEncryptedEmbeddings({ since, kind, limit });
   return c.json({ embeddings: results });
 });
 

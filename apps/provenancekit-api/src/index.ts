@@ -7,6 +7,7 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import { config } from "./config.js";
 import { initializeContext, closeContext } from "./context.js";
@@ -100,7 +101,7 @@ export function createApp(opts?: CreateAppOptions) {
           details: e.details,
         },
       },
-      e.status as any
+      e.status as ContentfulStatusCode
     );
   });
 
