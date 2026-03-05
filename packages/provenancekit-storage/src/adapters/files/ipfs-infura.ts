@@ -134,7 +134,7 @@ export class InfuraIPFSStorage implements IFileStorage, IPinnableStorage {
 
     try {
       const formData = new FormData();
-      const blob = new Blob([data]);
+      const blob = new Blob([new Uint8Array(data)]);
       formData.append("file", blob, metadata?.name ?? "file");
 
       const response = await this.fetchFn(
