@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write       # changesets: push version commits + tags
+      pull-requests: write  # changesets: create/update Version Packages PR
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.12.1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build packages
+        run: pnpm --filter './packages/*' run build
+
+      - name: Auto-generate patch changeset when packages changed without one
+        run: |
+          EXISTING=$(ls .changeset/*.md 2>/dev/null | grep -v README | wc -l)
+          if [ "$EXISTING" -gt "0" ]; then
+            echo "Changesets already present — skipping auto-patch"
+            exit 0
+          fi
+
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          CHANGED=$(git diff --name-only "$LAST_TAG" HEAD -- packages/ | grep -v 'node_modules' | head -1)
+
+          if [ -z "$CHANGED" ]; then
+            echo "No package source changes since last tag — skipping auto-patch"
+            exit 0
+          fi
+
+          echo "Package changes detected since $LAST_TAG — generating auto patch changeset"
+          node -e "
+            const fs = require('fs');
+            const packages = [
+              '@provenancekit/eaa-types',
+              '@provenancekit/sdk',
+              '@provenancekit/storage',
+              '@provenancekit/extensions',
+              '@provenancekit/privacy',
+              '@provenancekit/payments',
+              '@provenancekit/git',
+              '@provenancekit/media',
+              '@provenancekit/indexer',
+              '@provenancekit/ui',
+            ];
+            const id = Math.random().toString(36).slice(2, 10);
+            const frontmatter = packages.map(p => \`'\${p}': patch\`).join('\n');
+            const content = \`---\n\${frontmatter}\n---\n\nAuto patch release\n\`;
+            fs.writeFileSync(\`.changeset/auto-\${id}.md\`, content);
+            console.log('Created .changeset/auto-' + id + '.md');
+          "
+
+      - name: Create Release PR or Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

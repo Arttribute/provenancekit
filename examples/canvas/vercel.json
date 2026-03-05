@@ -1,5 +1,4 @@
 {
-  "nodeVersion": "22.x",
-  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
+  "installCommand": "npm install -g pnpm@10.12.1 && cd ../.. && pnpm install --no-frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter './packages/*' run build && pnpm --filter @provenancekit/example-canvas build"
 }
