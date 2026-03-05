@@ -384,7 +384,8 @@ export async function executeOwnershipTransfer(
   // 7. Atomically persist action + update ownership state
   // Use transaction if available, fall back to sequential operations
   if (supportsTransactions(dbStorage)) {
-    await dbStorage.transaction(async (tx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await dbStorage.transaction(async (tx: any) => {
       await tx.createAction(action);
       await tx.transferOwnershipState(input.targetRef, input.toEntityId, actionId);
     });

@@ -59,7 +59,7 @@ r.get("/distribution/:cid", async (c) => {
 
   return c.json({
     resourceRef: distribution.resourceRef,
-    entries: distribution.entries.map((e) => ({
+    entries: distribution.entries.map((e: { entityId: string; bps: number; payment?: unknown }) => ({
       entityId: e.entityId,
       bps: e.bps,
       percentage: (e.bps / 100).toFixed(2) + "%",
@@ -118,7 +118,7 @@ r.post("/distribution/preview", async (c) => {
     summary: {
       resourcesProcessed: distributions.length,
       uniqueContributors: new Set(
-        distributions.flatMap((d) => d.entries.map((e) => e.entityId))
+        distributions.flatMap((d: { entries: Array<{ entityId: string }> }) => d.entries.map((e) => e.entityId))
       ).size,
     },
   });

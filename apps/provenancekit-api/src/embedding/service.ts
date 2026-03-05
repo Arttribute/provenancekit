@@ -51,7 +51,7 @@ export class EmbeddingService {
 
     if (!results.length) return { verdict: "no-match" as const, matches: [] };
 
-    const matches = results.map((r) => ({ cid: r.ref, score: r.score }));
+    const matches = results.map((r: { ref: string; score: number }) => ({ cid: r.ref, score: r.score }));
     const best = matches[0];
 
     if (best.score >= high) return { verdict: "auto" as const, matches };
@@ -79,7 +79,7 @@ export class EmbeddingService {
       type,
     });
 
-    return results.map((r) => ({ cid: r.ref, score: r.score }));
+    return results.map((r: { ref: string; score: number; type?: string }) => ({ cid: r.ref, score: r.score }));
   }
 
   /**

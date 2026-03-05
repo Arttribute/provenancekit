@@ -197,7 +197,7 @@ export async function initializeContext(): Promise<AppContext> {
   if (config.serverSigningKey) {
     serverSigningKey = config.serverSigningKey;
     serverPublicKey = await derivePublicKey(config.serverSigningKey);
-    console.log(`✓ Server signing key ready (pubkey: ${serverPublicKey.slice(0, 16)}...)`);
+    console.log(`✓ Server signing key ready (pubkey: ${serverPublicKey!.slice(0, 16)}...)`);
   } else if (config.proofPolicy !== "off") {
     console.warn(
       "[proof-policy] No SERVER_SIGNING_KEY configured — server witness attestations will be skipped"
