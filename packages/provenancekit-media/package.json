@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/media",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "C2PA media provenance integration for ProvenanceKit - Read and write content credentials for images and videos",
   "license": "MIT",
   "keywords": [
