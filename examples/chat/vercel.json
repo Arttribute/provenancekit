@@ -1,4 +1,5 @@
 {
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "nodeVersion": "22.x",
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
   "buildCommand": "cd ../.. && pnpm --filter './packages/*' run build && pnpm --filter @provenancekit/example-chat build"
 }
