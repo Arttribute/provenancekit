@@ -58,6 +58,12 @@ jobs:
 
       - name: Auto-generate patch changeset when packages changed without one
         run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          if echo "$COMMIT_MSG" | grep -q "chore: version packages"; then
+            echo "Version commit — skipping auto-patch to allow publish"
+            exit 0
+          fi
+
           EXISTING=$(ls .changeset/*.md 2>/dev/null | grep -v README | wc -l)
           if [ "$EXISTING" -gt "0" ]; then
             echo "Changesets already present — skipping auto-patch"
