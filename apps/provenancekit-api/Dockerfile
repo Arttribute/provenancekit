@@ -1,19 +1,15 @@
-FROM public.ecr.aws/docker/library/node:24.14 AS base
+FROM node:22-alpine
 
+WORKDIR /app
 
-FROM base AS builder
+# pnpm deploy resolves all workspace:* deps into a real node_modules.
+# cloudbuild.yaml writes this to apps/provenancekit-api/standalone/
+COPY standalone/node_modules ./node_modules
+COPY standalone/package.json ./package.json
 
-WORKDIR /
-
-RUN npm install -g corepack@latest
-RUN corepack enable pnpm
-
-COPY package*.json ./
-COPY tsconfig*.json ./
-COPY ./dist ./dist/
-
-RUN pnpm install --prod --no-frozen-lockfile --ignore-scripts
+# Compiled TypeScript output (built by tsc in cloudbuild step)
+COPY standalone/dist ./dist
 
 EXPOSE 8080
 
-CMD ["npm","run", "start"]
+CMD ["node", "dist/src/index.js"]
