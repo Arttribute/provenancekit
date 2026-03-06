@@ -2,13 +2,11 @@ import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/ui/query-provider";
 import "./globals.css";
-//import Fragment Mono from google
-import { Fragment_Mono } from "next/font/google";
+import { Red_Hat_Display } from "next/font/google";
 
-const fragmentMono = Fragment_Mono({
-  weight: "400",
+const redHatDisplay = Red_Hat_Display({
   subsets: ["latin"],
-  variable: "--font-fragment-mono",
+  variable: "--font-red-hat-display",
   display: "swap",
 });
 
@@ -27,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={fragmentMono.className}>
+    <html lang="en" suppressHydrationWarning className={redHatDisplay.variable}>
       <body>
         <PrivyProvider>
           <QueryProvider>{children}</QueryProvider>
