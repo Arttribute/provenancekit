@@ -144,11 +144,9 @@ export async function initializeContext(): Promise<AppContext> {
   let supabaseClient: RealSupabaseClient | null = null;
   let dbStorage: IProvenanceStorage;
 
-  if (config.supabaseUrl && config.supabaseAnonKey) {
-    supabaseClient = createClient(
-      config.supabaseUrl,
-      config.supabaseServiceKey ?? config.supabaseAnonKey
-    );
+  const supabaseKey = config.supabaseServiceKey ?? config.supabaseAnonKey;
+  if (config.supabaseUrl && supabaseKey) {
+    supabaseClient = createClient(config.supabaseUrl, supabaseKey);
     const supabaseStorage = new SupabaseStorage({
       // The real SupabaseClient generic return types differ from our minimal
       // StorageSupabaseClient interface even though they're structurally
@@ -163,7 +161,7 @@ export async function initializeContext(): Promise<AppContext> {
   } else {
     dbStorage = new MemoryDbStorage();
     console.warn(
-      "⚠ SUPABASE_URL / SUPABASE_ANON_KEY not set — using in-memory storage (data lost on restart)"
+      "⚠ SUPABASE_URL / SUPABASE_SERVICE_KEY not set — using in-memory storage (data lost on restart)"
     );
   }
 
