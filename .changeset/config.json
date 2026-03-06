@@ -3,21 +3,7 @@
   "changelog": "@changesets/cli/changelog",
   "commit": false,
   "fixed": [],
-  "linked": [
-    [
-      "@provenancekit/eaa-types",
-      "@provenancekit/sdk",
-      "@provenancekit/storage",
-      "@provenancekit/extensions",
-      "@provenancekit/privacy",
-      "@provenancekit/payments",
-      "@provenancekit/git",
-      "@provenancekit/media",
-      "@provenancekit/indexer",
-      "@provenancekit/contracts",
-      "@provenancekit/ui"
-    ]
-  ],
+  "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
