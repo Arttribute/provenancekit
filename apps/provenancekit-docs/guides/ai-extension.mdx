@@ -1,0 +1,160 @@
+---
+title: "AI Extension"
+description: "Capture model metadata, prompt hashes, token counts, and session context for AI-generated content."
+---
+
+> The `ext:ai@1.0.0` extension is the most commonly used ProvenanceKit extension. Add it to any action performed by an AI entity to capture a cryptographically verifiable record of the model run.
+
+## Schema
+
+```ts
+import { aiExtension } from "@provenancekit/extensions";
+
+type AIExtension = {
+  provider: string;         // "openai" | "anthropic" | "google" | any string
+  model: string;            // model name, e.g. "gpt-4o", "claude-sonnet-4-6"
+  version?: string;         // model version or snapshot date
+  promptHash?: string;      // sha256:<hex> — verifiable record of the prompt
+  tokensUsed?: number;      // total tokens (prompt + completion)
+  promptTokens?: number;
+  completionTokens?: number;
+  temperature?: number;
+  finishReason?: string;    // "stop" | "length" | "content_filter"
+};
+```
+
+## Usage with OpenAI
+
+```ts
+import OpenAI from "openai";
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { aiExtension } from "@provenancekit/extensions";
+import { createHash } from "crypto";
+
+const openai = new OpenAI();
+const pk = new ProvenanceKit({ apiKey: process.env.PK_API_KEY! });
+
+async function generateWithProvenance(prompt: string, sessionId: string) {
+  // Register entities once and cache the IDs
+  const humanId = await pk.entity({ role: "human", name: "User" });
+  const aiId = await pk.entity({
+    role: "ai",
+    name: "gpt-4o",
+    aiAgent: { model: { provider: "openai", model: "gpt-4o" } },
+  });
+
+  // Run the model
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{ role: "user", content: prompt }],
+  });
+
+  const output = completion.choices[0].message.content ?? "";
+  const promptHash = "sha256:" + createHash("sha256").update(prompt).digest("hex");
+  const outputCid = "sha256:" + createHash("sha256").update(output).digest("hex");
+
+  // Record provenance
+  await pk.file({
+    type: "model.infer",
+    performedBy: aiId,
+    cid: outputCid,
+    inputs: [{ cid: promptHash }],
+    sessionId,
+    extensions: {
+      "ext:ai@1.0.0": aiExtension.parse({
+        provider: "openai",
+        model: "gpt-4o",
+        promptHash,
+        tokensUsed: completion.usage?.total_tokens,
+        promptTokens: completion.usage?.prompt_tokens,
+        completionTokens: completion.usage?.completion_tokens,
+        finishReason: completion.choices[0].finish_reason,
+      }),
+    },
+    attributions: [
+      { entityId: humanId, role: "prompter", confidence: 1.0 },
+    ],
+  });
+
+  return { output, outputCid };
+}
+```
+
+## Usage with Anthropic
+
+```ts
+import Anthropic from "@anthropic-ai/sdk";
+
+const anthropic = new Anthropic();
+
+const message = await anthropic.messages.create({
+  model: "claude-sonnet-4-6",
+  max_tokens: 1024,
+  messages: [{ role: "user", content: prompt }],
+});
+
+const output = message.content[0].type === "text" ? message.content[0].text : "";
+const outputCid = "sha256:" + createHash("sha256").update(output).digest("hex");
+
+await pk.file({
+  type: "model.infer",
+  performedBy: aiId,
+  cid: outputCid,
+  extensions: {
+    "ext:ai@1.0.0": aiExtension.parse({
+      provider: "anthropic",
+      model: "claude-sonnet-4-6",
+      promptHash,
+      tokensUsed: message.usage.input_tokens + message.usage.output_tokens,
+      promptTokens: message.usage.input_tokens,
+      completionTokens: message.usage.output_tokens,
+      finishReason: message.stop_reason ?? undefined,
+    }),
+  },
+});
+```
+
+## Prompt hashing
+
+The `promptHash` field lets you verify that a specific prompt produced a specific output without storing the prompt itself.
+
+```ts
+import { createHash } from "crypto";
+
+function hashPrompt(prompt: string): string {
+  return "sha256:" + createHash("sha256").update(prompt).digest("hex");
+}
+```
+
+Store the `promptHash` in the action. If you need to audit later, hash the candidate prompt and compare — it either matches or it doesn't.
+
+## AI training opt-out
+
+Combine `ext:ai@1.0.0` with `ext:license@1.0.0` to express AI training restrictions:
+
+```ts
+extensions: {
+  "ext:ai@1.0.0": { provider: "openai", model: "gpt-4o", ... },
+  "ext:license@1.0.0": {
+    spdxId: "CC-BY-NC-4.0",
+    aiTraining: "prohibited",   // this content must not be used for AI training
+  },
+}
+```
+
+Use `hasAITrainingReservation()` from `@provenancekit/extensions` to check:
+
+```ts
+import { hasAITrainingReservation } from "@provenancekit/extensions";
+
+const bundle = await pk.getBundle(cid);
+if (hasAITrainingReservation(bundle)) {
+  throw new Error("This content cannot be used for AI training.");
+}
+```
+
+## Gotchas
+
+- **Entity IDs should be cached.** Don't call `pk.entity()` on every request — it adds latency. Cache `humanId` and `aiId` at application startup or in a module-level variable.
+- **`promptHash` is not the CID.** The CID identifies the output content. The `promptHash` identifies the input prompt. They are separate fields.
+- **`tokensUsed` is informational.** The API does not validate token counts against any model billing system. Use it for analytics and auditing only.

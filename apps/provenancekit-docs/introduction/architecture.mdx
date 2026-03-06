@@ -1,0 +1,97 @@
+---
+title: "Architecture"
+description: "How ProvenanceKit's packages, API, and apps fit together."
+---
+
+> ProvenanceKit is a monorepo of composable packages. Each layer builds on the one below it. You only need to include what your use case requires.
+
+## Package map
+
+### Base layer
+
+These packages have no ProvenanceKit dependencies — they are the foundation everything else builds on.
+
+| Package | npm | Description |
+|---------|-----|-------------|
+| `@provenancekit/eaa-types` | ✅ | Pure TypeScript types + Zod schemas for Entity, Action, Attribution |
+| `@provenancekit/contracts` | ✅ | Solidity contracts for on-chain provenance recording |
+| `@provenancekit/storage` | ✅ | Pluggable storage: in-memory, MongoDB, Supabase/Postgres |
+| `@provenancekit/indexer` | ✅ | Index on-chain events back into queryable off-chain records |
+
+### Extension layer
+
+Domain-specific semantics that augment any EAA record.
+
+| Package | npm | Description |
+|---------|-----|-------------|
+| `@provenancekit/extensions` | ✅ | 15 typed extension schemas (AI, licensing, git, media, authorization, x402, …) |
+| `@provenancekit/payments` | ✅ | Revenue splitting based on provenance graph (USDC, ERC-20) |
+| `@provenancekit/privacy` | ✅ | Selective disclosure, Pedersen commitments, encrypted storage |
+| `@provenancekit/git` | ✅ | Git commit → provenance action bridge |
+| `@provenancekit/media` | ✅ | C2PA content credentials for images and video |
+
+### Platform layer
+
+Fully operational services built on top of the packages.
+
+| Component | Description |
+|-----------|-------------|
+| `provenancekit-api` | REST API — manages entities, actions, attributions, API keys, orgs, projects |
+| `provenancekit-app` | Next.js dashboard — manage projects, API keys, view provenance analytics |
+| `@provenancekit/sdk` | Framework-agnostic client SDK — wraps the API in a typed, ergonomic interface |
+| `@provenancekit/ui` | React component library — `ProvenanceBadge`, `ProvenanceGraph`, `ProvenanceBundleView` |
+
+## Data flow
+
+```
+Your app
+  │
+  ├─ @provenancekit/sdk        ← TypeScript client (optional — you can call the API directly)
+  │
+  ▼
+provenancekit-api              ← Single source of truth for provenance data
+  │                               Exposes /v1/* (provenance) and /management/* (control plane)
+  ├─ @provenancekit/storage    ← Persists EAA records (Postgres/Supabase default)
+  │
+  └─ EVM chain (optional)      ← On-chain anchoring via ProvenanceRegistry contract
+        │
+        └─ @provenancekit/indexer  ← Reads chain events back into the API's DB
+```
+
+## Two API namespaces
+
+The API exposes two distinct namespaces with separate auth:
+
+| Namespace | Auth | Purpose |
+|-----------|------|---------|
+| `/v1/*` | `pk_live_` API key (per-project) | Record provenance, query records |
+| `/management/*` | `MANAGEMENT_API_KEY` + `X-User-Id` | Create orgs, projects, manage keys |
+
+`provenancekit-app` is a thin UI shell — it has no database of its own. All data lives in `provenancekit-api`.
+
+## Minimal usage (no API)
+
+If you only need to work with provenance data types locally — for example in a pipeline or offline tool — you can use the packages directly:
+
+```ts
+import { EntitySchema, ActionSchema, AttributionSchema } from "@provenancekit/eaa-types";
+import { aiExtension } from "@provenancekit/extensions";
+import { MemoryProvenanceStorage } from "@provenancekit/storage";
+
+const storage = new MemoryProvenanceStorage();
+
+const entity = EntitySchema.parse({ id: "ent_1", role: "human", name: "Alice" });
+const action = ActionSchema.parse({
+  id: "act_1",
+  type: "file.create",
+  performedBy: "ent_1",
+  inputs: [],
+  outputs: [{ cid: "bafy..." }],
+  extensions: { "ext:ai@1.0.0": aiExtension.parse({ provider: "openai", model: "gpt-4o" }) },
+  timestamp: new Date().toISOString(),
+});
+
+await storage.storeAction(action);
+```
+
+No API, no network — just types and local storage.

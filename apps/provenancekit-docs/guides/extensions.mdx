@@ -1,0 +1,119 @@
+---
+title: "Extensions"
+description: "Typed domain schemas that extend any EAA record without changing the core model."
+---
+
+> Extensions let you add rich domain semantics to any Entity, Action, or Attribution without changing the core EAA schema. They are stored in the `extensions` field as a typed dictionary keyed by `ext:namespace@semver`.
+
+## How extensions work
+
+```ts
+// Any EAA record can carry extensions
+const action = {
+  type: "file.create",
+  extensions: {
+    "ext:ai@1.0.0": {
+      provider: "openai",
+      model: "gpt-4o",
+    },
+    "ext:license@1.0.0": {
+      spdxId: "CC-BY-4.0",
+      aiTraining: "prohibited",
+    },
+  },
+};
+```
+
+The key format is `ext:<namespace>@<semver>`. All built-in schemas follow this convention. You can define custom extensions using the same format.
+
+## Built-in extensions
+
+All schemas are in `@provenancekit/extensions`.
+
+```bash
+npm install @provenancekit/extensions
+```
+
+| Extension key | Description |
+|---------------|-------------|
+| `ext:ai@1.0.0` | AI model metadata — provider, model, tokens, prompt hash |
+| `ext:license@1.0.0` | Rights and licensing — SPDX ID, AI training opt-out |
+| `ext:git@1.0.0` | Git provenance — commit hash, repo, branch |
+| `ext:media@1.0.0` | Media metadata — format, dimensions, duration, C2PA manifest |
+| `ext:authorization@1.0.0` | Access control — required role, resource scope |
+| `ext:x402@1.0.0` | HTTP 402 payment requirement — price, token, chain |
+| `ext:payment@1.0.0` | Recorded payment — tx hash, amount, recipient |
+| `ext:privacy@1.0.0` | Privacy policy — visibility, selective disclosure CID |
+| `ext:c2pa@1.0.0` | C2PA content credentials reference |
+| `ext:ipfs@1.0.0` | IPFS pin metadata — gateway, pin service |
+| `ext:arweave@1.0.0` | Arweave storage reference |
+| `ext:semantic@1.0.0` | Semantic search — embedding model, vector CID |
+| `ext:workflow@1.0.0` | Pipeline/workflow step metadata |
+| `ext:review@1.0.0` | Human review metadata — reviewer type, verdict |
+| `ext:training@1.0.0` | ML training run metadata — dataset CID, hyperparameters |
+
+## Validating extensions
+
+Use the Zod schemas before recording to catch type errors early:
+
+```ts
+import { aiExtension, licenseExtension } from "@provenancekit/extensions";
+
+const ai = aiExtension.parse({
+  provider: "openai",
+  model: "gpt-4o",
+  promptHash: "sha256:abc...",
+  tokensUsed: 1240,
+});
+
+const license = licenseExtension.parse({
+  spdxId: "CC-BY-4.0",
+  aiTraining: "prohibited",   // "allowed" | "prohibited" | "requires-opt-in"
+});
+
+await pk.file({
+  type: "file.create",
+  performedBy: aiId,
+  cid: outputCid,
+  extensions: {
+    "ext:ai@1.0.0": ai,
+    "ext:license@1.0.0": license,
+  },
+});
+```
+
+## Custom extensions
+
+Define your own extension schema using Zod and the same key convention:
+
+```ts
+import { z } from "zod";
+
+const myExtension = z.object({
+  pipelineVersion: z.string(),
+  environment: z.enum(["prod", "staging", "dev"]),
+  runId: z.string(),
+});
+
+type MyExtension = z.infer<typeof myExtension>;
+
+// Use it like any built-in extension
+await pk.file({
+  type: "pipeline.run",
+  performedBy: agentId,
+  cid: outputCid,
+  extensions: {
+    "ext:mypipeline@1.0.0": myExtension.parse({
+      pipelineVersion: "2.1.0",
+      environment: "prod",
+      runId: crypto.randomUUID(),
+    }),
+  },
+});
+```
+
+## Gotchas
+
+- **Extension keys must follow `ext:namespace@semver`.** The API stores any key, but tooling (indexer, UI) only recognises the standard format.
+- **Extensions are not validated server-side.** Validation is a client-side concern. Use the provided Zod schemas (or your own) before calling the API.
+- **Version pinning matters.** If you change an extension's schema, bump the version (`ext:mypipeline@2.0.0`). Old records will still carry the old version key.

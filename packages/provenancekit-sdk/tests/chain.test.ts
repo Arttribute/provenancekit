@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createViemAdapter, type IChainAdapter, type RecordActionParams } from "../src/chain";
+import { createViemAdapter, createEIP1193Adapter, type IChainAdapter, type RecordActionParams, type EIP1193Provider } from "../src/chain";
 
 // ---------------------------------------------------------------------------
 // IChainAdapter interface tests
@@ -245,6 +245,164 @@ describe("createViemAdapter", () => {
         args: ["aggregate", ["bafya", "bafyb", "bafyc"], ["bafyout1", "bafyout2"]],
       })
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// createEIP1193Adapter tests
+// ---------------------------------------------------------------------------
+
+const EIP1193_CONTRACT = "0xabcdef1234567890abcdef1234567890abcdef12" as const;
+const EIP1193_ACCOUNT  = "0x1111111111111111111111111111111111111111" as const;
+// 32-byte actionId returned by eth_call (64 hex chars after "0x")
+const ETH_CALL_RESULT  = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as const;
+const ETH_SEND_RESULT  = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as const;
+
+function createMockProvider(): { provider: EIP1193Provider; requestMock: ReturnType<typeof vi.fn> } {
+  const requestMock = vi.fn().mockImplementation(({ method }: { method: string }) => {
+    if (method === "eth_call") return Promise.resolve(ETH_CALL_RESULT);
+    if (method === "eth_sendTransaction") return Promise.resolve(ETH_SEND_RESULT);
+    return Promise.reject(new Error(`Unknown method: ${method}`));
+  });
+  return { provider: { request: requestMock }, requestMock };
+}
+
+describe("createEIP1193Adapter", () => {
+  it("returns an IChainAdapter with correct contractAddress and metadata", () => {
+    const { provider } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+      chainId: 8453,
+      chainName: "base",
+    });
+
+    expect(adapter.contractAddress).toBe(EIP1193_CONTRACT);
+    expect(adapter.chainId).toBe(8453);
+    expect(adapter.chainName).toBe("base");
+  });
+
+  it("calls eth_call then eth_sendTransaction", async () => {
+    const { provider, requestMock } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await adapter.recordAction({ actionType: "create", inputs: [], outputs: ["bafyout"] });
+
+    const calls = requestMock.mock.calls.map((c: [{ method: string }]) => c[0].method);
+    expect(calls).toEqual(["eth_call", "eth_sendTransaction"]);
+  });
+
+  it("returns txHash from eth_sendTransaction and actionId from eth_call", async () => {
+    const { provider } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    const result = await adapter.recordAction({
+      actionType: "transform",
+      inputs: ["bafyin"],
+      outputs: ["bafyout"],
+    });
+
+    expect(result.txHash).toBe(ETH_SEND_RESULT);
+    // actionId = first 32 bytes of eth_call result
+    expect(result.actionId).toBe(`0x${ETH_CALL_RESULT.slice(2, 66)}`);
+  });
+
+  it("sends the correct contract address and from address in eth_call", async () => {
+    const { provider, requestMock } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await adapter.recordAction({ actionType: "create", inputs: [], outputs: [] });
+
+    const ethCallArgs = requestMock.mock.calls[0][0].params[0];
+    expect(ethCallArgs.from).toBe(EIP1193_ACCOUNT);
+    expect(ethCallArgs.to).toBe(EIP1193_CONTRACT);
+  });
+
+  it("encodes the correct function selector (0xd57e4f08) in calldata", async () => {
+    const { provider, requestMock } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await adapter.recordAction({ actionType: "create", inputs: [], outputs: [] });
+
+    const data: string = requestMock.mock.calls[0][0].params[0].data;
+    // First 4 bytes (8 hex chars after 0x) must be the recordAction selector
+    expect(data.slice(0, 10)).toBe("0xd57e4f08");
+  });
+
+  it("sends the same calldata in eth_sendTransaction as in eth_call", async () => {
+    const { provider, requestMock } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await adapter.recordAction({ actionType: "create", inputs: ["a"], outputs: ["b"] });
+
+    const callData = requestMock.mock.calls[0][0].params[0].data;
+    const sendData = requestMock.mock.calls[1][0].params[0].data;
+    expect(callData).toBe(sendData);
+  });
+
+  it("propagates errors from eth_call", async () => {
+    const provider: EIP1193Provider = {
+      request: vi.fn().mockRejectedValue(new Error("execution reverted")),
+    };
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await expect(
+      adapter.recordAction({ actionType: "create", inputs: [], outputs: [] })
+    ).rejects.toThrow("execution reverted");
+  });
+
+  it("propagates errors from eth_sendTransaction", async () => {
+    const provider: EIP1193Provider = {
+      request: vi.fn().mockImplementation(({ method }: { method: string }) => {
+        if (method === "eth_call") return Promise.resolve(ETH_CALL_RESULT);
+        return Promise.reject(new Error("user rejected"));
+      }),
+    };
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+
+    await expect(
+      adapter.recordAction({ actionType: "create", inputs: [], outputs: [] })
+    ).rejects.toThrow("user rejected");
+  });
+
+  it("chainId and chainName are optional", () => {
+    const { provider } = createMockProvider();
+    const adapter = createEIP1193Adapter({
+      provider,
+      account: EIP1193_ACCOUNT,
+      contractAddress: EIP1193_CONTRACT,
+    });
+    expect(adapter.chainId).toBeUndefined();
+    expect(adapter.chainName).toBeUndefined();
   });
 });
 

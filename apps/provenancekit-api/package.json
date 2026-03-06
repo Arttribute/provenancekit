@@ -8,7 +8,11 @@
     "build": "tsc",
     "start": "node dist/src/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@provenancekit/eaa-types": "workspace:*",
@@ -23,6 +27,8 @@
     "@types/fluent-ffmpeg": "^2.1.27",
     "@xenova/transformers": "^2.17.2",
     "dotenv": "^17.0.1",
+    "drizzle-orm": "^0.41.0",
+    "postgres": "^3.4.5",
     "fluent-ffmpeg": "^2.1.3",
     "hono": "^4.8.4",
     "multiformats": "^13.3.7",
@@ -41,6 +47,7 @@
   "devDependencies": {
     "@types/node": "^20.11.17",
     "@types/uuid": "^10.0.0",
+    "drizzle-kit": "^0.30.0",
     "tsx": "^4.7.1",
     "typescript": "^5.8.3",
     "vitest": "^1.6.1"

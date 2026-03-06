@@ -1,0 +1,11 @@
+{
+  "network": "base-sepolia",
+  "chainId": 84532,
+  "contractAddress": "",
+  "deployer": "",
+  "hookAdmin": "",
+  "deployedAt": "",
+  "txHash": "",
+  "version": "1.0.0",
+  "notes": "Deploy with: forge script script/Deploy.s.sol --rpc-url base-sepolia --broadcast --verify"
+}

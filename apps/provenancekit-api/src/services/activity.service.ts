@@ -56,8 +56,11 @@ import {
   type ActionSignPayload,
   type FullActionSignPayload,
 } from "@provenancekit/sdk";
+import { eq } from "drizzle-orm";
 import { getContext } from "../context.js";
 import { config } from "../config.js";
+import { getDb } from "../db/index.js";
+import { pkApiEntityFlags } from "../db/schema.js";
 import { EmbeddingService, type ResourceKind } from "../embedding/service.js";
 import { toDataURI, inferKindFromMime } from "../utils.js";
 import { ProvenanceKitError } from "../errors.js";
@@ -485,7 +488,11 @@ export async function createActivity(
     throw ProvenanceKitError.fromZod(parsed.error);
   }
 
-  const { entity: ent, action: act, resourceType, projectId, sessionId, attribution: attr, encrypt } = parsed.data;
+  // projectId from auth claims is authoritative when using Supabase-backed keys.
+  // It overrides anything the caller sends in the body, ensuring project isolation.
+  const authProjectId = authIdentity?.claims?.["projectId"] as string | undefined;
+  const { entity: ent, action: act, resourceType, sessionId, attribution: attr, encrypt } = parsed.data;
+  const projectId = authProjectId ?? parsed.data.projectId;
 
   if (!ent.role?.trim()) {
     throw new ProvenanceKitError("MissingField", "entity.role is required");
@@ -524,7 +531,28 @@ export async function createActivity(
       : { status: "unverified", detail: "No publicKey registered" };
   }
 
-  // 2a. Auth-to-entity binding check
+  // 2a. Entity flag check (suspended/banned entities cannot create activities)
+  const db = getDb();
+  if (db) {
+    const [flag] = await db
+      .select({ flag: pkApiEntityFlags.flag, reason: pkApiEntityFlags.reason, expiresAt: pkApiEntityFlags.expiresAt })
+      .from(pkApiEntityFlags)
+      .where(eq(pkApiEntityFlags.entityId, entityId))
+      .limit(1);
+
+    if (flag) {
+      const expired = flag.expiresAt && new Date(flag.expiresAt) < new Date();
+      if (!expired) {
+        throw new ProvenanceKitError(
+          "Forbidden",
+          `Entity is ${flag.flag}${flag.reason ? `: ${flag.reason}` : ""}`,
+          { recovery: "Contact support if you believe this is an error" }
+        );
+      }
+    }
+  }
+
+  // 2b. Auth-to-entity binding check
   if (authIdentity?.entityId && authIdentity.entityId !== entityId) {
     throw new ProvenanceKitError(
       "Forbidden",

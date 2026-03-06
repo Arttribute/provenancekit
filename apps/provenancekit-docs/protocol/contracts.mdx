@@ -1,0 +1,160 @@
+---
+title: "Smart Contracts"
+description: "On-chain provenance anchoring with the ProvenanceRegistry contract."
+---
+
+> ProvenanceKit's `ProvenanceRegistry` contract lets you anchor provenance actions on any EVM chain. On-chain records are the source of truth; off-chain databases are materialized views indexed from chain events.
+
+## Architecture
+
+```
+Your app (SDK)
+     │
+     ├─ pk.file()           ← records off-chain in provenancekit-api
+     │
+     └─ chainAdapter        ← if set, also sends tx to ProvenanceRegistry
+          │
+     EVM chain
+          │
+     @provenancekit/indexer ← reads chain events → updates off-chain DB
+```
+
+Off-chain recording always happens first. On-chain anchoring is **fire-and-forget** — if the transaction fails, the off-chain record stands.
+
+## ProvenanceRegistry
+
+The contract stores one event per provenance action:
+
+```solidity
+event ActionRecorded(
+    bytes32 indexed actionId,
+    address indexed recorder,
+    string  actionType,
+    bytes32[] inputCids,
+    bytes32[] outputCids,
+    uint256 timestamp
+);
+
+function recordAction(
+    bytes32 actionId,
+    string calldata actionType,
+    bytes32[] calldata inputCids,
+    bytes32[] calldata outputCids
+) external;
+```
+
+`actionId` is a `bytes32` derived from the off-chain UUID. CIDs are hashed to `bytes32` for gas efficiency.
+
+The contract is **permissive by design** — any address can record any action. Authenticity is established off-chain via attribution signatures and API key ownership.
+
+## Deploying the contract
+
+```bash
+cd packages/provenancekit-contracts
+forge build
+forge script script/Deploy.s.sol --rpc-url $RPC_URL --broadcast --private-key $PRIVATE_KEY
+```
+
+Set `PROVENANCEREGISTRY_ADDRESS` in your API `.env` after deployment.
+
+### Supported networks
+
+The contract is standard EVM — deploy to any EVM-compatible chain:
+
+| Network | Chain ID | Status |
+|---------|----------|--------|
+| Ethereum mainnet | 1 | 📋 Planned |
+| Base | 8453 | 📋 Planned |
+| Optimism | 10 | 📋 Planned |
+| Any EVM chain | — | ✅ Self-deploy |
+
+## Enabling on-chain anchoring in the SDK
+
+The SDK ships with a `createViemAdapter` helper for [viem](https://viem.sh):
+
+```ts
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { createViemAdapter } from "@provenancekit/sdk";
+import { createWalletClient, http } from "viem";
+import { base } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+
+const walletClient = createWalletClient({
+  account: privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`),
+  chain: base,
+  transport: http(process.env.RPC_URL),
+});
+
+const chainAdapter = createViemAdapter({
+  walletClient,
+  contractAddress: process.env.PROVENANCEREGISTRY_ADDRESS as `0x${string}`,
+  chain: base,
+});
+
+const pk = new ProvenanceKit({
+  apiKey: process.env.PK_API_KEY!,
+  chainAdapter,              // pass the adapter — on-chain anchoring is now automatic
+});
+
+// pk.file() now records off-chain AND sends a tx
+const result = await pk.file({ type: "file.create", performedBy: aiId, cid: outputCid });
+
+if (result.onchain) {
+  console.log("tx:", result.onchain.txHash);
+  console.log("chain:", result.onchain.chainName);
+}
+```
+
+## EIP-1193 adapter (framework-agnostic)
+
+For browser wallets (MetaMask, WalletConnect) or other environments that expose an EIP-1193 provider:
+
+```ts
+import { createEIP1193Adapter } from "@provenancekit/sdk";
+
+const adapter = createEIP1193Adapter({
+  provider: window.ethereum,
+  contractAddress: "0x...",
+  chainId: 8453,
+});
+
+const pk = new ProvenanceKit({ apiKey: "...", chainAdapter: adapter });
+```
+
+## Indexing chain events
+
+`@provenancekit/indexer` reads `ActionRecorded` events from the contract and syncs them back into the API's database, so queries against the API always reflect the on-chain state.
+
+```ts
+import { ProvenanceIndexer } from "@provenancekit/indexer";
+import { createPublicClient, http } from "viem";
+import { base } from "viem/chains";
+
+const indexer = new ProvenanceIndexer({
+  publicClient: createPublicClient({ chain: base, transport: http(RPC_URL) }),
+  contractAddress: REGISTRY_ADDRESS,
+  storage: myStorage,           // IProvenanceStorage instance
+  startBlock: DEPLOY_BLOCK,
+});
+
+await indexer.sync();           // one-shot sync
+// or
+await indexer.watch();          // long-running polling
+```
+
+## Building on another network
+
+To use ProvenanceKit's standards on a chain we haven't deployed to:
+
+1. Deploy `ProvenanceRegistry` with `forge script` (any EVM chain)
+2. Implement `IChainAdapter` or use `createViemAdapter` / `createEIP1193Adapter`
+3. Run `@provenancekit/indexer` pointed at your deployment
+4. Everything else (SDK, API, extensions) works unchanged
+
+The EAA schema is chain-agnostic — the contract is just one persistence layer among many.
+
+## Gotchas
+
+- **On-chain failure is non-fatal.** If the transaction reverts or times out, `pk.file()` still succeeds and returns the off-chain `actionId`. Check `result.onchain` for the tx details.
+- **Gas estimation.** `recordAction()` costs roughly 60–100k gas depending on the number of CIDs. Budget accordingly for high-volume pipelines.
+- **Self-attribution on-chain is intentional.** The contract does not verify that the `recorder` address owns the entities being attributed. Authenticity enforcement is the responsibility of your off-chain verification layer.
