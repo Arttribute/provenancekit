@@ -1,32 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAuthUser } from "@/lib/auth";
-import { connectDb } from "@/lib/mongodb";
-import { ApiKey, Project, OrgMember } from "@/lib/db/collections";
+import { mgmt } from "@/lib/management-client";
 
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ keyId: string }> }
-) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ keyId: string }> }) {
   const { keyId } = await params;
   const user = await getAuthUser(req.headers.get("Authorization"));
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  await connectDb();
-  const apiKey = await ApiKey.findById(keyId).lean();
-  if (!apiKey) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  if (apiKey.revokedAt)
-    return NextResponse.json({ error: "Already revoked" }, { status: 409 });
-
-  const project = await Project.findById(apiKey.projectId).lean();
-  if (!project) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-  const member = await OrgMember.findOne({
-    orgId: project.orgId,
-    userId: user.privyDid,
-  }).lean();
-  if (!member || member.role === "viewer")
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-
-  await ApiKey.findByIdAndUpdate(keyId, { revokedAt: new Date() });
-  return NextResponse.json({ success: true });
+  try {
+    await mgmt(user.privyDid).apiKeys.revoke(keyId);
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Failed";
+    const status = msg.includes("403") ? 403 : msg.includes("409") ? 409 : 404;
+    return NextResponse.json({ error: msg }, { status });
+  }
 }

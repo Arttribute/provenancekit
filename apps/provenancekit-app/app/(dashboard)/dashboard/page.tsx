@@ -89,7 +89,7 @@ export default async function DashboardPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <QuickLink icon={<Building2 className="h-4 w-4" />} title="Create an org" description="Set up your team or personal namespace" href="/orgs/new" />
           <QuickLink icon={<FolderKanban className="h-4 w-4" />} title="Start a project" description="Configure storage, IPFS, and blockchain" href="/orgs/new" />
-          <QuickLink icon={<ArrowRight className="h-4 w-4" />} title="Read the docs" description="Integrate the SDK in minutes" href="https://docs.provenancekit.org" external />
+          <QuickLink icon={<ArrowRight className="h-4 w-4" />} title="Read the docs" description="Integrate the SDK in minutes" href="https://docs.provenancekit.com" external />
         </div>
       </div>
     </div>

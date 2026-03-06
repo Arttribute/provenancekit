@@ -24,7 +24,7 @@ export default async function NewProjectPage({ params }: Props) {
           A project is a provenance namespace with its own API keys, storage, and blockchain config.
         </p>
       </div>
-      <CreateProjectForm orgId={String(orgData.org._id)} orgSlug={orgSlug} />
+      <CreateProjectForm orgId={orgData.org.id} orgSlug={orgSlug} />
     </div>
   );
 }

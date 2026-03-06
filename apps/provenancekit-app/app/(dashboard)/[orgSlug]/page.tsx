@@ -23,7 +23,7 @@ export default async function OrgPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const projects = await getOrgProjects(String(orgData.org._id));
+  const projects = await getOrgProjects(orgSlug, user.privyDid);
 
   return (
     <div className="p-6 space-y-8 max-w-5xl mx-auto">

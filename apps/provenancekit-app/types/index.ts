@@ -14,7 +14,7 @@ export interface OrgWithRole {
   name: string;
   slug: string;
   plan: string;
-  role: OrgRole;
+  role: string;
 }
 
 export interface ProjectWithOrg {

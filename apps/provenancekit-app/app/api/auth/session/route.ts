@@ -8,8 +8,7 @@ import {
   setSessionCookie,
   clearSessionCookie,
 } from "@/lib/auth";
-import { connectDb } from "@/lib/mongodb";
-import { User } from "@/lib/db/collections";
+import { mgmt } from "@/lib/management-client";
 
 export async function POST(req: NextRequest) {
   const authHeader = req.headers.get("Authorization");
@@ -31,7 +30,7 @@ export async function POST(req: NextRequest) {
 
   const privyDid = claims.userId;
 
-  // Upsert user document
+  // Upsert user record via management API (non-fatal if it fails)
   try {
     const body = await req.json().catch(() => ({}));
     const { email, wallet, name } = body as {
@@ -39,22 +38,7 @@ export async function POST(req: NextRequest) {
       wallet?: string;
       name?: string;
     };
-
-    await connectDb();
-    const now = new Date();
-    await User.findOneAndUpdate(
-      { privyDid },
-      {
-        $setOnInsert: { privyDid, createdAt: now },
-        $set: {
-          updatedAt: now,
-          ...(email && { email }),
-          ...(wallet && { wallet }),
-          ...(name && { name }),
-        },
-      },
-      { upsert: true, new: true }
-    );
+    await mgmt(privyDid).users.upsert({ email, wallet, name });
   } catch {
     // Non-fatal — session still valid even if user upsert fails
   }

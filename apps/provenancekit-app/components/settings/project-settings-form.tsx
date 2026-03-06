@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Project } from "@/lib/db/schema";
+import type { MgmtProject } from "@/lib/management-client";
 
 const schema = z.object({
   name: z.string().min(1).max(64),
@@ -37,7 +37,7 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
-export function ProjectSettingsForm({ project }: { project: Project }) {
+export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
   const router = useRouter();
   const [saved, setSaved] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);

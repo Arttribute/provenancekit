@@ -1,8 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
-import { getOrgBySlug, getUserOrgs } from "@/lib/queries";
-import { Sidebar } from "@/components/layout/sidebar";
-import { TopNav } from "@/components/layout/top-nav";
+import { getOrgBySlug } from "@/lib/queries";
 
 interface Props {
   children: React.ReactNode;
@@ -14,20 +12,8 @@ export default async function OrgLayout({ children, params }: Props) {
   const user = await getServerUser();
   if (!user) redirect("/login");
 
-  const [orgData, orgs] = await Promise.all([
-    getOrgBySlug(orgSlug, user.privyDid),
-    getUserOrgs(user.privyDid),
-  ]);
-
+  const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar orgSlug={orgSlug} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopNav orgs={orgs} currentOrgSlug={orgSlug} />
-        <main className="flex-1 overflow-y-auto bg-background">{children}</main>
-      </div>
-    </div>
-  );
+  return <>{children}</>;
 }

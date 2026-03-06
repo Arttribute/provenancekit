@@ -57,7 +57,7 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
   let bundle: ProvenanceBundle | null = null;
@@ -268,7 +268,7 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
                       className="flex items-center justify-between text-xs rounded border bg-muted/20 px-3 py-2"
                     >
                       <span className="font-medium truncate">
-                        {entity?.name ?? (attr.entityId?.slice(0, 16) + "…") ?? "Unknown"}
+                        {entity?.name ?? (attr.entityId ? attr.entityId.slice(0, 16) + "…" : "Unknown")}
                       </span>
                       <div className="flex items-center gap-2 shrink-0">
                         {attr.role && (

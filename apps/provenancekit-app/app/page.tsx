@@ -42,7 +42,7 @@ export default async function RootPage() {
         <div className="flex flex-col sm:flex-row gap-3 items-center">
           <LandingSignInButton />
           <Link
-            href="https://docs.provenancekit.org"
+            href="https://docs.provenancekit.com"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
           >
             Read the docs
@@ -90,9 +90,9 @@ export default async function RootPage() {
       <footer className="border-t px-6 py-4 flex items-center justify-between text-xs text-muted-foreground">
         <span>© 2026 ProvenanceKit</span>
         <div className="flex gap-4">
-          <a href="#" className="hover:text-foreground transition-colors">Docs</a>
-          <a href="#" className="hover:text-foreground transition-colors">GitHub</a>
-          <a href="#" className="hover:text-foreground transition-colors">Privacy</a>
+          <a href="https://docs.provenancekit.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Docs</a>
+          <a href="https://github.com/provenancekit" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
+          <a href="https://provenancekit.com/privacy" className="hover:text-foreground transition-colors">Privacy</a>
         </div>
       </footer>
     </div>

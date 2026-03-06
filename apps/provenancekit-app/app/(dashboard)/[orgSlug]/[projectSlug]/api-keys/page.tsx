@@ -22,10 +22,10 @@ export default async function ApiKeysPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
-  const keys = await getProjectApiKeys(String(project._id));
+  const keys = await getProjectApiKeys(project.id, user.privyDid);
 
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
@@ -62,12 +62,12 @@ export default async function ApiKeysPage({ params }: Props) {
           ) : (
             <div className="divide-y">
               {keys.map((key) => (
-                <div key={String(key._id)} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
+                <div key={key.id} className="flex items-center justify-between py-4 first:pt-0 last:pb-0">
                   <div className="space-y-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-sm">{key.name}</span>
                       {key.revokedAt && <Badge variant="destructive" className="text-xs">Revoked</Badge>}
-                      {key.expiresAt && !key.revokedAt && key.expiresAt < new Date() && (
+                      {key.expiresAt && !key.revokedAt && new Date(key.expiresAt) < new Date() && (
                         <Badge variant="outline" className="text-xs">Expired</Badge>
                       )}
                     </div>
@@ -79,7 +79,7 @@ export default async function ApiKeysPage({ params }: Props) {
                       {key.expiresAt && <span>Expires {formatDate(key.expiresAt)}</span>}
                     </div>
                   </div>
-                  {!key.revokedAt && <RevokeKeyButton keyId={String(key._id)} keyName={key.name} />}
+                  {!key.revokedAt && <RevokeKeyButton keyId={key.id} keyName={key.name} />}
                 </div>
               ))}
             </div>
