@@ -9,6 +9,7 @@
     "start": "node dist/src/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:setup": "tsx scripts/setup-db.ts",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
