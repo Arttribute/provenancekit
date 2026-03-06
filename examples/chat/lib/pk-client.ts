@@ -4,9 +4,10 @@ import { ProvenanceKit } from "@provenancekit/sdk";
  * App-level ProvenanceKit client — reads from environment variables.
  *
  * The PK API key is set once by the app developer in .env (obtained from the
- * provenancekit-app dashboard at http://localhost:3000). All users of this
- * chat app share this single app-level PK project.
+ * provenancekit-app dashboard). All users of this chat app share this single
+ * app-level PK project.
  *
+ * The SDK points to https://api.provenancekit.com by default — no URL env var needed.
  * The key is NEVER exposed to the browser. Server-side API routes use this
  * singleton directly. Browser components use /api/pk-proxy which forwards
  * requests to the real PK API with the Authorization header added server-side.
@@ -15,12 +16,11 @@ import { ProvenanceKit } from "@provenancekit/sdk";
 let _pkClient: ProvenanceKit | null = null;
 
 export function getPKClient(): ProvenanceKit | null {
-  if (!process.env.PK_API_KEY || !process.env.PK_API_URL) {
+  if (!process.env.PK_API_KEY) {
     return null; // Provenance tracking disabled — chat still works without it
   }
   if (!_pkClient) {
     _pkClient = new ProvenanceKit({
-      baseUrl: process.env.PK_API_URL,
       apiKey: process.env.PK_API_KEY,
       projectId: process.env.PK_PROJECT_ID,
     });
@@ -29,5 +29,5 @@ export function getPKClient(): ProvenanceKit | null {
 }
 
 export function isPKEnabled(): boolean {
-  return !!(process.env.PK_API_KEY && process.env.PK_API_URL);
+  return !!process.env.PK_API_KEY;
 }

@@ -20,7 +20,7 @@ export default async function MembersPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const members = await getOrgMembers(String(orgData.org._id));
+  const members = await getOrgMembers(orgSlug, user.privyDid);
 
   const roleColors: Record<string, "default" | "secondary" | "outline"> = {
     owner: "default",

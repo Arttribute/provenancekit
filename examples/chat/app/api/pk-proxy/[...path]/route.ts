@@ -11,29 +11,29 @@ import { NextRequest, NextResponse } from "next/server";
  *   3. Allow all @provenancekit/ui components to work with zero browser config
  *
  * The proxy forwards GET and POST requests verbatim, adding the auth header.
+ * The SDK defaults to https://api.provenancekit.com — no PK_API_URL env var needed.
  */
+
+const PK_API_BASE = process.env.PK_API_URL ?? "https://api.provenancekit.com";
 
 type Params = { params: Promise<{ path: string[] }> };
 
 async function proxyRequest(req: NextRequest, { params }: Params, method: string) {
-  const pkApiUrl = process.env.PK_API_URL;
   const pkApiKey = process.env.PK_API_KEY;
 
-  if (!pkApiUrl) {
+  if (!pkApiKey) {
     return NextResponse.json({ error: "ProvenanceKit not configured" }, { status: 503 });
   }
 
   const { path } = await params;
   const pathStr = path.join("/");
   const search = req.nextUrl.search;
-  const targetUrl = `${pkApiUrl}/${pathStr}${search}`;
+  const targetUrl = `${PK_API_BASE}/${pathStr}${search}`;
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
+    Authorization: `Bearer ${pkApiKey}`,
   };
-  if (pkApiKey) {
-    headers["Authorization"] = `Bearer ${pkApiKey}`;
-  }
 
   const fetchOpts: RequestInit = { method, headers };
 

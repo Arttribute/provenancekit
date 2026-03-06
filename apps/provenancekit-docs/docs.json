@@ -1,68 +1,60 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "ProvenanceKit",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#7C3AED",
+    "light": "#A78BFA",
+    "dark": "#5B21B6"
   },
   "favicon": "/favicon.svg",
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Introduction",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Overview",
             "pages": [
               "index",
-              "quickstart",
-              "development"
-            ]
-          },
-          {
-            "group": "Customization",
-            "pages": [
-              "essentials/settings",
-              "essentials/navigation"
-            ]
-          },
-          {
-            "group": "Writing content",
-            "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
-            ]
-          },
-          {
-            "group": "AI tools",
-            "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "introduction/architecture",
+              "introduction/eaa-model"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Guides",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Getting Started",
             "pages": [
-              "api-reference/introduction"
+              "quickstart",
+              "guides/recording-provenance"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "Extensions",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "guides/extensions",
+              "guides/ai-extension"
+            ]
+          },
+          {
+            "group": "Protocol",
+            "pages": [
+              "protocol/contracts"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "api-reference/introduction"
             ]
           }
         ]
@@ -71,14 +63,14 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "GitHub",
+          "href": "https://github.com/provenancekit/provenancekit",
+          "icon": "github"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "npm",
+          "href": "https://www.npmjs.com/search?q=%40provenancekit",
+          "icon": "npm"
         }
       ]
     }
@@ -90,33 +82,32 @@
   "navbar": {
     "links": [
       {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "label": "GitHub",
+        "href": "https://github.com/provenancekit/provenancekit"
       }
     ],
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "href": "https://app.provenancekit.org"
     }
   },
   "contextual": {
     "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "mcp",
+      "cursor",
+      "vscode"
+    ]
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/provenancekit",
+      "github": "https://github.com/provenancekit/provenancekit"
     }
   }
 }

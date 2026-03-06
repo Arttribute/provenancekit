@@ -1,97 +1,69 @@
 ---
-title: "Introduction"
-description: "Welcome to the new home for your documentation"
+title: "What is ProvenanceKit?"
+description: "A universal provenance framework for Human-AI collaborative works."
 ---
 
-## Setting up
+> ProvenanceKit lets any application record, verify, and query the provenance of content — who created it, which AI systems contributed, what source material was used, and how rights flow — all in a cryptographically verifiable, chain-agnostic way.
 
-Get your documentation site up and running in minutes.
+## The problem
 
-<Card
-  title="Start here"
-  icon="rocket"
-  href="/quickstart"
-  horizontal
->
-  Follow our three step quickstart guide.
-</Card>
+When humans and AI systems co-create content, answering "where did this come from?" becomes hard fast:
 
-## Make it yours
+- Which model generated which part of a document?
+- Who owns the training data a model was fine-tuned on?
+- If a remix earns money, who gets paid and how much?
+- Can a publisher prove an article was human-reviewed?
 
-Design a docs site that looks great and empowers your users.
+These questions require **provenance** — a structured, tamper-evident record of origin and transformation.
+
+## What ProvenanceKit provides
+
+ProvenanceKit is a **layered open-source framework** built around three primitives:
+
+| Primitive | What it represents |
+|-----------|-------------------|
+| **Entity** | A participant — a person, an AI agent, an organization |
+| **Action** | Something that happened — a file was generated, a model was called, a remix was created |
+| **Attribution** | A claim that links an Entity to an Action or resource — "this human reviewed this output" |
+
+These three types (EAA) compose into a rich provenance graph that can be stored off-chain, anchored on-chain, indexed for queries, and extended for any domain.
+
+## How the layers work
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  Platform Layer                                          │
+│  provenancekit-api · provenancekit-app · examples        │
+├─────────────────────────────────────────────────────────┤
+│  Extension Layer                                         │
+│  extensions · payments · privacy · git · media           │
+├─────────────────────────────────────────────────────────┤
+│  Base Layer                                              │
+│  eaa-types · contracts · storage · indexer               │
+└─────────────────────────────────────────────────────────┘
+```
+
+Each layer depends only on the layer below it. You can use just the base types to build your own system, add domain extensions when you need them, or drop in the full SDK + API for a batteries-included experience.
+
+## Choose your integration depth
 
 <Columns cols={2}>
-  <Card
-    title="Edit locally"
-    icon="pen-to-square"
-    href="/development"
-  >
-    Edit your docs locally and preview them in real time.
+  <Card title="Types only" icon="code" href="/introduction/eaa-model">
+    Use `@provenancekit/eaa-types` for the schema definitions and write your own storage and indexing.
   </Card>
-  <Card
-    title="Customize your site"
-    icon="palette"
-    href="/essentials/settings"
-  >
-    Customize the design and colors of your site to match your brand.
+  <Card title="SDK + API" icon="rocket" href="/quickstart">
+    Use `@provenancekit/sdk` against `provenancekit-api` for a full managed provenance backend in minutes.
   </Card>
-    <Card
-    title="Set up navigation"
-    icon="map"
-    href="/essentials/navigation"
-  >
-    Organize your docs to help users find what they need and succeed with your product.
+  <Card title="Extensions" icon="puzzle-piece" href="/guides/extensions">
+    Add domain semantics — AI metadata, licensing, payments, privacy — without changing your core setup.
   </Card>
-  <Card
-    title="API documentation"
-    icon="terminal"
-    href="/api-reference/introduction"
-  >
-    Auto-generate API documentation from OpenAPI specifications.
+  <Card title="On-chain" icon="link" href="/protocol/contracts">
+    Anchor provenance records on any EVM chain. Pluggable chain adapters — bring your own wallet or node.
   </Card>
 </Columns>
 
-## Create beautiful pages
+## Next steps
 
-Everything you need to create world-class documentation.
-
-<Columns cols={2}>
-  <Card
-    title="Write with MDX"
-    icon="pen-fancy"
-    href="/essentials/markdown"
-  >
-    Use MDX to style your docs pages.
-  </Card>
-  <Card
-    title="Code samples"
-    icon="code"
-    href="/essentials/code"
-  >
-    Add sample code to demonstrate how to use your product.
-  </Card>
-  <Card
-    title="Images"
-    icon="image"
-    href="/essentials/images"
-  >
-    Display images and other media.
-  </Card>
-  <Card
-    title="Reusable snippets"
-    icon="recycle"
-    href="/essentials/reusable-snippets"
-  >
-    Write once and reuse across your docs.
-  </Card>
-</Columns>
-
-## Need inspiration?
-
-<Card
-  title="See complete examples"
-  icon="stars"
-  href="https://mintlify.com/customers"
->
-  Browse our showcase of exceptional documentation sites.
+<Card title="Quickstart" icon="play" href="/quickstart" horizontal>
+  Record your first provenance event in under 5 minutes.
 </Card>

@@ -1,33 +1,98 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: "API Reference"
+description: "ProvenanceKit REST API — provenance recording and management endpoints."
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+> The ProvenanceKit API has two namespaces with separate authentication: `/v1/*` for provenance operations and `/management/*` for the control plane.
 
-## Welcome
+## Base URL
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
-
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+```
+https://api.provenancekit.org
+# or your self-hosted instance:
+http://localhost:3001
+```
 
 ## Authentication
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+### Provenance endpoints (`/v1/*`)
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+Use a `pk_live_` project API key as a Bearer token:
+
+```bash
+curl https://api.provenancekit.org/v1/entity \
+  -H "Authorization: Bearer pk_live_<your-key>" \
+  -H "Content-Type: application/json" \
+  -d '{"role":"human","name":"Alice"}'
 ```
+
+API keys are created in the [dashboard](https://app.provenancekit.org) or via the management API. Keys are scoped to a project and shown **only once** on creation.
+
+### Management endpoints (`/management/*`)
+
+Use the `MANAGEMENT_API_KEY` shared secret plus an `X-User-Id` header identifying the user:
+
+```bash
+curl https://api.provenancekit.org/management/orgs \
+  -H "Authorization: Bearer <MANAGEMENT_API_KEY>" \
+  -H "X-User-Id: user_privy_did_here"
+```
+
+## Core endpoints
+
+### Entities
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/entity` | Create or retrieve an entity |
+| `GET` | `/v1/entity/:id` | Get entity by ID |
+| `GET` | `/v1/entities` | List entities (filter by role, pagination) |
+
+### Actions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/action` | Record a provenance action |
+| `GET` | `/v1/action/:id` | Get action by ID |
+| `GET` | `/v1/actions` | List actions (filter by type, sessionId, performedBy) |
+
+### Attributions
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/v1/attribution` | Create an attribution |
+| `GET` | `/v1/attributions` | List attributions (filter by actionId, entityId) |
+
+### Bundles
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/v1/bundle/:cid` | Full provenance bundle for a CID (entities + actions + attributions) |
+
+### Management
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/management/orgs` | List orgs for authenticated user |
+| `GET` | `/management/orgs/:slug` | Get org by slug |
+| `POST` | `/management/orgs` | Create org |
+| `GET` | `/management/projects/:orgSlug` | List projects in an org |
+| `POST` | `/management/projects` | Create project |
+| `GET` | `/management/api-keys/:projectId` | List API keys for a project |
+| `POST` | `/management/api-keys` | Create API key |
+| `DELETE` | `/management/api-keys/:id` | Revoke API key |
+| `POST` | `/management/auth/validate-key` | Validate a pk_live_ key (system use) |
+
+## SDKs
+
+The TypeScript SDK wraps all `/v1/*` endpoints:
+
+```bash
+npm install @provenancekit/sdk
+```
+
+See the [Quickstart](/quickstart) for usage examples.
+
+## OpenAPI spec
+
+🚧 A full OpenAPI specification is planned. For now, use the SDK or the endpoint reference above.

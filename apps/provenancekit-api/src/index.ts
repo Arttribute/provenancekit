@@ -13,11 +13,14 @@ import { config } from "./config.js";
 import { initializeContext, closeContext } from "./context.js";
 import { toProvenanceKitError } from "./errors.js";
 import {
-  authMiddleware,
   createAuthMiddleware,
   createAPIKeyProvider,
+  createDrizzleKeyProvider,
+  createSupabaseKeyProvider,
   type AuthProvider,
 } from "./middleware/auth.js";
+import { createUsageMiddleware } from "./middleware/usage.js";
+import { createManagementAuthMiddleware } from "./middleware/management-auth.js";
 
 // Handlers
 import health from "./handlers/health.js";
@@ -33,6 +36,7 @@ import { searchRoute } from "./handlers/search.js";
 import payments from "./handlers/payments.js";
 import media from "./handlers/media.js";
 import ownership from "./handlers/ownership.js";
+import management from "./handlers/management.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | App Factory                                                   |
@@ -60,11 +64,13 @@ export function createApp(opts?: CreateAppOptions) {
   // Middleware
   app.use("*", cors());
 
-  if (opts?.authProviders) {
-    app.use("*", createAuthMiddleware(opts.authProviders));
-  } else {
-    app.use("*", authMiddleware);
-  }
+  app.use("*", createAuthMiddleware(opts?.authProviders ?? [], {
+    excludePrefixes: ["/management"],
+  }));
+
+  // Management control plane — own auth, no pk_live_ key required
+  app.use("/management/*", createManagementAuthMiddleware());
+  app.route("/management", management);
 
   // Routes
   app.route("/", health);
@@ -109,7 +115,15 @@ export function createApp(opts?: CreateAppOptions) {
 }
 
 // Re-export for programmatic consumers
-export { createAuthMiddleware, createAPIKeyProvider, type AuthProvider };
+export {
+  createAuthMiddleware,
+  createAPIKeyProvider,
+  createDrizzleKeyProvider,
+  createSupabaseKeyProvider,
+  requirePermission,
+  type AuthProvider,
+  type PermissionLevel,
+} from "./middleware/auth.js";
 export type { AuthIdentity, AuthMiddlewareOptions } from "./middleware/auth.js";
 
 /*─────────────────────────────────────────────────────────────*\
@@ -119,9 +133,25 @@ export type { AuthIdentity, AuthMiddlewareOptions } from "./middleware/auth.js";
 async function main() {
   try {
     // Initialize storage adapters
-    await initializeContext();
+    const ctx = await initializeContext();
 
-    const app = createApp();
+    // Build auth providers: Drizzle-backed keys (primary) + static API_KEYS fallback
+    const authProviders: AuthProvider[] = [];
+    if (process.env.DATABASE_URL) {
+      authProviders.push(createDrizzleKeyProvider());
+    } else if (ctx.supabase) {
+      // Legacy fallback: Supabase client (deprecated, will be removed)
+      authProviders.push(createSupabaseKeyProvider(ctx.supabase));
+    }
+    if (config.apiKeys) {
+      const keys = config.apiKeys.split(",").map((k) => k.trim());
+      authProviders.push(createAPIKeyProvider(keys));
+    }
+
+    const app = createApp(authProviders.length > 0 ? { authProviders } : undefined);
+
+    // Usage recording (fire-and-forget via Drizzle, only when DATABASE_URL is set)
+    app.use("*", createUsageMiddleware());
 
     // Start HTTP server
     serve({ fetch: app.fetch, port: config.port }, ({ port }) =>

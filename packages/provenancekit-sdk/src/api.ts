@@ -12,10 +12,7 @@ export class Api {
   private readonly f: typeof fetch;
 
   constructor(opts: ApiClientOptions) {
-    this.base = (
-      opts.baseUrl ??
-      "https://arttribute-provenancekit-api-prod-848878149972.europe-west1.run.app"
-    ).replace(/\/$/, "");
+    this.base = (opts.baseUrl ?? "https://api.provenancekit.com").replace(/\/$/, "");
     this.key = opts.apiKey;
     this.f = opts.fetchFn ?? fetch;
   }

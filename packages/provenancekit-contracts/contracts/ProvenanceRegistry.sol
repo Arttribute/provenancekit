@@ -1,61 +1,82 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {ProvenanceVerifiable} from "./core/ProvenanceVerifiable.sol";
+import {ProvenanceExtensible} from "./core/ProvenanceExtensible.sol";
 import {IProvenanceProvider} from "./interfaces/IProvenanceProvider.sol";
+import {IProvenanceHook} from "./interfaces/IProvenanceHook.sol";
 
 /**
  * @title ProvenanceRegistry
  * @author ProvenanceKit
- * @notice Reference implementation of a complete provenance registry
- * @dev This is a ready-to-deploy contract that demonstrates the full EAA model:
- *      - Entity registration (who)
- *      - Action recording (what) - inherited from ProvenanceCore
- *      - Resource registration (outputs)
- *      - Attribution recording (relationships)
- *      - Proof verification - inherited from ProvenanceVerifiable
+ * @notice Reference implementation of a complete, extensible provenance registry
  *
- *      Use this as:
- *      1. A complete solution - deploy and use as-is
- *      2. A reference - see how to build on ProvenanceCore/ProvenanceVerifiable
- *      3. A starting point - inherit and customize
+ * @dev A ready-to-deploy contract implementing the full EAA (Entity-Action-Attribution) model
+ *      with cryptographic proofs and a hook system for third-party contract integration.
  *
- *      Architecture:
+ *      **For application developers:** Deploy this contract and use it directly.
+ *      The SDK's `createViemAdapter` will call `recordAction` automatically.
+ *
+ *      **For protocol developers:** Inherit from any layer in the stack:
+ *      - `IProvenanceProvider`   — just implement the standard interface
+ *      - `ProvenanceCore`        — get base action recording + hooks
+ *      - `ProvenanceVerifiable`  — add ECDSA proof / commitment support
+ *      - `ProvenanceExtensible`  — add hook registry for third-party reactions
+ *      - `ProvenanceRegistry`    — full reference implementation
+ *
+ *      **For hook developers:** Implement `IProvenanceHook` and register via
+ *      `registerHook(address)`. Your contract will be called on every `recordAction`.
+ *
+ *      Architecture (inheritance stack):
  *      ```
- *      ProvenanceRegistry
+ *      ProvenanceRegistry         ← deploy this
  *           ↓ extends
- *      ProvenanceVerifiable (proof layer)
+ *      ProvenanceExtensible       ← hook registry + dispatch
  *           ↓ extends
- *      ProvenanceCore (base layer)
+ *      ProvenanceVerifiable       ← ECDSA proof + commitment scheme
+ *           ↓ extends
+ *      ProvenanceCore             ← base action recording
  *           ↓ implements
- *      IProvenanceProvider (standard interface)
+ *      IProvenanceProvider        ← EAA standard interface
+ *      ```
+ *
+ *      Hook pattern (third-party integration):
+ *      ```
+ *      IProvenanceHook            ← implement to react to provenance events
+ *           ← PaymentSplitter     ← auto-distribute on resource creation
+ *           ← RoyaltySystem       ← pay contributors when work is remixed
+ *           ← AccessController   ← gate access based on who created content
+ *      ```
+ *
+ *      Deployment:
+ *      ```shell
+ *      forge script script/Deploy.s.sol --rpc-url base-sepolia --broadcast
  *      ```
  */
-contract ProvenanceRegistry is ProvenanceVerifiable {
+contract ProvenanceRegistry is ProvenanceExtensible {
     /*//////////////////////////////////////////////////////////////
                                 STORAGE
     //////////////////////////////////////////////////////////////*/
 
-    /// @dev Mapping from resource CID to existence
+    /// @dev Mapping from resource CID to existence flag
     mapping(string => bool) private _resources;
 
-    /// @dev Mapping from resource CID to root action
+    /// @dev Mapping from resource CID to root action ID
     mapping(string => bytes32) private _resourceRootAction;
 
     /// @dev Mapping from resource CID to creator address
     mapping(string => address) private _resourceCreator;
 
-    /// @dev Mapping from entity address to existence
+    /// @dev Mapping from entity address to existence flag
     mapping(address => bool) private _entities;
 
-    /// @dev Mapping from entity address to entity ID
+    /// @dev Mapping from entity address to off-chain entity ID
     mapping(address => string) private _entityIds;
 
-    /// @dev Mapping from entity address to role
+    /// @dev Mapping from entity address to role string
     mapping(address => string) private _entityRoles;
 
-    /// @dev Mapping from resource CID to current owner address.
-    ///      address(0) means ownership has never been transferred —
+    /// @dev Mapping from resource CID to current owner.
+    ///      Zero address means ownership has never been explicitly transferred;
     ///      in that case the effective owner is _resourceCreator[cid].
     mapping(string => address) private _currentOwner;
 
@@ -63,25 +84,25 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
                                 ERRORS
     //////////////////////////////////////////////////////////////*/
 
-    /// @notice Thrown when CID is empty
+    /// @notice Thrown when a CID argument is empty
     error EmptyCID();
 
-    /// @notice Thrown when resource already exists
+    /// @notice Thrown when trying to register an already-registered resource
     error ResourceAlreadyExists(string cid);
 
-    /// @notice Thrown when entity already exists
+    /// @notice Thrown when trying to register an already-registered entity
     error EntityAlreadyExists(address entity);
 
     /// @notice Thrown when entity ID is empty
     error EmptyEntityId();
 
-    /// @notice Thrown when caller is not authorized for the operation
+    /// @notice Thrown when caller is not authorised
     error Unauthorized();
 
-    /// @notice Thrown when referencing a non-existent action
+    /// @notice Thrown when referencing an action that has not been recorded
     error ActionNotFound(bytes32 actionId);
 
-    /// @notice Thrown when a resource CID is not registered
+    /// @notice Thrown when querying a CID that has not been registered
     error ResourceNotFound(string cid);
 
     /*//////////////////////////////////////////////////////////////
@@ -89,9 +110,10 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Emitted when an entity asserts it is the rightful owner of a resource.
+     * @notice Emitted when an entity asserts ownership of a resource.
+     *
      * @dev Recording a claim does NOT change the current owner — it creates an
-     *      on-chain audit record. Use getOwner() to query the current owner.
+     *      on-chain audit trail. Use `getOwner()` to query the effective owner.
      */
     event OwnershipClaimed(
         string indexed cid,
@@ -100,14 +122,15 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     );
 
     /**
-     * @notice Emitted when ownership of a resource moves to a new address.
-     * @dev The transfer is recorded permissively — any registered entity can
-     *      call transferOwnership(). Trust is conveyed off-chain by the
-     *      ext:verification (v1.0.0) extension on the corresponding Action.
-     *      On-chain callers that need enforcement should call getOwner() and
-     *      verify msg.sender before calling transferOwnership().
+     * @notice Emitted when ownership moves to a new address.
+     *
+     * @dev Transfers are recorded permissively — any registered entity may call
+     *      `transferOwnership()`. Callers that need enforcement should verify
+     *      `getOwner(cid) == msg.sender` before calling, or check the
+     *      `fromOwner` field post-hoc.
+     *
      * @param transferActionId Off-chain Action ID linking this event to the
-     *        immutable provenance record.
+     *        provenance record of the transfer action.
      */
     event OwnershipTransferred(
         string indexed cid,
@@ -118,15 +141,29 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     );
 
     /*//////////////////////////////////////////////////////////////
+                              CONSTRUCTOR
+    //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Deploy the ProvenanceRegistry
+     * @param hookAdmin Address that can register/remove hooks (typically the deployer)
+     *
+     * @dev The hook admin can be transferred later via `transferHookAdmin(newAdmin)`.
+     *      For self-managed deployments, pass `msg.sender` as hookAdmin.
+     */
+    constructor(address hookAdmin) ProvenanceExtensible(hookAdmin) {}
+
+    /*//////////////////////////////////////////////////////////////
                          ENTITY FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Register an entity (human, AI, or organization)
-     * @dev Maps an on-chain address to an off-chain identity.
+     * @notice Register an entity (human, AI, or organisation)
+     * @dev Maps an on-chain address to an off-chain EAA identity.
+     *      One address can only register once.
      *
-     * @param entityId Off-chain identifier (DID, UUID, etc.)
-     * @param role Entity role: "human", "ai", "organization"
+     * @param entityId  Off-chain identifier (DID, UUID, wallet address, etc.)
+     * @param role      Entity role: "human", "ai", "organization", or custom ext:namespace
      */
     function registerEntity(
         string calldata entityId,
@@ -139,37 +176,20 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         _entityIds[msg.sender] = entityId;
         _entityRoles[msg.sender] = role;
 
-        emit EntityRegistered(
-            msg.sender,
-            entityId,
-            role,
-            block.timestamp
-        );
+        emit EntityRegistered(msg.sender, entityId, role, block.timestamp);
     }
 
-    /**
-     * @notice Check if an entity is registered
-     * @param entity The entity address
-     * @return True if registered
-     */
+    /// @notice Check if an entity is registered
     function entityExists(address entity) external view returns (bool) {
         return _entities[entity];
     }
 
-    /**
-     * @notice Get the off-chain ID for an entity
-     * @param entity The entity address
-     * @return The entity ID
-     */
+    /// @notice Get the off-chain ID for a registered entity
     function getEntityId(address entity) external view returns (string memory) {
         return _entityIds[entity];
     }
 
-    /**
-     * @notice Get the role for an entity
-     * @param entity The entity address
-     * @return The entity role
-     */
+    /// @notice Get the role for a registered entity
     function getEntityRole(address entity) external view returns (string memory) {
         return _entityRoles[entity];
     }
@@ -180,11 +200,12 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
 
     /**
      * @notice Register a resource (content-addressed output)
-     * @dev Links a CID to the action that created it.
+     * @dev Links a content reference (CID) to the action that created it.
+     *      Use `recordActionAndRegisterOutputs` for gas efficiency.
      *
-     * @param cid Content identifier (IPFS CID)
-     * @param resourceType Type: "text", "image", "audio", "video", "code", "data", "model"
-     * @param rootAction The action that created this resource
+     * @param cid          Content identifier (IPFS CID v0/v1 recommended)
+     * @param resourceType Type: "text", "image", "audio", "video", "code", "dataset", "model", "other"
+     * @param rootAction   The action that produced this resource
      */
     function registerResource(
         string calldata cid,
@@ -198,38 +219,20 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         _resourceRootAction[cid] = rootAction;
         _resourceCreator[cid] = msg.sender;
 
-        emit ResourceRegistered(
-            cid,
-            resourceType,
-            msg.sender,
-            rootAction,
-            block.timestamp
-        );
+        emit ResourceRegistered(cid, resourceType, msg.sender, rootAction, block.timestamp);
     }
 
-    /**
-     * @notice Check if a resource is registered
-     * @param cid The resource CID
-     * @return True if registered
-     */
+    /// @notice Check if a resource is registered
     function resourceExists(string calldata cid) external view returns (bool) {
         return _resources[cid];
     }
 
-    /**
-     * @notice Get the root action for a resource
-     * @param cid The resource CID
-     * @return The action that created this resource
-     */
+    /// @notice Get the root action that created a resource
     function getResourceRootAction(string calldata cid) external view returns (bytes32) {
         return _resourceRootAction[cid];
     }
 
-    /**
-     * @notice Get the creator of a resource
-     * @param cid The resource CID
-     * @return The creator address
-     */
+    /// @notice Get the creator address of a resource
     function getResourceCreator(string calldata cid) external view returns (address) {
         return _resourceCreator[cid];
     }
@@ -239,11 +242,12 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Record attribution for a resource
-     * @dev Records who contributed to creating a resource.
+     * @notice Record attribution for a resource (self-attribution)
+     * @dev Anyone can record their own attribution for any content reference.
+     *      Use `recordAttributionFor` to attribute another entity (requires resource creator).
      *
      * @param contentRef Content reference being attributed (CID recommended)
-     * @param role Attribution role: "creator", "contributor", "source"
+     * @param role       Attribution role: "creator", "contributor", "source", or custom ext:namespace
      */
     function recordAttribution(
         string calldata contentRef,
@@ -251,21 +255,16 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     ) external {
         if (bytes(contentRef).length == 0) revert EmptyCID();
 
-        emit AttributionRecorded(
-            contentRef,
-            msg.sender,
-            role,
-            block.timestamp
-        );
+        emit AttributionRecorded(contentRef, msg.sender, role, block.timestamp);
     }
 
     /**
-     * @notice Record attribution for another entity
-     * @dev Only the resource creator can record attributions on behalf of others.
+     * @notice Record attribution for another entity on behalf of the resource creator
+     * @dev Only the resource creator can call this.
      *
      * @param contentRef Content reference being attributed
-     * @param entity Entity receiving attribution
-     * @param role Attribution role
+     * @param entity     Entity address receiving attribution
+     * @param role       Attribution role
      */
     function recordAttributionFor(
         string calldata contentRef,
@@ -275,12 +274,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         if (bytes(contentRef).length == 0) revert EmptyCID();
         if (_resourceCreator[contentRef] != msg.sender) revert Unauthorized();
 
-        emit AttributionRecorded(
-            contentRef,
-            entity,
-            role,
-            block.timestamp
-        );
+        emit AttributionRecorded(contentRef, entity, role, block.timestamp);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -288,12 +282,12 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Record attribution for an action
-     * @dev Records who was involved in performing an action.
-     *      Use this for action-level attribution (W3C PROV Association).
+     * @notice Record attribution for an action (self-attribution)
+     * @dev Use for action-level attribution — "who was involved in this activity".
+     *      Maps to W3C PROV Association.
      *
-     * @param actionId The action being attributed
-     * @param role Attribution role: "creator", "contributor", "source"
+     * @param actionId The action being attributed (must exist)
+     * @param role     Attribution role: "creator", "contributor", "source", or custom ext:namespace
      */
     function recordActionAttribution(
         bytes32 actionId,
@@ -301,21 +295,16 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     ) external {
         if (!_actionExists(actionId)) revert ActionNotFound(actionId);
 
-        emit ActionAttributionRecorded(
-            actionId,
-            msg.sender,
-            role,
-            block.timestamp
-        );
+        emit ActionAttributionRecorded(actionId, msg.sender, role, block.timestamp);
     }
 
     /**
      * @notice Record action attribution for another entity
-     * @dev Only callable when the action exists. The caller must be a registered entity.
+     * @dev Caller must be a registered entity.
      *
      * @param actionId The action being attributed
-     * @param entity Entity receiving attribution
-     * @param role Attribution role
+     * @param entity   Entity receiving attribution
+     * @param role     Attribution role
      */
     function recordActionAttributionFor(
         bytes32 actionId,
@@ -325,12 +314,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         if (!_actionExists(actionId)) revert ActionNotFound(actionId);
         if (!_entities[msg.sender]) revert Unauthorized();
 
-        emit ActionAttributionRecorded(
-            actionId,
-            entity,
-            role,
-            block.timestamp
-        );
+        emit ActionAttributionRecorded(actionId, entity, role, block.timestamp);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -338,14 +322,16 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Record action and register its outputs in one transaction
-     * @dev Gas-efficient way to record a complete provenance event.
+     * @notice Record an action and register all its outputs in one transaction
+     * @dev Preferred over separate `recordAction` + `registerResource` calls.
+     *      Saves one transaction and ensures atomic action+resource creation.
+     *      Hooks are called once (for the action), not per output.
      *
-     * @param actionType Type of action
-     * @param inputs Input CIDs
-     * @param outputs Output CIDs
-     * @param resourceType Type for all output resources
-     * @return actionId The recorded action ID
+     * @param actionType   Type of action
+     * @param inputs       Input content references
+     * @param outputs      Output content references (all registered as resources)
+     * @param resourceType Resource type applied to all outputs
+     * @return actionId    The recorded action ID
      */
     function recordActionAndRegisterOutputs(
         string calldata actionType,
@@ -353,11 +339,10 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
         string[] calldata outputs,
         string calldata resourceType
     ) external returns (bytes32 actionId) {
-        // Record the action (internal call preserves msg.sender)
         actionId = recordAction(actionType, inputs, outputs);
 
-        // Register each output as a resource
-        for (uint256 i = 0; i < outputs.length; i++) {
+        uint256 len = outputs.length;
+        for (uint256 i = 0; i < len; ) {
             if (!_resources[outputs[i]]) {
                 _resources[outputs[i]] = true;
                 _resourceRootAction[outputs[i]] = actionId;
@@ -371,9 +356,8 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
                     block.timestamp
                 );
             }
+            unchecked { ++i; }
         }
-
-        return actionId;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -381,13 +365,11 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Get the current owner of a resource.
-     * @dev Returns _resourceCreator if ownership has never been transferred
-     *      (i.e. _currentOwner is address(0)), preserving backwards
-     *      compatibility with resources registered before this feature.
+     * @notice Get the current owner of a resource
+     * @dev Returns creator if ownership was never explicitly transferred.
      *
      * @param cid Content identifier of the resource
-     * @return Current owner address
+     * @return    Current owner address
      */
     function getOwner(string calldata cid) external view returns (address) {
         if (!_resources[cid]) revert ResourceNotFound(cid);
@@ -396,10 +378,10 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     }
 
     /**
-     * @notice Record an on-chain ownership claim for a resource.
-     * @dev Emits OwnershipClaimed. Does NOT change the current owner.
-     *      Any registered entity may call this. The claim is a timestamped
-     *      audit record; dispute resolution is off-chain.
+     * @notice Record an on-chain ownership claim for a resource
+     * @dev Emits OwnershipClaimed but does NOT change the current owner.
+     *      Creates a timestamped audit record; dispute resolution is off-chain.
+     *      Caller must be a registered entity.
      *
      * @param cid Content identifier of the resource being claimed
      */
@@ -411,22 +393,14 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     }
 
     /**
-     * @notice Transfer ownership of a resource to a new address.
-     * @dev Permissive: any registered entity may call this. The transfer is
-     *      always recorded on-chain. Trust is conveyed by the off-chain
-     *      ext:verification (v1.0.0) extension on the corresponding Action.
-     *
-     *      On-chain callers that need enforcement (e.g. a payment splitter
-     *      honouring only voluntary transfers) should check:
-     *
-     *          require(provenanceRegistry.getOwner(cid) == msg.sender, "Not owner");
-     *
-     *      before calling this function, or use the `fromOwner` field of the
-     *      OwnershipTransferred event to validate post-hoc.
+     * @notice Transfer ownership of a resource
+     * @dev Permissive: any registered entity may call this. On-chain callers
+     *      that need enforcement should verify `getOwner(cid) == msg.sender`
+     *      before calling, or use the `fromOwner` field in OwnershipTransferred.
      *
      * @param cid              Content identifier of the resource
-     * @param newOwner         Address of the new owner
-     * @param transferActionId Off-chain Action ID of the transfer record
+     * @param newOwner         New owner address
+     * @param transferActionId Off-chain Action ID of the transfer provenance record
      */
     function transferOwnership(
         string calldata cid,
@@ -435,7 +409,7 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     ) external {
         if (!_resources[cid]) revert ResourceNotFound(cid);
         if (!_entities[msg.sender]) revert Unauthorized();
-        require(newOwner != address(0), "ProvenanceRegistry: new owner is zero address");
+        require(newOwner != address(0), "ProvenanceRegistry: zero address");
 
         address current = _currentOwner[cid] == address(0)
             ? _resourceCreator[cid]
@@ -451,12 +425,16 @@ contract ProvenanceRegistry is ProvenanceVerifiable {
     //////////////////////////////////////////////////////////////*/
 
     /**
-     * @notice Check support for interfaces (IProvenanceProvider and ERC-165).
-     * @param interfaceId The interface identifier, as specified in ERC-165.
-     * @return True if the contract implements interfaceId.
+     * @notice Check supported interfaces
+     * @dev Supports IProvenanceProvider (EAA standard), IProvenanceHook consumer,
+     *      and ERC-165 itself.
+     *
+     * @param interfaceId ERC-165 interface identifier
+     * @return True if the interface is supported
      */
     function supportsInterface(bytes4 interfaceId) external pure override returns (bool) {
         return interfaceId == type(IProvenanceProvider).interfaceId
+            || interfaceId == type(IProvenanceHook).interfaceId
             || interfaceId == 0x01ffc9a7; // ERC-165
     }
 }

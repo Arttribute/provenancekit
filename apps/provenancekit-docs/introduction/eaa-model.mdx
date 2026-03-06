@@ -1,0 +1,143 @@
+---
+title: "The EAA Model"
+description: "Entity, Action, Attribution — the three primitives that compose all provenance."
+---
+
+> Every provenance record in ProvenanceKit is expressed as one or more of three types: **Entity**, **Action**, or **Attribution**. This is the EAA model — a pure meta-pattern with no economic or governance opinions baked in.
+
+## Why three types?
+
+Provenance answers: *who did what, to what, with what authority?*
+
+| Type | Answers | Examples |
+|------|---------|---------|
+| **Entity** | Who? | A human, an AI agent, an organization |
+| **Action** | What happened? | A file was created, a model was called, a document was reviewed |
+| **Attribution** | What claim is being made? | "This person authored this output", "This AI was the generator" |
+
+Separating claims (Attribution) from events (Action) from participants (Entity) means you can express any provenance structure without the schema being too specific to one use case.
+
+## Entity
+
+An Entity represents any participant that can perform or be attributed to an action.
+
+```ts
+import { EntitySchema } from "@provenancekit/eaa-types";
+
+const human = EntitySchema.parse({
+  id: "ent_alice",
+  role: "human",
+  name: "Alice Chen",
+  publicKey: "ed25519:abc123...",   // optional — for signed attributions
+});
+
+const agent = EntitySchema.parse({
+  id: "ent_gpt4",
+  role: "ai",
+  name: "GPT-4o",
+  aiAgent: {
+    model: { provider: "openai", model: "gpt-4o", version: "2024-11" },
+    autonomyLevel: "supervised",
+    delegatedBy: "ent_alice",
+  },
+});
+```
+
+**Role** is a freeform string. Use `"human"`, `"ai"`, `"organization"`, or any domain-specific value. The only built-in semantics are in the `aiAgent` field (present when role is `"ai"`).
+
+## Action
+
+An Action represents something that happened. It is the central event record.
+
+```ts
+import { ActionSchema } from "@provenancekit/eaa-types";
+
+const action = ActionSchema.parse({
+  id: "act_generate_doc",
+  type: "file.create",              // freeform — use any type that makes sense for your domain
+  performedBy: "ent_gpt4",
+  inputs: [
+    { cid: "bafy_prompt_cid" },     // content-addressed inputs
+  ],
+  outputs: [
+    { cid: "bafy_output_cid" },     // content-addressed outputs
+  ],
+  extensions: {
+    "ext:ai@1.0.0": {
+      provider: "openai",
+      model: "gpt-4o",
+      promptHash: "sha256:abc...",
+      tokensUsed: 1240,
+    },
+  },
+  timestamp: "2026-03-06T10:00:00Z",
+  sessionId: "sess_abc123",          // optional — groups related actions into a session timeline
+});
+```
+
+**CIDs** (content identifiers) are the connective tissue between actions. An output CID from one action can be an input CID in a downstream action, forming a provenance graph automatically.
+
+## Attribution
+
+An Attribution makes a claim linking an Entity to either an Action or a resource (CID).
+
+```ts
+import { AttributionSchema } from "@provenancekit/eaa-types";
+
+// Claim: Alice reviewed this output
+const attribution = AttributionSchema.parse({
+  id: "attr_review",
+  entityId: "ent_alice",
+  actionId: "act_generate_doc",     // attribute to the action
+  // resourceRef: "bafy_output_cid"  // OR attribute to a specific CID
+  role: "reviewer",
+  confidence: 1.0,
+  extensions: {
+    "ext:license@1.0.0": {
+      spdxId: "CC-BY-4.0",
+      aiTraining: "prohibited",
+    },
+  },
+  timestamp: "2026-03-06T10:05:00Z",
+});
+```
+
+Attribution targets **either** `actionId` (attributing to the event that produced something) **or** `resourceRef` (attributing directly to a CID), not both.
+
+## Extensions
+
+Any EAA type can carry `extensions` — a typed dictionary keyed by `ext:namespace@semver`. Extensions add domain semantics without changing the core schema.
+
+```ts
+extensions: {
+  "ext:ai@1.0.0": { provider, model, promptHash, tokensUsed },
+  "ext:license@1.0.0": { spdxId, aiTraining },
+  "ext:git@1.0.0": { commit, repo, branch },
+  // ... any domain you need
+}
+```
+
+All built-in extension schemas are in `@provenancekit/extensions` and validated with Zod.
+
+## Composing a provenance graph
+
+Multiple EAA records compose into a directed acyclic graph (DAG) via CIDs:
+
+```
+Entity(Alice) ──── Attribution(role: "author") ────► Action(generate)
+Entity(GPT-4o) ─── Attribution(role: "generator") ──► Action(generate)
+                                                           │
+                                                    outputs: [CID_A]
+                                                           │
+                                                    CID_A ─► Action(remix)
+                                                           │
+                                                    outputs: [CID_B]
+```
+
+This graph is what `@provenancekit/indexer` materializes from on-chain events, and what the `ProvenanceGraph` UI component renders.
+
+## Gotchas
+
+- **Self-attribution is allowed by design.** The contracts do not enforce who can make a claim. The assumption is that claims are signed and audited by the consuming application or off-chain verifier.
+- **CIDs must be deterministic.** For provenance to link correctly across systems, use a consistent content-addressing scheme (IPFS CIDs are recommended).
+- **`sessionId` is app-managed.** Generate a session ID per conversation, pipeline run, or creative session. Pass it to all actions in that session. The API does not enforce uniqueness or lifecycle.

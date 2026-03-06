@@ -1,181 +1,78 @@
 /**
- * Server-side data fetching helpers (Mongoose queries).
- * Used in RSC layouts/pages only — never imported client-side.
+ * Server-side data fetching helpers.
+ *
+ * All data comes from the ProvenanceKit management API — the app has no
+ * direct database connection. Every function requires a verified userId
+ * from the server session (never from client-supplied input).
  */
-import { connectDb } from "@/lib/mongodb";
-import {
-  User,
-  Organization,
-  OrgMember,
-  Project,
-  ApiKey,
-  UsageRecord,
-} from "@/lib/db/collections";
-import type { OrgWithRole, ProjectWithOrg } from "@/types";
 
-/** Get all orgs where a user is a member, with their role. */
-export async function getUserOrgs(privyDid: string): Promise<OrgWithRole[]> {
-  await connectDb();
+import { mgmt, type MgmtOrg, type MgmtProject, type MgmtApiKey } from "@/lib/management-client";
 
-  const memberships = await OrgMember.find({ userId: privyDid }).lean();
-  if (memberships.length === 0) return [];
+// Re-export types for consumers that previously imported from here
+export type { MgmtOrg as OrgWithRole, MgmtProject as ProjectWithOrg, MgmtApiKey as ApiKeyRow };
 
-  const orgIds = memberships.map((m) => String(m.orgId));
-  const orgs = await Organization.find({ _id: { $in: orgIds } })
-    .sort({ name: 1 })
-    .lean();
-
-  return orgs.map((org) => {
-    const membership = memberships.find((m) => String(m.orgId) === String(org._id));
-    return {
-      id: String(org._id),
-      name: org.name,
-      slug: org.slug,
-      plan: org.plan,
-      role: membership?.role ?? "viewer",
-    };
-  });
+/** Get all orgs where a user is a member (with their role). */
+export async function getUserOrgs(userId: string): Promise<MgmtOrg[]> {
+  return mgmt(userId).orgs.list();
 }
 
-/** Get a single org by slug (with membership check). */
-export async function getOrgBySlug(slug: string, privyDid: string) {
-  await connectDb();
-
-  const org = await Organization.findOne({ slug }).lean();
-  if (!org) return null;
-
-  const member = await OrgMember.findOne({
-    orgId: String(org._id),
-    userId: privyDid,
-  }).lean();
-  if (!member) return null;
-
-  return { org, role: member.role };
+/** Get a single org by slug (with membership check). Returns null if not found or not a member. */
+export async function getOrgBySlug(slug: string, userId: string) {
+  try {
+    const org = await mgmt(userId).orgs.get(slug);
+    return { org, role: org.role };
+  } catch {
+    return null;
+  }
 }
 
 /** Get all projects in an org. */
-export async function getOrgProjects(orgId: string): Promise<ProjectWithOrg[]> {
-  await connectDb();
-
-  const [org, projectList] = await Promise.all([
-    Organization.findById(orgId).lean(),
-    Project.find({ orgId }).sort({ name: 1 }).lean(),
-  ]);
-
-  return projectList.map((p) => ({
-    id: String(p._id),
-    name: p.name,
-    slug: p.slug,
-    description: p.description,
-    orgId: p.orgId,
-    orgSlug: org?.slug ?? "",
-    storageType: p.storageType,
-    chainId: p.chainId,
-  }));
+export async function getOrgProjects(orgSlug: string, userId: string): Promise<MgmtProject[]> {
+  return mgmt(userId).projects.list(orgSlug);
 }
 
-/** Get a single project by slug within an org. */
-export async function getProjectBySlug(orgId: string, slug: string) {
-  await connectDb();
-  return Project.findOne({ orgId, slug }).lean();
+/** Get a project by its id. */
+export async function getProjectById(projectId: string, userId: string) {
+  try {
+    return await mgmt(userId).projects.get(projectId);
+  } catch {
+    return null;
+  }
 }
 
-/** Get a project by its _id string. */
-export async function getProjectById(projectId: string) {
-  await connectDb();
-  return Project.findById(projectId).lean();
+/** Get a project by slug within an org. */
+export async function getProjectBySlug(orgSlug: string, slug: string, userId: string) {
+  const projects = await mgmt(userId).projects.list(orgSlug);
+  return projects.find((p) => p.slug === slug) ?? null;
 }
 
-/** Get non-revoked API keys for a project. */
-export async function getProjectApiKeys(projectId: string) {
-  await connectDb();
-  return ApiKey.find({ projectId })
-    .sort({ createdAt: -1 })
-    .select("_id name prefix permissions createdAt expiresAt lastUsedAt revokedAt")
-    .lean();
+/** Get API keys for a project (keyHash excluded). */
+export async function getProjectApiKeys(projectId: string, userId: string): Promise<MgmtApiKey[]> {
+  return mgmt(userId).apiKeys.list(projectId);
 }
 
 /** Usage summary for a project (last 30 days). */
-export async function getProjectUsageSummary(projectId: string) {
-  await connectDb();
-
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  const [totalCalls, successCount] = await Promise.all([
-    UsageRecord.countDocuments({
-      projectId,
-      timestamp: { $gte: thirtyDaysAgo },
-    }),
-    UsageRecord.countDocuments({
-      projectId,
-      timestamp: { $gte: thirtyDaysAgo },
-      statusCode: { $gte: 200, $lt: 300 },
-    }),
-  ]);
-
-  return {
-    totalCalls,
-    successRate: totalCalls > 0 ? (successCount / totalCalls) * 100 : 0,
-    period: "month" as const,
-  };
+export async function getProjectUsageSummary(projectId: string, userId: string) {
+  const data = await mgmt(userId).usage.get(projectId);
+  return data.summary;
 }
 
 /** Usage records grouped by day for the analytics chart (last 30 days). */
-export async function getProjectUsageByDay(projectId: string) {
-  await connectDb();
-
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-  const rows = await UsageRecord.aggregate([
-    { $match: { projectId, timestamp: { $gte: thirtyDaysAgo } } },
-    {
-      $group: {
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$timestamp" } },
-        total: { $sum: 1 },
-        success: {
-          $sum: {
-            $cond: [
-              {
-                $and: [
-                  { $gte: ["$statusCode", 200] },
-                  { $lt: ["$statusCode", 300] },
-                ],
-              },
-              1,
-              0,
-            ],
-          },
-        },
-      },
-    },
-    { $sort: { _id: 1 } },
-  ]);
-
-  return rows.map((r) => ({
-    date: r._id as string,
-    total: r.total as number,
-    success: r.success as number,
-  }));
+export async function getProjectUsageByDay(projectId: string, userId: string) {
+  const data = await mgmt(userId).usage.get(projectId);
+  return data.byDay;
 }
 
 /** Org member list. */
-export async function getOrgMembers(orgId: string) {
-  await connectDb();
-  return OrgMember.find({ orgId }).lean();
+export async function getOrgMembers(orgSlug: string, userId: string) {
+  return mgmt(userId).members.list(orgSlug);
 }
 
-/** Check if a user is a member of an org and return their role. */
-export async function getOrgMembership(
-  orgId: string,
-  privyDid: string
-): Promise<string | null> {
-  await connectDb();
-  const member = await OrgMember.findOne({ orgId, userId: privyDid }).lean();
-  return member?.role ?? null;
-}
-
-/** Get a user document by privyDid. */
-export async function getUserByPrivyDid(privyDid: string) {
-  await connectDb();
-  return User.findOne({ privyDid }).lean();
+/** Get the current user record. */
+export async function getUserByUserId(userId: string) {
+  try {
+    return await mgmt(userId).users.me();
+  } catch {
+    return null;
+  }
 }

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
 import { Copy, Check } from "lucide-react";
 
 const schema = z.object({
@@ -44,6 +45,7 @@ export function CreateApiKeyForm({
   const [createdKey, setCreatedKey] = useState<CreatedKey | null>(null);
   const [copied, setCopied] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [neverExpires, setNeverExpires] = useState(false);
 
   const {
     register,
@@ -56,10 +58,14 @@ export function CreateApiKeyForm({
 
   async function onSubmit(data: FormData) {
     setServerError(null);
+    const payload = {
+      ...data,
+      expiresInDays: neverExpires ? null : (data.expiresInDays ?? null),
+    };
     const res = await fetch(`/api/projects/${projectId}/api-keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
@@ -165,22 +171,36 @@ export function CreateApiKeyForm({
             </p>
           </div>
 
-          <div className="space-y-1.5">
-            <Label htmlFor="expires">
-              Expiry{" "}
-              <span className="text-muted-foreground font-normal">
-                (optional, days)
-              </span>
-            </Label>
-            <Input
-              id="expires"
-              type="number"
-              min={1}
-              max={365}
-              placeholder="90"
-              className="max-w-[120px]"
-              {...register("expiresInDays")}
-            />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Expiry</Label>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Never expires</span>
+                <Switch
+                  checked={neverExpires}
+                  onCheckedChange={setNeverExpires}
+                />
+              </div>
+            </div>
+            {!neverExpires && (
+              <div className="flex items-center gap-2">
+                <Input
+                  id="expires"
+                  type="number"
+                  min={1}
+                  max={365}
+                  placeholder="90"
+                  className="max-w-[120px]"
+                  {...register("expiresInDays")}
+                />
+                <span className="text-sm text-muted-foreground">days (leave blank for no expiry)</span>
+              </div>
+            )}
+            {neverExpires && (
+              <p className="text-xs text-muted-foreground">
+                This key will never expire. Rotate it manually if compromised.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>

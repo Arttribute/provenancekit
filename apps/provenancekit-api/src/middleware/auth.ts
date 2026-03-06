@@ -9,7 +9,9 @@
  * When no API_KEYS are configured, auth is disabled (dev mode).
  */
 
+import { createHash } from "crypto";
 import type { MiddlewareHandler, Context, HonoRequest } from "hono";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { config } from "../config.js";
 import { ProvenanceKitError } from "../errors.js";
 
@@ -74,6 +76,94 @@ export function createAPIKeyProvider(keys: string[]): AuthProvider {
   };
 }
 
+/**
+ * Create a Drizzle-backed API key auth provider.
+ *
+ * Validates `Authorization: Bearer pk_live_*` against the `app_api_keys`
+ * table via Drizzle ORM. This is the primary auth provider when DATABASE_URL
+ * is configured. Keys are stored as SHA-256 hashes — plaintext never reaches the DB.
+ */
+export function createDrizzleKeyProvider(): AuthProvider {
+  return async (req: HonoRequest): Promise<AuthIdentity | null> => {
+    const header = req.header("Authorization");
+    if (!header) return null;
+
+    const [scheme, token] = header.split(" ", 2);
+    if (scheme !== "Bearer" || !token) return null;
+
+    // Only handle pk_live_ keys — pass others to the next provider
+    if (!token.startsWith("pk_live_")) return null;
+
+    const { getDb } = await import("../db/index.js");
+    const { appApiKeys } = await import("../db/schema.js");
+    const { eq } = await import("drizzle-orm");
+
+    const db = getDb();
+    if (!db) {
+      throw new ProvenanceKitError("Unauthorized", "Database not configured", {
+        recovery: "Ensure DATABASE_URL is set in the API environment",
+      });
+    }
+
+    const keyHash = createHash("sha256").update(token).digest("hex");
+
+    const [row] = await db
+      .select({
+        id: appApiKeys.id,
+        projectId: appApiKeys.projectId,
+        permissions: appApiKeys.permissions,
+        revokedAt: appApiKeys.revokedAt,
+        expiresAt: appApiKeys.expiresAt,
+      })
+      .from(appApiKeys)
+      .where(eq(appApiKeys.keyHash, keyHash))
+      .limit(1);
+
+    if (!row) {
+      throw new ProvenanceKitError("Unauthorized", "Invalid API key", {
+        recovery: "Check your API key is correct and has not been deleted",
+      });
+    }
+
+    if (row.revokedAt) {
+      throw new ProvenanceKitError("Unauthorized", "API key has been revoked", {
+        recovery: "Create a new API key in the ProvenanceKit dashboard",
+      });
+    }
+
+    if (row.expiresAt && new Date(row.expiresAt) < new Date()) {
+      throw new ProvenanceKitError("Unauthorized", "API key has expired", {
+        recovery: "Create a new API key in the ProvenanceKit dashboard",
+      });
+    }
+
+    // Update last_used_at (fire-and-forget — non-fatal)
+    db.update(appApiKeys)
+      .set({ lastUsedAt: new Date() })
+      .where(eq(appApiKeys.id, row.id))
+      .then(() => {})
+      .catch(() => {});
+
+    return {
+      id: `apikey:${token.slice(0, 16)}...`,
+      method: "drizzle-api-key",
+      claims: {
+        projectId: row.projectId,
+        permissions: row.permissions,
+        keyId: row.id,
+      },
+    };
+  };
+}
+
+/**
+ * @deprecated Use createDrizzleKeyProvider instead.
+ * Kept for backwards compatibility — passes the supabase param but ignores it.
+ */
+export function createSupabaseKeyProvider(_supabase: SupabaseClient): AuthProvider {
+  return createDrizzleKeyProvider();
+}
+
 /*─────────────────────────────────────────────────────────────*\
  | Middleware Factory                                            |
 \*─────────────────────────────────────────────────────────────*/
@@ -82,8 +172,13 @@ export function createAPIKeyProvider(keys: string[]): AuthProvider {
 const PUBLIC_PATHS = new Set(["/"]);
 
 export interface AuthMiddlewareOptions {
-  /** Additional paths that bypass authentication */
+  /** Exact paths that bypass authentication. */
   publicPaths?: string[];
+  /**
+   * Path prefixes that bypass authentication entirely.
+   * Use for sub-apps with their own auth (e.g. "/management").
+   */
+  excludePrefixes?: string[];
 }
 
 /**
@@ -101,9 +196,15 @@ export function createAuthMiddleware(
     ...PUBLIC_PATHS,
     ...(opts?.publicPaths ?? []),
   ]);
+  const excludePrefixes = opts?.excludePrefixes ?? [];
 
   return async (c, next) => {
     if (publicPaths.has(c.req.path)) {
+      return next();
+    }
+
+    // Skip auth for excluded path prefixes (e.g. /management has its own auth)
+    if (excludePrefixes.some((prefix) => c.req.path.startsWith(prefix))) {
       return next();
     }
 
@@ -132,6 +233,48 @@ export function createAuthMiddleware(
  */
 export function getAuthIdentity(c: Context): AuthIdentity | undefined {
   return c.get("authIdentity") as AuthIdentity | undefined;
+}
+
+/**
+ * Permission levels, ordered from least to most privileged.
+ * - `read`  — query provenance data
+ * - `write` — record provenance (file, entity, activity)
+ * - `admin` — platform operations (suspend entities, revoke records, manage projects)
+ */
+export type PermissionLevel = "read" | "write" | "admin";
+
+const PERM_RANK: Record<PermissionLevel, number> = { read: 0, write: 1, admin: 2 };
+
+/**
+ * Create middleware that requires a minimum permission level.
+ *
+ * Works with both Supabase-backed keys (`claims.permissions`) and the legacy
+ * static API_KEYS provider (which always grants full access for backwards compat).
+ *
+ * Usage:
+ * ```ts
+ * app.use("/admin/*", requirePermission("admin"));
+ * app.use("/v1/*", requirePermission("write"));
+ * ```
+ */
+export function requirePermission(minLevel: PermissionLevel): MiddlewareHandler {
+  return async (c, next) => {
+    const identity = getAuthIdentity(c);
+
+    // Dev mode (no auth configured) — pass through
+    if (!identity) return next();
+
+    const permissions = (identity.claims?.["permissions"] as string | undefined) ?? "write";
+    const rank = PERM_RANK[permissions as PermissionLevel] ?? 1;
+
+    if (rank < PERM_RANK[minLevel]) {
+      throw new ProvenanceKitError("Forbidden", `This endpoint requires '${minLevel}' permission`, {
+        recovery: `Create an API key with '${minLevel}' permissions in the ProvenanceKit dashboard`,
+      });
+    }
+
+    return next();
+  };
 }
 
 /*─────────────────────────────────────────────────────────────*\

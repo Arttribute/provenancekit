@@ -17,14 +17,15 @@
 
 import { ProvenanceKit } from "@provenancekit/sdk";
 
-const PK_API_URL =
-  process.env.PROVENANCEKIT_API_URL ?? "https://api.provenancekit.org";
 const PK_API_KEY = process.env.PROVENANCEKIT_API_KEY;
 
-/** Returns the platform-level ProvenanceKit SDK instance, or null if unconfigured. */
+/**
+ * Returns the platform-level ProvenanceKit SDK instance, or null if unconfigured.
+ * The SDK defaults to https://api.provenancekit.com — no URL env var needed.
+ */
 export function getPlatformPKClient(): ProvenanceKit | null {
   if (!PK_API_KEY) return null;
-  return new ProvenanceKit({ baseUrl: PK_API_URL, apiKey: PK_API_KEY });
+  return new ProvenanceKit({ apiKey: PK_API_KEY });
 }
 
 export interface DistributionEntry {

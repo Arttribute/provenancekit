@@ -4,12 +4,15 @@ export * from "./types";
 export { type ApiClientOptions } from "./api";
 export {
   createViemAdapter,
+  createEIP1193Adapter,
   type IChainAdapter,
   type RecordActionParams,
   type RecordActionResult,
   type ViemAdapterOptions,
   type ViemWalletClient,
   type ViemPublicClient,
+  type EIP1193Provider,
+  type EIP1193AdapterOptions,
 } from "./chain";
 
 // Extension inspection helpers — use these to read provenance data from bundles

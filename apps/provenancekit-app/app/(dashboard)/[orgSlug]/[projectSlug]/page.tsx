@@ -23,13 +23,13 @@ export default async function ProjectPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
-  const projectId = String(project._id);
+  const projectId = project.id;
   const [keys, usage] = await Promise.all([
-    getProjectApiKeys(projectId),
-    getProjectUsageSummary(projectId),
+    getProjectApiKeys(projectId, user.privyDid),
+    getProjectUsageSummary(projectId, user.privyDid),
   ]);
 
   const activeKeys = keys.filter((k) => !k.revokedAt);
@@ -81,7 +81,7 @@ export default async function ProjectPage({ params }: Props) {
             ) : (
               <ul className="space-y-2">
                 {activeKeys.slice(0, 3).map((key) => (
-                  <li key={String(key._id)} className="flex items-center justify-between text-sm">
+                  <li key={key.id} className="flex items-center justify-between text-sm">
                     <div>
                       <span className="font-medium">{key.name}</span>
                       <span className="text-muted-foreground ml-2 font-mono text-xs">{key.prefix}…</span>

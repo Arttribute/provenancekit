@@ -69,7 +69,7 @@ function PKStatusTab() {
           <p className="text-xs text-muted-foreground mt-0.5">
             {enabled
               ? "Every AI response is automatically provenance-tracked."
-              : "Add PK_API_KEY and PK_API_URL to .env.local to enable provenance tracking."}
+              : "Add PK_API_KEY to .env.local to enable provenance tracking."}
           </p>
           {enabled && pkStatus?.apiUrl && (
             <p className="text-xs text-muted-foreground mt-2 font-mono">
@@ -99,8 +99,7 @@ function PKStatusTab() {
             Generate an API key (<code className="font-mono">pk_live_…</code>)
           </li>
           <li>
-            Add <code className="font-mono">PK_API_KEY</code> and{" "}
-            <code className="font-mono">PK_API_URL</code> to your{" "}
+            Add <code className="font-mono">PK_API_KEY</code> to your{" "}
             <code className="font-mono">.env.local</code>
           </li>
         </ol>

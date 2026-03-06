@@ -21,13 +21,13 @@ export default async function AnalyticsPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
-  const projectId = String(project._id);
+  const projectId = project.id;
   const [usage, dailyData] = await Promise.all([
-    getProjectUsageSummary(projectId),
-    getProjectUsageByDay(projectId),
+    getProjectUsageSummary(projectId, user.privyDid),
+    getProjectUsageByDay(projectId, user.privyDid),
   ]);
 
   return (

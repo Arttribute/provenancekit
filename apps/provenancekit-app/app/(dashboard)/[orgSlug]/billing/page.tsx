@@ -57,7 +57,7 @@ export default async function BillingPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const projects = await getOrgProjects(String(orgData.org._id));
+  const projects = await getOrgProjects(orgSlug, user.privyDid);
   const currentPlan = (orgData.org.plan as keyof typeof PLANS) ?? "free";
   const plan = PLANS[currentPlan] ?? PLANS.free;
 

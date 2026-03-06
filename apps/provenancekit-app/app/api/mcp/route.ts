@@ -13,9 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { connectDb } from "@/lib/mongodb";
-import { ApiKey, Organization, OrgMember, Project, UsageRecord } from "@/lib/db/collections";
-import { hashApiKey, generateApiKey } from "@/lib/api-keys";
+import { validateApiKey, mgmt } from "@/lib/management-client";
 import { slugify } from "@/lib/utils";
 
 // ─── MCP Protocol types ───────────────────────────────────────────────────────
@@ -52,33 +50,21 @@ async function authenticate(
     return { error: "Missing Authorization header", status: 401 };
   }
   const token = authHeader.slice(7);
-  const tokenHash = hashApiKey(token);
-
-  await connectDb();
-
-  const key = await ApiKey.findOne({ keyHash: tokenHash }).lean();
-  if (!key) return { error: "Invalid API key", status: 401 };
-  if (key.revokedAt) return { error: "API key has been revoked", status: 401 };
-  if (key.expiresAt && key.expiresAt < new Date()) {
-    return { error: "API key has expired", status: 401 };
+  if (!token.startsWith("pk_live_")) {
+    return { error: "Invalid API key format", status: 401 };
   }
-  if (key.permissions !== "admin") {
+
+  const result = await validateApiKey(token);
+  if (!result.valid) return { error: result.reason, status: 401 };
+  if (result.permissions !== "admin") {
     return { error: "MCP access requires an admin-permissions API key", status: 403 };
   }
 
-  const project = await Project.findById(key.projectId).lean();
-  if (!project) return { error: "Project not found", status: 404 };
-
-  const ownerMember = await OrgMember.findOne({
-    orgId: project.orgId,
-    role: "owner",
-  }).lean();
-
   return {
     ctx: {
-      userId: ownerMember?.userId ?? "",
-      orgId: project.orgId,
-      keyPermissions: key.permissions,
+      userId: result.userId ?? "",
+      orgId: result.orgId ?? "",
+      keyPermissions: result.permissions,
     },
   };
 }
@@ -153,7 +139,7 @@ const TOOLS = [
         orgSlug: { type: "string" },
         name: { type: "string" },
         description: { type: "string" },
-        storageType: { type: "string", enum: ["memory", "mongodb", "supabase"] },
+        storageType: { type: "string", enum: ["memory", "supabase"] },
       },
       required: ["orgSlug", "name"],
     },
@@ -173,34 +159,32 @@ async function callTool(
   const ok = (obj: unknown): ToolResult => ({ content: [{ type: "text", text: text(obj) }] });
   const err = (msg: string): ToolResult => ({ content: [{ type: "text", text: msg }], isError: true });
 
+  const client = mgmt(ctx.userId);
+
   switch (name) {
     case "list_organizations": {
-      const memberships = await OrgMember.find({ userId: ctx.userId }).lean();
-      const orgIds = memberships.map((m) => m.orgId);
-      const orgs = await Organization.find({ _id: { $in: orgIds } }).lean();
-      return ok(orgs.map((o) => ({
-        id: String(o._id),
-        name: o.name,
-        slug: o.slug,
-        plan: o.plan,
-        role: memberships.find((m) => m.orgId === String(o._id))?.role,
-      })));
+      const orgs = await client.orgs.list();
+      return ok(orgs);
     }
 
     case "list_projects": {
       const orgSlug = input.orgSlug as string;
-      const org = await Organization.findOne({ slug: orgSlug }).lean();
-      if (!org) return err(`Organization '${orgSlug}' not found`);
-      const rows = await Project.find({ orgId: String(org._id) }).lean();
-      return ok(rows);
+      try {
+        const projects = await client.projects.list(orgSlug);
+        return ok(projects);
+      } catch (e) {
+        return err(`Organization '${orgSlug}' not found or access denied`);
+      }
     }
 
     case "list_api_keys": {
       const projectId = input.projectId as string;
-      const rows = await ApiKey.find({ projectId })
-        .select("-keyHash")
-        .lean();
-      return ok(rows);
+      try {
+        const keys = await client.apiKeys.list(projectId);
+        return ok(keys);
+      } catch (e) {
+        return err(`Project '${projectId}' not found or access denied`);
+      }
     }
 
     case "create_api_key": {
@@ -215,56 +199,33 @@ async function callTool(
       if (!parsed.success) return err(JSON.stringify(parsed.error.flatten()));
 
       const { projectId, name, permissions, expiresInDays } = parsed.data;
-      const { key, keyHash, prefix } = generateApiKey();
-      const expiresAt = expiresInDays
-        ? new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000)
-        : null;
-
-      const created = await ApiKey.create({ projectId, name, keyHash, prefix, permissions, expiresAt });
-      return ok({
-        id: String(created._id),
-        key,
-        prefix,
-        name,
-        permissions,
-        expiresAt,
-        warning: "Store this key securely — it will not be shown again.",
-      });
+      try {
+        const created = await client.apiKeys.create(projectId, { name, permissions, expiresInDays });
+        return ok({ ...created, warning: "Store this key securely — it will not be shown again." });
+      } catch (e) {
+        return err(e instanceof Error ? e.message : "Failed to create API key");
+      }
     }
 
     case "get_usage_summary": {
       const projectId = input.projectId as string;
-      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-      const [totalCalls, successCount] = await Promise.all([
-        UsageRecord.countDocuments({ projectId, timestamp: { $gte: thirtyDaysAgo } }),
-        UsageRecord.countDocuments({
-          projectId,
-          timestamp: { $gte: thirtyDaysAgo },
-          statusCode: { $gte: 200, $lt: 300 },
-        }),
-      ]);
-
-      return ok({
-        period: "30d",
-        totalCalls,
-        successRate:
-          totalCalls > 0
-            ? ((successCount / totalCalls) * 100).toFixed(1) + "%"
-            : "N/A",
-      });
+      try {
+        const usage = await client.usage.get(projectId);
+        return ok(usage);
+      } catch (e) {
+        return err(`Project '${projectId}' not found or access denied`);
+      }
     }
 
     case "create_organization": {
-      const name = input.name as string;
-      const slug = (input.slug as string | undefined) ?? slugify(name);
-
-      const existing = await Organization.findOne({ slug }).lean();
-      if (existing) return err(`Slug '${slug}' is already taken`);
-
-      const org = await Organization.create({ name, slug, ownerId: ctx.userId });
-      await OrgMember.create({ orgId: String(org._id), userId: ctx.userId, role: "owner" });
-      return ok(org);
+      const orgName = input.name as string;
+      const slug = (input.slug as string | undefined) ?? slugify(orgName);
+      try {
+        const org = await client.orgs.create({ name: orgName, slug });
+        return ok(org);
+      } catch (e) {
+        return err(e instanceof Error ? e.message : "Failed to create organization");
+      }
     }
 
     case "create_project": {
@@ -273,23 +234,23 @@ async function callTool(
           orgSlug: z.string(),
           name: z.string().min(1).max(64),
           description: z.string().max(256).optional(),
-          storageType: z.enum(["memory", "mongodb", "supabase"]).default("memory"),
+          storageType: z.enum(["memory", "supabase"]).default("supabase"),
         })
         .safeParse(input);
       if (!parsed.success) return err(JSON.stringify(parsed.error.flatten()));
 
-      const { orgSlug, name, description, storageType } = parsed.data;
-      const org = await Organization.findOne({ slug: orgSlug }).lean();
-      if (!org) return err(`Organization '${orgSlug}' not found`);
-
-      const project = await Project.create({
-        orgId: String(org._id),
-        name,
-        slug: slugify(name),
-        description,
-        storageType,
-      });
-      return ok(project);
+      const { orgSlug, name: projectName, description, storageType } = parsed.data;
+      try {
+        const project = await client.projects.create(orgSlug, {
+          name: projectName,
+          slug: slugify(projectName),
+          description,
+          storageType,
+        });
+        return ok(project);
+      } catch (e) {
+        return err(e instanceof Error ? e.message : "Failed to create project");
+      }
     }
 
     default:

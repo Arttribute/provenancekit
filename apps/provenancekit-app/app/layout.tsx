@@ -2,6 +2,15 @@ import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/ui/query-provider";
 import "./globals.css";
+//import Fragment Mono from google
+import { Fragment_Mono } from "next/font/google";
+
+const fragmentMono = Fragment_Mono({
+  weight: "400",
+  subsets: ["latin"],
+  variable: "--font-fragment-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: {
@@ -18,7 +27,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={fragmentMono.className}>
       <body>
         <PrivyProvider>
           <QueryProvider>{children}</QueryProvider>

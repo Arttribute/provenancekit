@@ -16,7 +16,7 @@ export default async function ProjectSettingsPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
   return (

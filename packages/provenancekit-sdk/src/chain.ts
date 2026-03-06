@@ -1,6 +1,40 @@
 /**
  * On-chain recording adapter for ProvenanceKit SDK.
  *
+ * Three adapters are provided, covering every common wallet/signing setup:
+ *
+ * 1. `createViemAdapter`     — viem WalletClient (recommended for server-side or apps
+ *                              already using viem)
+ * 2. `createEIP1193Adapter`  — any EIP-1193 provider: MetaMask, Privy embedded wallet,
+ *                              Coinbase Wallet, WalletConnect, Rainbow, Wagmi, etc.
+ * 3. Custom `IChainAdapter`  — implement the interface directly for ethers.js,
+ *                              account abstraction (ERC-4337), or any other setup
+ *
+ * **Smooth UX without per-tx signing prompts:**
+ * For apps that want the user's address on-chain but without a popup on every
+ * provenance recording, use one of these patterns:
+ *
+ * A. **Smart wallet session keys** (recommended — works with Privy, Coinbase Smart Wallet,
+ *    ZeroDev, Biconomy, Safe):
+ *    ```ts
+ *    // User creates a smart wallet once and grants a session key to the app
+ *    // The session key can call recordAction without prompting the user
+ *    // msg.sender is the user's smart wallet address — attribution is exact
+ *    const adapter = createEIP1193Adapter({
+ *      provider: sessionKeyProvider,   // session key provider, no prompts
+ *      account: userSmartWalletAddress,
+ *      contractAddress: REGISTRY_ADDRESS,
+ *    });
+ *    ```
+ *
+ * B. **Server-side signing with user wallet in off-chain record:**
+ *    Use `createViemAdapter` on the server with the API's signing key.
+ *    The user's wallet address goes into `entity.wallet` for attribution.
+ *    The on-chain `performer` is the API's address, but provenance is still
+ *    unambiguously linked to the user via the off-chain EAA record.
+ *    (Simpler to implement; trade-off: not the user's address on-chain.)
+ *
+ *
  * Provides a framework-agnostic interface (`IChainAdapter`) for recording
  * provenance actions on the ProvenanceRegistry smart contract, plus a
  * factory (`createViemAdapter`) for viem users.
@@ -100,6 +134,81 @@ export interface IChainAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// Minimal ABI encoder for EIP-1193 adapter (no external dependencies)
+// ---------------------------------------------------------------------------
+
+/**
+ * Encode a 256-bit unsigned integer as a 64-character hex string (big-endian).
+ * Used for ABI encoding offsets, lengths, and counts.
+ */
+function enc32(n: number | bigint): string {
+  return BigInt(n).toString(16).padStart(64, "0");
+}
+
+/** Convert a Uint8Array to a lowercase hex string. */
+function bytesToHex(b: Uint8Array): string {
+  return Array.from(b)
+    .map((x) => x.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/**
+ * ABI-encode a UTF-8 string as a dynamic bytes value:
+ * 32 bytes length + ceil(len/32)*32 bytes of UTF-8 data (right-padded with 0s).
+ */
+function encodeString(s: string): string {
+  const utf8 = new TextEncoder().encode(s);
+  const paddedLen = Math.ceil(utf8.length / 32) * 32;
+  const padded = new Uint8Array(paddedLen);
+  padded.set(utf8);
+  return enc32(utf8.length) + bytesToHex(padded);
+}
+
+/**
+ * ABI-encode a string[] as a dynamic array:
+ * 32 bytes count, then count offsets (relative to start of this encoding,
+ * i.e. right after the count), then the encoded strings.
+ */
+function encodeStringArray(arr: string[]): string {
+  const count = enc32(arr.length);
+  const encodedItems = arr.map(encodeString);
+  // Offsets are relative to start of inner head (right after count)
+  const innerHeadBytes = arr.length * 32;
+  let offset = innerHeadBytes;
+  const heads = encodedItems.map((enc) => {
+    const h = enc32(offset);
+    offset += enc.length / 2; // enc is hex chars
+    return h;
+  });
+  return count + heads.join("") + encodedItems.join("");
+}
+
+/**
+ * Encode a call to `recordAction(string,string[],string[])`.
+ *
+ * Selector: keccak256("recordAction(string,string[],string[])")[0:4]
+ * Verified with: `cast sig "recordAction(string,string[],string[])"`  → 0xd57e4f08
+ */
+function encodeRecordActionCall(
+  actionType: string,
+  inputs: string[],
+  outputs: string[]
+): `0x${string}` {
+  const SELECTOR = "d57e4f08";
+  const encType = encodeString(actionType);
+  const encInputs = encodeStringArray(inputs);
+  const encOutputs = encodeStringArray(outputs);
+
+  // Three dynamic params → three pointers in the head (96 bytes = 0x60 total)
+  const HEAD_BYTES = 3 * 32;
+  const ptr1 = HEAD_BYTES;
+  const ptr2 = HEAD_BYTES + encType.length / 2;
+  const ptr3 = ptr2 + encInputs.length / 2;
+
+  return `0x${SELECTOR}${enc32(ptr1)}${enc32(ptr2)}${enc32(ptr3)}${encType}${encInputs}${encOutputs}`;
+}
+
+// ---------------------------------------------------------------------------
 // Minimal ProvenanceRegistry ABI (only what the SDK needs)
 // ---------------------------------------------------------------------------
 
@@ -165,6 +274,99 @@ export function createViemAdapter(opts: ViemAdapterOptions): IChainAdapter {
         txHash,
         actionId: result as string,
       };
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// createEIP1193Adapter — factory for any EIP-1193 provider
+// ---------------------------------------------------------------------------
+
+/**
+ * Any EIP-1193 compatible provider: MetaMask, Privy embedded wallet,
+ * Coinbase Wallet, WalletConnect, Rainbow Kit, Wagmi's connector, etc.
+ */
+export interface EIP1193Provider {
+  request(args: { method: string; params?: unknown[] }): Promise<unknown>;
+}
+
+export interface EIP1193AdapterOptions {
+  /** Any EIP-1193 provider. */
+  provider: EIP1193Provider;
+  /**
+   * The account address to send from.
+   * For session-key setups, pass the smart wallet address so it is
+   * the on-chain `performer` — even if the session key signs the tx.
+   */
+  account: `0x${string}`;
+  contractAddress: `0x${string}`;
+  chainId?: number;
+  chainName?: string;
+}
+
+/**
+ * Create a chain adapter backed by any EIP-1193 provider.
+ *
+ * Works with MetaMask, Privy, Coinbase Wallet, WalletConnect, Rainbow Kit,
+ * Wagmi connectors, and any other EIP-1193 compatible wallet.
+ *
+ * Uses `eth_call` to simulate the transaction and retrieve the `actionId`
+ * return value, then `eth_sendTransaction` to broadcast.
+ *
+ * No viem or ethers.js dependency required — ABI encoding is self-contained.
+ *
+ * @example MetaMask / window.ethereum
+ * ```ts
+ * const adapter = createEIP1193Adapter({
+ *   provider: window.ethereum,
+ *   account: "0xYourAddress",
+ *   contractAddress: REGISTRY_ADDRESS,
+ * });
+ * ```
+ *
+ * @example Privy embedded wallet
+ * ```ts
+ * const { wallets } = useWallets();
+ * const embeddedWallet = wallets.find(w => w.walletClientType === "privy");
+ * const provider = await embeddedWallet.getEthereumProvider();
+ * const adapter = createEIP1193Adapter({
+ *   provider,
+ *   account: embeddedWallet.address as `0x${string}`,
+ *   contractAddress: REGISTRY_ADDRESS,
+ * });
+ * ```
+ */
+export function createEIP1193Adapter(opts: EIP1193AdapterOptions): IChainAdapter {
+  const { provider, account, contractAddress, chainId, chainName } = opts;
+
+  return {
+    contractAddress,
+    chainId,
+    chainName,
+
+    async recordAction(params: RecordActionParams): Promise<RecordActionResult> {
+      const data = encodeRecordActionCall(
+        params.actionType,
+        params.inputs,
+        params.outputs
+      );
+
+      // Simulate via eth_call to retrieve the actionId return value (bytes32)
+      const callResult = (await provider.request({
+        method: "eth_call",
+        params: [{ from: account, to: contractAddress, data }, "latest"],
+      })) as `0x${string}`;
+
+      // The return value is a 32-byte word (bytes32 actionId); take first 32 bytes
+      const actionId = `0x${callResult.slice(2, 66)}` as `0x${string}`;
+
+      // Broadcast the transaction
+      const txHash = (await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: account, to: contractAddress, data }],
+      })) as `0x${string}`;
+
+      return { txHash, actionId };
     },
   };
 }

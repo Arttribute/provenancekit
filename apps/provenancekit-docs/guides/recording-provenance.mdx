@@ -1,0 +1,162 @@
+---
+title: "Recording Provenance"
+description: "A detailed guide to the SDK's entity(), file(), and attribution() methods."
+---
+
+> After the [Quickstart](/quickstart), this guide covers the full recording API: entity types, action types, inline attributions, standalone attributions, session linking, and batch recording.
+
+## Entities
+
+### The `entity()` method
+
+```ts
+const id = await pk.entity({
+  role: string;           // "human" | "ai" | "organization" | any custom string
+  name?: string;
+  publicKey?: string;     // ed25519 public key — enables signed attributions
+  aiAgent?: {
+    model: { provider: string; model: string; version?: string };
+    delegatedBy?: string;           // entity ID of the human who delegated
+    autonomyLevel?: "autonomous" | "supervised" | "assistive";
+  };
+});
+```
+
+`publicKey` is optional but required if you want to verify signed attributions. Use `@provenancekit/sdk/signing` to produce keypairs and sign attributions.
+
+### Entity deduplication
+
+The API deduplicates entities by a hash of `(role, name, publicKey)`. Calling `entity()` twice with identical fields returns the same ID — safe to call on every request.
+
+```ts
+const id1 = await pk.entity({ role: "ai", name: "GPT-4o" });
+const id2 = await pk.entity({ role: "ai", name: "GPT-4o" });
+// id1 === id2
+```
+
+## Recording actions with `file()`
+
+`file()` is the primary method for recording an action that produces a content-addressed output.
+
+```ts
+const actionId = await pk.file({
+  // Required
+  type: string;          // action type — "file.create", "model.infer", "remix", etc.
+  performedBy: string;   // entity ID of the primary actor
+  cid: string;           // content-addressed ID of the primary output
+
+  // Optional
+  inputs?: Array<{ cid: string }>;   // upstream CIDs this action consumed
+  sessionId?: string;                // groups actions into a session timeline
+  extensions?: Record<string, unknown>;
+  attributions?: Array<{             // inline attributions (shorthand)
+    entityId: string;
+    role: string;
+    confidence?: number;             // 0–1
+  }>;
+
+  // On-chain anchoring (requires chainAdapter set on client)
+  // Result includes: actionId.onchain.txHash, .chainId, .contractAddress
+});
+```
+
+### Action types
+
+Action types are freeform strings. Recommended conventions:
+
+| Type | When to use |
+|------|-------------|
+| `file.create` | Any AI-generated or human-created content |
+| `file.edit` | A modification to an existing CID |
+| `model.infer` | A model inference call (without a persistent output CID) |
+| `remix` | Derivative work from one or more source CIDs |
+| `review` | A human review or approval action |
+| `publish` | Content was published or made public |
+
+## Attributions
+
+### Inline attributions (with `file()`)
+
+Pass `attributions` in the `file()` call for the common case of recording who contributed to an action:
+
+```ts
+await pk.file({
+  type: "file.create",
+  performedBy: aiId,
+  cid: outputCid,
+  attributions: [
+    { entityId: humanId, role: "prompter", confidence: 1.0 },
+    { entityId: reviewerId, role: "reviewer", confidence: 1.0 },
+  ],
+});
+```
+
+### Standalone attributions
+
+Use `pk.attribution()` when you need to add an attribution after the fact, or when attributing to a CID rather than an action:
+
+```ts
+await pk.attribution({
+  entityId: humanId,
+  actionId: "act_abc123",     // attribute to an action
+  // resourceRef: "bafy...",  // OR attribute to a CID directly
+  role: "approver",
+  confidence: 0.95,
+  extensions: {
+    "ext:license@1.0.0": {
+      spdxId: "CC-BY-4.0",
+      aiTraining: "prohibited",
+    },
+  },
+});
+```
+
+## Sessions
+
+A `sessionId` groups related actions into a timeline — useful for conversations, pipeline runs, or creative sessions.
+
+```ts
+const sessionId = crypto.randomUUID(); // generate once per session
+
+// Every action in the session passes the same sessionId
+await pk.file({ ..., sessionId });
+await pk.file({ ..., sessionId });
+await pk.file({ ..., sessionId });
+
+// Query all actions in a session
+const sessionActions = await pk.listActions({ sessionId });
+```
+
+The `ProvenanceTracker` UI component from `@provenancekit/ui` renders a session timeline.
+
+## Querying
+
+```ts
+// Full provenance bundle for a CID (entities + actions + attributions)
+const bundle = await pk.getBundle(cid);
+
+// Single action
+const action = await pk.getAction(actionId);
+
+// List with filters
+const actions = await pk.listActions({
+  type: "file.create",
+  performedBy: entityId,
+  sessionId: "sess_abc",
+  limit: 50,
+  offset: 0,
+});
+
+// List entities
+const entities = await pk.listEntities({ role: "ai" });
+
+// List attributions for an action
+const attributions = await pk.listAttributions({ actionId });
+```
+
+## Gotchas
+
+- **CIDs must be deterministic.** Two different callers hashing the same content must produce the same CID for the provenance graph to link correctly. Use IPFS CIDs (`ipfs add --cid-version 1`) or `sha256:<hex>` as a simple fallback for testing.
+- **`performedBy` is the primary actor.** Use inline `attributions` for additional contributors. The `performedBy` entity is automatically given an attribution with `role: "primary"` by the API.
+- **Session IDs are not validated.** The API accepts any string. Use UUIDs or another random ID generation strategy to ensure uniqueness across sessions.
+- **Extensions are stored as-is.** The API does not validate extension content beyond JSON serialization. Use the Zod schemas from `@provenancekit/extensions` in your application code before calling `pk.file()`.

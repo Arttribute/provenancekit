@@ -70,8 +70,8 @@ contract ProvenanceRegistryTest is Test {
     );
 
     function setUp() public {
-        // Deploy contract
-        registry = new ProvenanceRegistry();
+        // Deploy contract (hook admin = address(this))
+        registry = new ProvenanceRegistry(address(this));
 
         // Setup test accounts
         alice = makeAddr("alice");
@@ -560,7 +560,7 @@ contract ProvenanceVerifiableTest is Test {
     string constant CID_IMAGE = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
 
     function setUp() public {
-        registry = new ProvenanceRegistry();
+        registry = new ProvenanceRegistry(address(this));
 
         // Create account with known private key for signing
         alicePrivateKey = 0xA11CE;

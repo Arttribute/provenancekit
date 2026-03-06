@@ -15,7 +15,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Organization } from "@/lib/db/schema";
+import type { MgmtOrg } from "@/lib/management-client";
 
 const schema = z.object({
   name: z.string().min(2).max(64),
@@ -27,7 +27,7 @@ export function OrgSettingsForm({
   org,
   role,
 }: {
-  org: Organization;
+  org: MgmtOrg;
   role: string;
 }) {
   const router = useRouter();

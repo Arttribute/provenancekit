@@ -16,7 +16,7 @@ export default async function NewApiKeyPage({ params }: Props) {
   const orgData = await getOrgBySlug(orgSlug, user.privyDid);
   if (!orgData) notFound();
 
-  const project = await getProjectBySlug(String(orgData.org._id), projectSlug);
+  const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
   return (
@@ -25,7 +25,7 @@ export default async function NewApiKeyPage({ params }: Props) {
         <h1 className="text-2xl font-bold tracking-tight">Create API Key</h1>
         <p className="text-sm text-muted-foreground mt-1">The secret key is shown only once. Store it securely.</p>
       </div>
-      <CreateApiKeyForm projectId={String(project._id)} orgSlug={orgSlug} projectSlug={projectSlug} />
+      <CreateApiKeyForm projectId={project.id} orgSlug={orgSlug} projectSlug={projectSlug} />
     </div>
   );
 }
