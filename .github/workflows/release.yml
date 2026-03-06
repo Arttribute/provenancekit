@@ -78,26 +78,50 @@ jobs:
             exit 0
           fi
 
-          echo "Package changes detected since $LAST_TAG — generating auto patch changeset"
+          echo "Package changes detected since $LAST_TAG — generating auto patch changeset for changed packages only"
+
+          # Map changed file paths to package names
+          CHANGED_FILES=$(git diff --name-only "$LAST_TAG" HEAD -- packages/ | grep -v 'node_modules')
+
           node -e "
             const fs = require('fs');
-            const packages = [
-              '@provenancekit/eaa-types',
-              '@provenancekit/sdk',
-              '@provenancekit/storage',
-              '@provenancekit/extensions',
-              '@provenancekit/privacy',
-              '@provenancekit/payments',
-              '@provenancekit/git',
-              '@provenancekit/media',
-              '@provenancekit/indexer',
-              '@provenancekit/ui',
-            ];
+            const changedFiles = \`$CHANGED_FILES\`.trim().split('\n').filter(Boolean);
+
+            // Map directory prefix → package name
+            const dirToPackage = {
+              'packages/eaa-types':                  '@provenancekit/eaa-types',
+              'packages/provenancekit-sdk':           '@provenancekit/sdk',
+              'packages/provenancekit-storage':       '@provenancekit/storage',
+              'packages/provenancekit-extensions':    '@provenancekit/extensions',
+              'packages/provenancekit-privacy':       '@provenancekit/privacy',
+              'packages/provenancekit-payments':      '@provenancekit/payments',
+              'packages/provenancekit-git':           '@provenancekit/git',
+              'packages/provenancekit-media':         '@provenancekit/media',
+              'packages/provenancekit-indexer':       '@provenancekit/indexer',
+              'packages/provenancekit-ui':            '@provenancekit/ui',
+              'packages/provenancekit-contracts':     '@provenancekit/contracts',
+            };
+
+            const changed = new Set();
+            for (const file of changedFiles) {
+              for (const [dir, pkg] of Object.entries(dirToPackage)) {
+                if (file.startsWith(dir + '/') || file === dir) {
+                  changed.add(pkg);
+                  break;
+                }
+              }
+            }
+
+            if (changed.size === 0) {
+              console.log('No matching packages — skipping changeset');
+              process.exit(0);
+            }
+
             const id = Math.random().toString(36).slice(2, 10);
-            const frontmatter = packages.map(p => \`'\${p}': patch\`).join('\n');
+            const frontmatter = [...changed].map(p => \`'\${p}': patch\`).join('\n');
             const content = \`---\n\${frontmatter}\n---\n\nAuto patch release\n\`;
             fs.writeFileSync(\`.changeset/auto-\${id}.md\`, content);
-            console.log('Created .changeset/auto-' + id + '.md');
+            console.log('Created .changeset/auto-' + id + '.md for: ' + [...changed].join(', '));
           "
 
       - name: Create Release PR or Publish
