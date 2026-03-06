@@ -1,5 +1,14 @@
 # @provenancekit/git
 
+## 0.1.3
+
+### Patch Changes
+
+- Auto patch release
+- Updated dependencies
+  - @provenancekit/eaa-types@0.1.3
+  - @provenancekit/extensions@0.1.3
+
 ## 0.1.2
 
 ### Patch Changes
