@@ -15,9 +15,34 @@ import {
   Bot,
   AlertCircle,
   ArrowRight,
+  ExternalLink,
+  Link2,
 } from "lucide-react";
 import { createPK } from "@/lib/pk-api";
 import type { ProvenanceGraph, GraphNode } from "@provenancekit/sdk";
+
+/** Chain ID → BaseScan/explorer base URL */
+const EXPLORER_URL: Record<number, string> = {
+  84532: "https://sepolia.basescan.org",
+  8453: "https://basescan.org",
+  1: "https://etherscan.io",
+  11155111: "https://sepolia.etherscan.io",
+  137: "https://polygonscan.com",
+  42161: "https://arbiscan.io",
+  10: "https://optimistic.etherscan.io",
+};
+
+function explorerTxUrl(chainId: number, txHash: string): string | null {
+  const base = EXPLORER_URL[chainId];
+  return base ? `${base}/tx/${txHash}` : null;
+}
+
+/** Extract ext:onchain@1.0.0 data from a node's data object */
+function getOnchainExt(data: Record<string, unknown>) {
+  const key = "ext:onchain@1.0.0";
+  if (!data[key] || typeof data[key] !== "object") return null;
+  return data[key] as { txHash?: string; chainId?: number; chainName?: string; contractAddress?: string; actionId?: string };
+}
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
@@ -58,6 +83,7 @@ function NodeCard({ node }: { node: GraphNode }) {
   const cfg = nodeTypeConfig[node.type] ?? nodeTypeConfig.resource;
   const Icon = cfg.icon;
   const isAI = node.type === "entity" && node.data?.role === "ai";
+  const onchain = getOnchainExt(node.data);
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-1.5">
@@ -69,11 +95,17 @@ function NodeCard({ node }: { node: GraphNode }) {
           <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         )}
         <span className="text-xs font-semibold truncate flex-1">{node.label}</span>
+        {onchain && (
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 shrink-0">
+            <Link2 className="h-2.5 w-2.5" />
+            on-chain
+          </span>
+        )}
         <span className={`text-[10px] font-medium ${cfg.textClass} shrink-0`}>{cfg.label}</span>
       </div>
       <div className="text-xs text-muted-foreground space-y-0.5 pl-5">
         {Object.entries(node.data)
-          .filter(([, v]) => v != null && typeof v !== "object")
+          .filter(([k, v]) => v != null && typeof v !== "object" && !k.startsWith("ext:"))
           .slice(0, 4)
           .map(([k, v]) => (
             <div key={k} className="flex gap-1.5 min-w-0">
@@ -81,8 +113,50 @@ function NodeCard({ node }: { node: GraphNode }) {
               <span className="truncate font-mono text-[10px]">{String(v)}</span>
             </div>
           ))}
+        {/* On-chain anchor — shown inline with link */}
+        {onchain && onchain.txHash && (
+          <div className="mt-1.5 rounded border border-emerald-200 bg-emerald-50/60 px-2 py-1.5 space-y-0.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-800">
+              <Link2 className="h-2.5 w-2.5" />
+              On-chain anchor
+            </div>
+            {onchain.chainName && (
+              <div className="flex gap-1.5 text-[10px]">
+                <span className="text-muted-foreground/60">chain:</span>
+                <span className="font-mono text-emerald-800">{onchain.chainName}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-muted-foreground/60">tx:</span>
+              {onchain.chainId && explorerTxUrl(onchain.chainId, onchain.txHash) ? (
+                <a
+                  href={explorerTxUrl(onchain.chainId, onchain.txHash)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-emerald-700 hover:text-emerald-900 underline underline-offset-2 truncate max-w-[120px] inline-flex items-center gap-0.5"
+                >
+                  {onchain.txHash.slice(0, 10)}…{onchain.txHash.slice(-6)}
+                  <ExternalLink className="h-2 w-2 shrink-0" />
+                </a>
+              ) : (
+                <span className="font-mono truncate max-w-[120px]">
+                  {onchain.txHash.slice(0, 10)}…{onchain.txHash.slice(-6)}
+                </span>
+              )}
+            </div>
+            {onchain.actionId && (
+              <div className="flex gap-1.5 text-[10px]">
+                <span className="text-muted-foreground/60">actionId:</span>
+                <span className="font-mono text-muted-foreground truncate max-w-[100px]">
+                  {onchain.actionId.slice(0, 10)}…
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Other ext: keys (non-onchain) */}
         {Object.keys(node.data)
-          .filter((k) => k.startsWith("ext:"))
+          .filter((k) => k.startsWith("ext:") && k !== "ext:onchain@1.0.0")
           .slice(0, 2)
           .map((k) => (
             <div key={k} className="font-mono text-[10px] text-purple-600/70">

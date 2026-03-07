@@ -57,14 +57,20 @@ export interface MgmtProject {
   name: string;
   slug: string;
   description: string | null;
+  /** Advisory label for self-hosted operators: "memory" | "postgres" | "mongodb" | "supabase" | "ipfs" | "custom" */
   storageType: string | null;
-  storageUrl: string | null;
+  /** Per-project IPFS provider: "pinata" | "infura" | "web3storage" | "arweave" | "local" */
   ipfsProvider: string | null;
+  /** Per-project IPFS API key — when set, the API uses this for file uploads */
   ipfsApiKey: string | null;
   ipfsGateway: string | null;
+  /** Self-hosted provenancekit-api URL. Null = use hosted api.provenancekit.org */
+  apiUrl: string | null;
   chainId: number | null;
   contractAddress: string | null;
   rpcUrl: string | null;
+  /** When true, ext:license@1.0.0/hasAITrainingReservation is applied to every resource */
+  aiTrainingOptOut: boolean | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -210,10 +216,10 @@ export function mgmt(userId: string) {
           slug: string;
           description?: string | null;
           storageType?: string;
-          storageUrl?: string | null;
           ipfsProvider?: string | null;
           ipfsApiKey?: string | null;
           ipfsGateway?: string | null;
+          apiUrl?: string | null;
           chainId?: number | null;
           contractAddress?: string | null;
           rpcUrl?: string | null;

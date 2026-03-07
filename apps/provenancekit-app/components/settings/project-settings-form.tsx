@@ -20,11 +20,19 @@ import type { MgmtProject } from "@/lib/management-client";
 const schema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(256).optional().nullable(),
-  storageType: z.enum(["memory", "postgres", "mongodb", "supabase"]).default("memory"),
-  storageUrl: z.string().optional().nullable(),
-  ipfsProvider: z.enum(["pinata", "infura", "web3storage", "local"]).default("pinata"),
+  // Advisory label — only meaningful when self-hosting provenancekit-api.
+  // Does not change how the hosted api.provenancekit.org stores your provenance records.
+  storageType: z
+    .enum(["memory", "postgres", "mongodb", "supabase", "ipfs", "custom"])
+    .default("supabase"),
+  // Per-project IPFS — actively used: the ProvenanceKit API routes your file uploads
+  // to this provider/account instead of the platform defaults.
+  ipfsProvider: z.enum(["pinata", "infura", "web3storage", "arweave", "local"]).default("pinata"),
   ipfsApiKey: z.string().optional().nullable(),
   ipfsGateway: z.string().url().optional().nullable().or(z.literal("")),
+  // Self-hosted API endpoint. Leave blank to use the hosted api.provenancekit.org.
+  apiUrl: z.string().url().optional().nullable().or(z.literal("")),
+  // On-chain config
   chainId: z.coerce.number().int().positive().optional().nullable(),
   contractAddress: z
     .string()
@@ -51,11 +59,11 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
     defaultValues: {
       name: project.name,
       description: project.description,
-      storageType: (project.storageType as FormData["storageType"]) ?? "memory",
-      storageUrl: project.storageUrl,
+      storageType: (project.storageType as FormData["storageType"]) ?? "supabase",
       ipfsProvider: (project.ipfsProvider as FormData["ipfsProvider"]) ?? "pinata",
       ipfsApiKey: project.ipfsApiKey,
       ipfsGateway: project.ipfsGateway,
+      apiUrl: project.apiUrl,
       chainId: project.chainId,
       contractAddress: project.contractAddress,
       rpcUrl: project.rpcUrl,
@@ -105,52 +113,19 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
         </CardContent>
       </Card>
 
-      {/* Storage */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Storage</CardTitle>
-          <CardDescription>
-            Where provenance data is persisted. Changes require restarting your
-            ProvenanceKit API server.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="storageType">Storage backend</Label>
-            <select
-              id="storageType"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              {...register("storageType")}
-            >
-              <option value="memory">In-memory (development only)</option>
-              <option value="postgres">PostgreSQL</option>
-              <option value="mongodb">MongoDB</option>
-              <option value="supabase">Supabase</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="storageUrl">Connection URL</Label>
-            <Input
-              id="storageUrl"
-              type="password"
-              placeholder="postgresql://user:pass@host/db"
-              {...register("storageUrl")}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* IPFS */}
+      {/* IPFS / File Storage */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">IPFS / File Storage</CardTitle>
           <CardDescription>
-            Where media files and provenance records are pinned.
+            When you upload files via the ProvenanceKit API, they are pinned to IPFS.
+            Set your own provider credentials here to pin to your account — leaving
+            these blank uses the platform&apos;s default Pinata account.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="ipfsProvider">IPFS provider</Label>
+            <Label htmlFor="ipfsProvider">Provider</Label>
             <select
               id="ipfsProvider"
               className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -159,6 +134,7 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
               <option value="pinata">Pinata</option>
               <option value="infura">Infura</option>
               <option value="web3storage">Web3.Storage</option>
+              <option value="arweave">Arweave</option>
               <option value="local">Local node</option>
             </select>
           </div>
@@ -167,9 +143,12 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
             <Input
               id="ipfsApiKey"
               type="password"
-              placeholder="eyJ…"
+              placeholder="Leave blank to use platform default"
               {...register("ipfsApiKey")}
             />
+            <p className="text-xs text-muted-foreground">
+              When set, all file uploads for this project pin to your own account.
+            </p>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ipfsGateway">Gateway URL</Label>
@@ -182,13 +161,54 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
         </CardContent>
       </Card>
 
+      {/* Self-hosted API */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Self-hosted API</CardTitle>
+          <CardDescription>
+            Leave blank to use the hosted ProvenanceKit API at api.provenancekit.org.
+            If you are running your own provenancekit-api instance, set its URL here —
+            the SDK will point at it for all provenance operations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="apiUrl">API URL</Label>
+            <Input
+              id="apiUrl"
+              placeholder="https://your-api.example.com"
+              {...register("apiUrl")}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="storageType">Provenance record storage</Label>
+            <select
+              id="storageType"
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              {...register("storageType")}
+            >
+              <option value="supabase">Supabase / PostgreSQL</option>
+              <option value="postgres">PostgreSQL (direct)</option>
+              <option value="mongodb">MongoDB</option>
+              <option value="memory">In-memory (development only)</option>
+              <option value="custom">Custom</option>
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Advisory — documents which storage adapter your self-hosted API uses.
+              Configure the actual adapter via your server&apos;s environment variables.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Blockchain */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Blockchain</CardTitle>
           <CardDescription>
-            Optional. Enables on-chain provenance recording via the
-            ProvenanceRegistry contract.
+            Optional. Enables on-chain provenance anchoring via the ProvenanceRegistry
+            contract. Records are cryptographically tamper-evident and verifiable
+            independently of this API.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -212,7 +232,7 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="contractAddress">Contract address</Label>
+            <Label htmlFor="contractAddress">ProvenanceRegistry contract address</Label>
             <Input
               id="contractAddress"
               placeholder="0x…"
