@@ -129,7 +129,7 @@ export const appProjects = pgTable("app_projects", {
   description:     text("description"),
 
   // Advisory storage label — describes what DB adapter a self-hosted provenancekit-api
-  // instance uses for EAA records. Has no effect on the hosted api.provenancekit.org.
+  // instance uses for EAA records. Has no effect on the hosted api.provenancekit.com.
   // Valid values: "memory" | "postgres" | "mongodb" | "supabase" | "ipfs" | "custom"
   storageType:     text("storage_type").default("supabase"),
 
@@ -143,7 +143,7 @@ export const appProjects = pgTable("app_projects", {
   ipfsGateway:     text("ipfs_gateway"),
 
   // Self-hosted API URL. When set, the SDK should use this endpoint for
-  // provenance operations instead of the hosted api.provenancekit.org.
+  // provenance operations instead of the hosted api.provenancekit.com.
   // Leave null/blank when using the hosted ProvenanceKit API.
   apiUrl:          text("api_url"),
 

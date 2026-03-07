@@ -1,0 +1,69 @@
+---
+title: "ProvenanceGraph"
+description: "An interactive directed acyclic graph (DAG) showing the full provenance chain."
+---
+
+> Renders entities, actions, and resources as draggable nodes in a DAG. Supports auto-fetch from a CID or headless mode with custom nodes and edges.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/graph"
+        style={{ width: "100%", height: "520px", border: "none", borderRadius: "8px" }}
+        title="ProvenanceGraph preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import { ProvenanceGraph } from "@provenancekit/ui";
+
+    // Auto-fetch from CID
+    <ProvenanceGraph cid="bafybei..." depth={5} height={600} />
+
+    // Headless mode — pass nodes and edges directly
+    <ProvenanceGraph
+      nodes={[
+        { id: "entity:alice", type: "entity", label: "Alice", data: { role: "human" } },
+        { id: "resource:prompt", type: "resource", label: "prompt.txt", data: { resourceType: "text" } },
+        { id: "action:create", type: "action", label: "create", data: {} },
+        { id: "resource:poem", type: "resource", label: "poem.txt", data: { resourceType: "text" } },
+      ]}
+      edges={[
+        { from: "entity:alice", to: "resource:prompt", type: "produces" },
+        { from: "resource:prompt", to: "action:create", type: "consumes" },
+        { from: "action:create", to: "resource:poem", type: "produces" },
+      ]}
+      height={500}
+      onNodeClick={(node) => console.log("Clicked:", node.id)}
+    />
+    ```
+  </Tab>
+</Tabs>
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cid` | `string` | — | Resource CID — auto-fetches graph |
+| `depth` | `number` | `10` | Graph traversal depth |
+| `nodes` | `GraphNode[]` | — | Headless mode — provide nodes directly |
+| `edges` | `GraphEdge[]` | — | Headless mode — provide edges directly |
+| `layout` | `"bfs-horizontal" \| "bfs-vertical"` | `"bfs-horizontal"` | Layout algorithm |
+| `height` | `number \| string` | `600` | Canvas height |
+| `showControls` | `boolean` | `true` | Show zoom/pan/fit controls |
+| `showLegend` | `boolean` | `true` | Show node type legend |
+| `draggable` | `boolean` | `true` | Allow dragging nodes |
+| `onNodeClick` | `(node: GraphNode) => void` | — | Node click handler |
+| `loadingSlot` | `ReactNode` | — | Custom loading state |
+| `errorSlot` | `ReactNode` | — | Custom error state |
+| `className` | `string` | — | Additional CSS classes |
+
+## Node types
+
+| Type | Color | Description |
+|------|-------|-------------|
+| `"entity"` | Amber | Human, AI, or organization |
+| `"action"` | Green | Record of an event (create, transform, verify) |
+| `"resource"` | Blue | File or data artifact with a CID |

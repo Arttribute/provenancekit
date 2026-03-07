@@ -83,7 +83,7 @@ export function CreateOrgForm({ userId }: { userId: string }) {
             </Label>
             <div className="flex items-center gap-0">
               <span className="flex h-9 items-center rounded-l-md border border-r-0 bg-muted px-3 text-sm text-muted-foreground">
-                provenancekit.org/
+                provenancekit.com/
               </span>
               <Input
                 id="slug"

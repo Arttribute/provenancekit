@@ -62,10 +62,21 @@
         "tab": "UI Components",
         "groups": [
           {
+            "group": "Overview",
+            "pages": [
+              "ui-reference/overview"
+            ]
+          },
+          {
             "group": "Components",
             "pages": [
-              "ui-reference/overview",
-              "ui-reference/components"
+              "ui-reference/provenance-badge",
+              "ui-reference/provenance-graph",
+              "ui-reference/provenance-tracker",
+              "ui-reference/provenance-bundle-view",
+              "ui-reference/provenance-search",
+              "ui-reference/primitives",
+              "ui-reference/extension-views"
             ]
           }
         ]
@@ -136,7 +147,7 @@
     "primary": {
       "type": "button",
       "label": "Dashboard",
-      "href": "https://app.provenancekit.org"
+      "href": "https://app.provenancekit.com"
     }
   },
   "contextual": {

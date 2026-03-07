@@ -243,7 +243,7 @@ export function PrivacySettingsForm({ project }: Props) {
           <p>
             See the{" "}
             <a
-              href="https://docs.provenancekit.org/guides/privacy"
+              href="https://docs.provenancekit.com/guides/privacy"
               target="_blank"
               rel="noopener noreferrer"
               className="underline underline-offset-4 hover:text-foreground"

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { ChevronDown } from "lucide-react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -21,7 +22,7 @@ const schema = z.object({
   name: z.string().min(1).max(64),
   description: z.string().max(256).optional().nullable(),
   // Advisory label — only meaningful when self-hosting provenancekit-api.
-  // Does not change how the hosted api.provenancekit.org stores your provenance records.
+  // Does not change how the hosted api.provenancekit.com stores your provenance records.
   storageType: z
     .enum(["memory", "postgres", "mongodb", "supabase", "ipfs", "custom"])
     .default("supabase"),
@@ -30,7 +31,7 @@ const schema = z.object({
   ipfsProvider: z.enum(["pinata", "infura", "web3storage", "arweave", "local"]).default("pinata"),
   ipfsApiKey: z.string().optional().nullable(),
   ipfsGateway: z.string().url().optional().nullable().or(z.literal("")),
-  // Self-hosted API endpoint. Leave blank to use the hosted api.provenancekit.org.
+  // Self-hosted API endpoint. Leave blank to use the hosted api.provenancekit.com.
   apiUrl: z.string().url().optional().nullable().or(z.literal("")),
   // On-chain config
   chainId: z.coerce.number().int().positive().optional().nullable(),
@@ -45,6 +46,58 @@ const schema = z.object({
 
 type FormData = z.infer<typeof schema>;
 
+const NETWORK_PRESETS = [
+  {
+    label: "Base Mainnet",
+    chainId: 8453,
+    rpcUrl: "https://mainnet.base.org",
+    contractAddress: "",
+    testnet: false,
+  },
+  {
+    label: "Base Sepolia (testnet)",
+    chainId: 84532,
+    rpcUrl: "https://sepolia.base.org",
+    contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+    testnet: true,
+  },
+  {
+    label: "Ethereum Mainnet",
+    chainId: 1,
+    rpcUrl: "https://eth.llamarpc.com",
+    contractAddress: "",
+    testnet: false,
+  },
+  {
+    label: "Ethereum Sepolia (testnet)",
+    chainId: 11155111,
+    rpcUrl: "https://sepolia.llamarpc.com",
+    contractAddress: "",
+    testnet: true,
+  },
+  {
+    label: "Polygon",
+    chainId: 137,
+    rpcUrl: "https://polygon.llamarpc.com",
+    contractAddress: "",
+    testnet: false,
+  },
+  {
+    label: "Arbitrum One",
+    chainId: 42161,
+    rpcUrl: "https://arbitrum.llamarpc.com",
+    contractAddress: "",
+    testnet: false,
+  },
+  {
+    label: "Optimism",
+    chainId: 10,
+    rpcUrl: "https://optimism.llamarpc.com",
+    contractAddress: "",
+    testnet: false,
+  },
+] as const;
+
 export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
   const router = useRouter();
   const [saved, setSaved] = useState(false);
@@ -53,6 +106,7 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors, isSubmitting, isDirty },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -166,7 +220,7 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
         <CardHeader>
           <CardTitle className="text-base">Self-hosted API</CardTitle>
           <CardDescription>
-            Leave blank to use the hosted ProvenanceKit API at api.provenancekit.org.
+            Leave blank to use the hosted ProvenanceKit API at api.provenancekit.com.
             If you are running your own provenancekit-api instance, set its URL here —
             the SDK will point at it for all provenance operations.
           </CardDescription>
@@ -212,6 +266,40 @@ export function ProjectSettingsForm({ project }: { project: MgmtProject }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Network preset selector */}
+          <div className="space-y-1.5">
+            <Label>Network preset</Label>
+            <div className="relative">
+              <select
+                className="flex h-9 w-full appearance-none rounded-md border border-input bg-background px-3 py-1 pr-8 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                defaultValue=""
+                onChange={(e) => {
+                  const preset = NETWORK_PRESETS.find(
+                    (p) => String(p.chainId) === e.target.value
+                  );
+                  if (!preset) return;
+                  setValue("chainId", preset.chainId, { shouldDirty: true });
+                  setValue("rpcUrl", preset.rpcUrl, { shouldDirty: true });
+                  if (preset.contractAddress) {
+                    setValue("contractAddress", preset.contractAddress, { shouldDirty: true });
+                  }
+                }}
+              >
+                <option value="">— Select a preset to auto-fill —</option>
+                {NETWORK_PRESETS.map((p) => (
+                  <option key={p.chainId} value={String(p.chainId)}>
+                    {p.label}
+                  </option>
+                ))}
+                <option value="custom">Custom network…</option>
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Presets auto-fill Chain ID and RPC URL below. You can override any field.
+            </p>
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="chainId">Chain ID</Label>

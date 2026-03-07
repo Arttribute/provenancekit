@@ -1,0 +1,54 @@
+---
+title: "ProvenanceBadge"
+description: "A shield icon that users can click to inspect the provenance of any piece of content."
+---
+
+> Wrap any content element — image, video, text block — and a clickable badge appears that opens a provenance popover.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/badge"
+        style={{ width: "100%", height: "420px", border: "none", borderRadius: "8px" }}
+        title="ProvenanceBadge preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import { ProvenanceBadge } from "@provenancekit/ui";
+
+    // Floating badge over content (default)
+    <ProvenanceBadge cid="bafybei..." position="bottom-right">
+      <img src="/my-image.jpg" alt="AI-generated artwork" />
+    </ProvenanceBadge>
+
+    // Inline badge next to text
+    <ProvenanceBadge cid="bafybei..." variant="inline" size="sm">
+      <p>This AI-generated poem has provenance.</p>
+    </ProvenanceBadge>
+
+    // Pre-fetched bundle (skip auto-fetch)
+    <ProvenanceBadge bundle={myBundle} onViewDetail={() => router.push(`/provenance/${cid}`)}>
+      <video src="/video.mp4" />
+    </ProvenanceBadge>
+    ```
+  </Tab>
+</Tabs>
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cid` | `string` | — | Resource CID — auto-fetches bundle |
+| `bundle` | `ProvenanceBundle` | — | Pre-fetched bundle (skips auto-fetch) |
+| `children` | `ReactNode` | — | Content to wrap (image, video, text, etc.) |
+| `position` | `"top-left" \| "top-right" \| "bottom-left" \| "bottom-right"` | `"bottom-right"` | Badge position in floating mode |
+| `size` | `"sm" \| "md" \| "lg"` | `"md"` | Badge icon size |
+| `variant` | `"floating" \| "inline"` | `"floating"` | Layout mode |
+| `popoverSide` | `"top" \| "bottom" \| "left" \| "right"` | `"bottom"` | Popover direction |
+| `onViewDetail` | `() => void` | — | Called when user clicks "View Full Provenance" |
+| `loadingSlot` | `ReactNode` | — | Custom loading state |
+| `errorSlot` | `ReactNode` | — | Custom error state |
+| `className` | `string` | — | Additional CSS classes |

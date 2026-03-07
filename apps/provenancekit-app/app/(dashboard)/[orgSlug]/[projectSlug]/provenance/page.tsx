@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
+import { mgmt } from "@/lib/management-client";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,23 +20,9 @@ import {
   Link2,
 } from "lucide-react";
 import { createPK } from "@/lib/pk-api";
+import { NetworkBadge } from "@/components/network-badge";
+import { explorerTxUrl, getChainName } from "@/lib/chains";
 import type { ProvenanceGraph, GraphNode } from "@provenancekit/sdk";
-
-/** Chain ID → BaseScan/explorer base URL */
-const EXPLORER_URL: Record<number, string> = {
-  84532: "https://sepolia.basescan.org",
-  8453: "https://basescan.org",
-  1: "https://etherscan.io",
-  11155111: "https://sepolia.etherscan.io",
-  137: "https://polygonscan.com",
-  42161: "https://arbiscan.io",
-  10: "https://optimistic.etherscan.io",
-};
-
-function explorerTxUrl(chainId: number, txHash: string): string | null {
-  const base = EXPLORER_URL[chainId];
-  return base ? `${base}/tx/${txHash}` : null;
-}
 
 /** Extract ext:onchain@1.0.0 data from a node's data object */
 function getOnchainExt(data: Record<string, unknown>) {
@@ -181,6 +168,10 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
   const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
+  const [apiNetwork] = await Promise.all([
+    mgmt(user.privyDid).network.get().catch(() => ({ configured: false as const })),
+  ]);
+
   let graph: ProvenanceGraph | null = null;
   let fetchError: string | null = null;
 
@@ -199,11 +190,21 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Provenance Graph</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Visualize attribution chains for any resource CID
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Provenance Graph</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Visualize attribution chains for any resource CID
+          </p>
+        </div>
+        {apiNetwork.configured && (
+          <NetworkBadge
+            chainId={apiNetwork.chainId}
+            chainName={apiNetwork.chainName}
+            contractAddress={apiNetwork.contractAddress}
+            showExplorer
+          />
+        )}
       </div>
 
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">

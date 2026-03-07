@@ -30,14 +30,14 @@ When `BLOCKCHAIN_*` env vars are set on `provenancekit-api`, the server wallet a
 # .env for provenancekit-api
 BLOCKCHAIN_RPC_URL=https://sepolia.base.org
 BLOCKCHAIN_CHAIN_ID=84532
-BLOCKCHAIN_CHAIN_NAME=base-sepolia
+BLOCKCHAIN_CHAIN_NAME=Base Sepolia
 BLOCKCHAIN_CONTRACT_ADDRESS=0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c
 BLOCKCHAIN_PRIVATE_KEY=0x<your-server-wallet-private-key>
 ```
 
 On startup you'll see:
 ```
-✓ Blockchain client ready (base-sepolia, contract: 0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c)
+✓ Blockchain client ready (Base Sepolia, contract: 0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c)
 ```
 
 Every `POST /v1/activity` call now records on-chain automatically. The on-chain anchor is added to the action's `ext:onchain@1.0.0` extension:
@@ -192,6 +192,69 @@ const action = await client.readContract({
   functionName: "getAction",
   args: [actionId],
 });
+```
+
+## Multi-Network Environment Isolation
+
+ProvenanceKit API supports **one active network at a time**. To maintain clean separation between development, staging, and production, deploy separate API instances with different environment variables.
+
+### Recommended pattern
+
+| Environment | Network | API instance |
+|-------------|---------|--------------|
+| Local dev | Base Sepolia | `localhost:3001` |
+| Staging | Base Sepolia | `staging-api.yourapp.com` |
+| Production | Base Mainnet | `api.yourapp.com` |
+
+Each API instance has its own `pk_live_` API keys, separate database, and its own blockchain relayer wallet. Provenance records on testnet and mainnet are completely isolated — they share no state.
+
+### Dashboard network indicator
+
+The ProvenanceKit dashboard (provenancekit-app) shows the active network on every project page and in the provenance explorer. When a project's configured Chain ID differs from the API's active chain, the dashboard shows a mismatch warning:
+
+- **Amber badge** — testnet (Base Sepolia, Ethereum Sepolia, etc.)
+- **Emerald badge** — mainnet (Base, Ethereum, Polygon, etc.)
+- **Grey badge** — unknown / custom chain
+
+The badge links to the block explorer so you can verify transactions directly.
+
+### Environment variables per network
+
+```bash
+# ── Base Sepolia (staging) ────────────────────────────────────────────────────
+BLOCKCHAIN_RPC_URL=https://sepolia.base.org
+BLOCKCHAIN_CHAIN_ID=84532
+BLOCKCHAIN_CHAIN_NAME=Base Sepolia
+BLOCKCHAIN_CONTRACT_ADDRESS=0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c
+BLOCKCHAIN_PRIVATE_KEY=0x...
+
+# ── Base Mainnet (production) ─────────────────────────────────────────────────
+BLOCKCHAIN_RPC_URL=https://mainnet.base.org
+BLOCKCHAIN_CHAIN_ID=8453
+BLOCKCHAIN_CHAIN_NAME=Base
+BLOCKCHAIN_CONTRACT_ADDRESS=0x<your-mainnet-contract>
+BLOCKCHAIN_PRIVATE_KEY=0x...
+```
+
+<Warning>
+Never use the same `BLOCKCHAIN_PRIVATE_KEY` across environments. Use separate relayer wallets per environment with minimal funded balances.
+</Warning>
+
+### Querying network info from the API
+
+The API exposes its current network configuration via `GET /management/network`:
+
+```typescript
+// In a server component or API route
+import { mgmt } from "@/lib/management-client";
+
+const network = await mgmt(userId).network.get();
+if (network.configured) {
+  console.log(network.chainId);        // 84532
+  console.log(network.chainName);      // "Base Sepolia"
+  console.log(network.isTestnet);      // true
+  console.log(network.explorerUrl);    // "https://sepolia.basescan.org"
+}
 ```
 
 ## Deploying to Your Own Chain

@@ -8,7 +8,7 @@ description: "Record your first provenance event in under 5 minutes."
 ## Prerequisites
 
 - Node.js 18+
-- A running `provenancekit-api` instance (see [self-hosting](#self-hosting)) — or a project API key from [app.provenancekit.org](https://app.provenancekit.org)
+- A running `provenancekit-api` instance (see [self-hosting](#self-hosting)) — or a project API key from [app.provenancekit.com](https://app.provenancekit.com)
 
 ## 1. Install the SDK
 
@@ -25,7 +25,7 @@ import { ProvenanceKit } from "@provenancekit/sdk";
 
 const pk = new ProvenanceKit({
   apiKey: process.env.PK_API_KEY!,   // pk_live_... key from your project settings
-  apiUrl: process.env.PK_API_URL ?? "https://api.provenancekit.org",
+  apiUrl: process.env.PK_API_URL ?? "https://api.provenancekit.com",
 });
 ```
 

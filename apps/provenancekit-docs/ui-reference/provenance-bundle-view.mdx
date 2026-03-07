@@ -1,0 +1,58 @@
+---
+title: "ProvenanceBundleView"
+description: "A structured view of a full provenance bundle — entities, actions, resources, and attribution weights."
+---
+
+> Renders all sections of a provenance bundle in a structured layout. Each section (entities, actions, resources, attributions) can be toggled independently. An embedded graph can also be shown.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/bundle"
+        style={{ width: "100%", height: "580px", border: "none", borderRadius: "8px" }}
+        title="ProvenanceBundleView preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import { ProvenanceBundleView } from "@provenancekit/ui";
+
+    // Auto-fetch from CID
+    <ProvenanceBundleView cid="bafybei..." />
+
+    // Pre-fetched bundle — render all sections
+    <ProvenanceBundleView
+      bundle={myBundle}
+      showEntities
+      showActions
+      showResources
+      showAttributions
+      showGraph={false}    // Graph is off by default — enable for full view
+      graphHeight={400}
+    />
+
+    // Minimal view — just resources and attribution
+    <ProvenanceBundleView
+      cid="bafybei..."
+      showActions={false}
+      showEntities={false}
+    />
+    ```
+  </Tab>
+</Tabs>
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cid` | `string` | — | Resource CID — auto-fetches bundle |
+| `bundle` | `ProvenanceBundle` | — | Pre-fetched bundle |
+| `showEntities` | `boolean` | `true` | Show entities section |
+| `showActions` | `boolean` | `true` | Show actions section |
+| `showResources` | `boolean` | `true` | Show resources section |
+| `showAttributions` | `boolean` | `true` | Show attribution section |
+| `showGraph` | `boolean` | `false` | Show embedded graph |
+| `graphHeight` | `number` | `400` | Height of embedded graph |
+| `className` | `string` | — | Additional CSS classes |

@@ -104,7 +104,7 @@ fi
 if [ -n "$AI_TOOL" ]; then
   if ! grep -q "Co-authored-by:.*$AI_TOOL" "$COMMIT_MSG_FILE"; then
     echo "" >> "$COMMIT_MSG_FILE"
-    echo "Co-authored-by: $AI_TOOL <ai-assistant@provenancekit.org>" >> "$COMMIT_MSG_FILE"
+    echo "Co-authored-by: $AI_TOOL <ai-assistant@provenancekit.com>" >> "$COMMIT_MSG_FILE"
   fi
 fi
 `;
@@ -231,7 +231,7 @@ exit 0
  * ```typescript
  * const hook = generateHook({
  *   hookType: "post-commit",
- *   storageUrl: "https://api.provenancekit.org/storage",
+ *   storageUrl: "https://api.provenancekit.com/storage",
  *   aiDetection: true,
  * });
  *
@@ -372,7 +372,7 @@ export async function uninstallHook(
  * @example
  * ```typescript
  * const installed = await initializeHooks("/path/to/repo", {
- *   storageUrl: "https://api.provenancekit.org/storage",
+ *   storageUrl: "https://api.provenancekit.com/storage",
  *   aiDetection: true,
  * });
  *

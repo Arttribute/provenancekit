@@ -1,0 +1,76 @@
+---
+title: "Extension Views"
+description: "Specialized components for rendering specific EAA extension data."
+---
+
+> Each extension view renders a structured display of its corresponding `ext:namespace@version` data object. Import only what you need.
+
+```tsx
+import {
+  AIExtensionView,
+  LicenseExtensionView,
+  OnchainExtensionView,
+  VerificationView,
+  ContribExtensionView,
+} from "@provenancekit/ui";
+
+// Renders ext:ai@1.0.0 data — model, provider, autonomy level, tokens
+<AIExtensionView data={action.extensions["ext:ai@1.0.0"]} />
+
+// Renders ext:license@1.0.0 — SPDX ID, AI training status
+<LicenseExtensionView data={resource.extensions["ext:license@1.0.0"]} />
+
+// Renders ext:onchain@1.0.0 — tx hash, chain, contract
+<OnchainExtensionView data={action.extensions["ext:onchain@1.0.0"]} />
+
+// Renders Ed25519/ECDSA signature verification result
+<VerificationView proof={action.proof} />
+
+// Renders ext:contribution@1.0.0 — attribution weights as bars
+<ContribExtensionView data={action.extensions["ext:contribution@1.0.0"]} />
+```
+
+## AIExtensionView
+
+Renders `ext:ai@1.0.0` data — AI model, provider, autonomy level, prompt/completion token counts, and generation parameters.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `AIExtension` | The `ext:ai@1.0.0` extension object |
+| `className` | `string` | Additional CSS classes |
+
+## LicenseExtensionView
+
+Renders `ext:license@1.0.0` data — SPDX license identifier and AI training preference.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `LicenseExtension` | The `ext:license@1.0.0` extension object |
+| `className` | `string` | Additional CSS classes |
+
+## OnchainExtensionView
+
+Renders `ext:onchain@1.0.0` data — transaction hash, chain ID, block number, and contract address as a block explorer link.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `OnchainExtension` | The `ext:onchain@1.0.0` extension object |
+| `className` | `string` | Additional CSS classes |
+
+## VerificationView
+
+Renders cryptographic proof verification status — signature algorithm, public key, and pass/fail indicator.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `proof` | `Proof` | The `proof` field from an Action or Resource |
+| `className` | `string` | Additional CSS classes |
+
+## ContribExtensionView
+
+Renders `ext:contribution@1.0.0` data — a list of contributors with their attribution weights shown as `ContributionBar` elements.
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `data` | `ContributionExtension` | The `ext:contribution@1.0.0` extension object |
+| `className` | `string` | Additional CSS classes |

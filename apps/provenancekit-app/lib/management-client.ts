@@ -64,7 +64,7 @@ export interface MgmtProject {
   /** Per-project IPFS API key — when set, the API uses this for file uploads */
   ipfsApiKey: string | null;
   ipfsGateway: string | null;
-  /** Self-hosted provenancekit-api URL. Null = use hosted api.provenancekit.org */
+  /** Self-hosted provenancekit-api URL. Null = use hosted api.provenancekit.com */
   apiUrl: string | null;
   chainId: number | null;
   contractAddress: string | null;
@@ -102,6 +102,21 @@ export interface MgmtUsageSummary {
 export type MgmtValidateKeyResult =
   | { valid: true; projectId: string; orgId: string | null; userId: string | null; permissions: string }
   | { valid: false; reason: string };
+
+/**
+ * Network configuration for the API's blockchain relayer.
+ * Returned by GET /management/network.
+ */
+export type MgmtNetwork =
+  | { configured: false }
+  | {
+      configured: true;
+      chainId: number;
+      chainName: string;
+      contractAddress: string;
+      isTestnet: boolean;
+      explorerUrl: string | null;
+    };
 
 // ---------------------------------------------------------------------------
 // HTTP helpers
@@ -244,6 +259,12 @@ export function mgmt(userId: string) {
     // ── Usage ──────────────────────────────────────────────────────────────
     usage: {
       get: (projectId: string) => get<MgmtUsageSummary>(`/projects/${projectId}/usage`),
+    },
+
+    // ── Network ────────────────────────────────────────────────────────────
+    /** Get the blockchain network this API instance is configured to record on. */
+    network: {
+      get: () => get<MgmtNetwork>("/network"),
     },
   };
 }

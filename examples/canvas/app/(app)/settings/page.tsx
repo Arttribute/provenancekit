@@ -202,7 +202,7 @@ export default function SettingsPage() {
         )}
 
         <a
-          href="https://docs.provenancekit.org"
+          href="https://docs.provenancekit.com"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1 text-xs text-primary hover:underline"

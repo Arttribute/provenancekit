@@ -473,7 +473,7 @@ The following patterns are supported by the type system but need explicit docume
 **Status:** ✅ Complete (2026-03-07)
 - [x] `ui-reference/overview.mdx` — ProvenanceKitProvider setup, design tokens, headless mode, hooks
 - [x] `ui-reference/components.mdx` — Full docs for every component with Preview/Code tabs + embedded iframes
-- [x] `apps/provenancekit-ui-preview` — Standalone Next.js preview app (deploy to ui-preview.provenancekit.org)
+- [x] `apps/provenancekit-ui-preview` — Standalone Next.js preview app (deploy to ui-preview.provenancekit.com)
   - Badge, Graph, Tracker, Bundle, Search, Primitives preview pages
   - Mock data baked in — no API key needed
   - `?dark=1` URL param for dark mode

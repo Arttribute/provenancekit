@@ -723,24 +723,24 @@ AI coding agents (Claude Code, Cursor, GitHub Copilot, VS Code Copilot, OpenAI C
 
 ## Core Concepts
 
-- [EAA Model](https://docs.provenancekit.org/eaa-model): Entity-Action-Attribution — the foundational data model
-- [Architecture](https://docs.provenancekit.org/architecture): Three-layer pyramid and package map
+- [EAA Model](https://docs.provenancekit.com/eaa-model): Entity-Action-Attribution — the foundational data model
+- [Architecture](https://docs.provenancekit.com/architecture): Three-layer pyramid and package map
 
 ## Getting Started
 
-- [Quickstart](https://docs.provenancekit.org/quickstart): Record your first provenance bundle in 5 minutes
-- [Recording Provenance](https://docs.provenancekit.org/recording-provenance): Core workflow
+- [Quickstart](https://docs.provenancekit.com/quickstart): Record your first provenance bundle in 5 minutes
+- [Recording Provenance](https://docs.provenancekit.com/recording-provenance): Core workflow
 
 ## Extensions
 
-- [Extension Overview](https://docs.provenancekit.org/extensions/overview): ext:namespace@version system
-- [AI Extension](https://docs.provenancekit.org/extensions/ai): ext:ai@1.0.0 — track AI tool usage
-- [License Extension](https://docs.provenancekit.org/extensions/license): ext:license@1.0.0
+- [Extension Overview](https://docs.provenancekit.com/extensions/overview): ext:namespace@version system
+- [AI Extension](https://docs.provenancekit.com/extensions/ai): ext:ai@1.0.0 — track AI tool usage
+- [License Extension](https://docs.provenancekit.com/extensions/license): ext:license@1.0.0
 
 ## Optional
 
-- [Protocol](https://docs.provenancekit.org/protocol/overview): For protocol developers and custom deployments
-- [Legal Context](https://docs.provenancekit.org/legal-context): EU AI Act, copyright, C2PA alignment
+- [Protocol](https://docs.provenancekit.com/protocol/overview): For protocol developers and custom deployments
+- [Legal Context](https://docs.provenancekit.com/legal-context): EU AI Act, copyright, C2PA alignment
 ```
 
 There is also `llms-full.txt` — a concatenated version of the full text of all docs pages, useful when an agent needs complete context. Mintlify generates this too.
@@ -762,7 +762,7 @@ There is also `llms-full.txt` — a concatenated version of the full text of all
 
 **Installation:** Any developer can install the ProvenanceKit skill into their coding agent with:
 ```bash
-npx skills add https://docs.provenancekit.org
+npx skills add https://docs.provenancekit.com
 ```
 This works across all 20+ supported platforms that have adopted the standard.
 

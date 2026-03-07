@@ -1,0 +1,50 @@
+---
+title: "ProvenanceSearch"
+description: "A dual-mode search: enter a CID to look up provenance, or upload a file to find near-duplicates by vector similarity."
+---
+
+> Supports CID lookup, file upload, or both modes simultaneously. Results are returned via the `onResult` callback.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/search"
+        style={{ width: "100%", height: "300px", border: "none", borderRadius: "8px" }}
+        title="ProvenanceSearch preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import { ProvenanceSearch } from "@provenancekit/ui";
+
+    // Full mode: CID input + file upload
+    <ProvenanceSearch
+      mode="both"
+      onResult={({ cid }) => router.push(`/provenance/${cid}`)}
+    />
+
+    // Upload only
+    <ProvenanceSearch
+      mode="upload"
+      accept="image/*"
+      maxSize={10 * 1024 * 1024}  // 10 MB
+      onResult={({ cid }) => console.log("Found:", cid)}
+    />
+
+    // CID lookup only
+    <ProvenanceSearch mode="cid" onResult={({ cid }) => setActiveCid(cid)} />
+    ```
+  </Tab>
+</Tabs>
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `mode` | `"upload" \| "cid" \| "both"` | `"both"` | Search input modes |
+| `accept` | `string` | — | MIME types for file upload (e.g. `"image/*"`) |
+| `maxSize` | `number` | — | Max file size in bytes |
+| `onResult` | `(result: { cid: string }) => void` | — | Called when a result is selected |
+| `className` | `string` | — | Additional CSS classes |

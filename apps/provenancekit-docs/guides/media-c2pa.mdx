@@ -209,12 +209,12 @@ The API exposes C2PA endpoints for direct use without the npm package:
 
 ```bash
 # Extract manifest from an uploaded image
-curl -X POST https://api.provenancekit.org/v1/media/extract \
+curl -X POST https://api.provenancekit.com/v1/media/extract \
   -H "Authorization: Bearer pk_live_..." \
   -F "file=@image.jpg"
 
 # Embed manifest and record provenance in one call
-curl -X POST https://api.provenancekit.org/v1/media/embed \
+curl -X POST https://api.provenancekit.com/v1/media/embed \
   -H "Authorization: Bearer pk_live_..." \
   -F "file=@image.jpg" \
   -F 'json={"entityId":"org:myapp","generator":"DALL-E 3","aiDisclosure":"ai_generated"}'

@@ -51,6 +51,7 @@ import { z } from "zod";
 import { eq, and, inArray, desc, count, gte, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "crypto";
 import { getDb } from "../db/index.js";
+import { getContext } from "../context.js";
 import {
   appUsers,
   appOrganizations,
@@ -180,7 +181,7 @@ const CreateProjectSchema = z.object({
   ipfsGateway:     z.string().url().optional().nullable().or(z.literal("")),
 
   // Self-hosted API URL. If set, the SDK and dashboard use this endpoint
-  // instead of the hosted api.provenancekit.org.
+  // instead of the hosted api.provenancekit.com.
   apiUrl:          z.string().url().optional().nullable().or(z.literal("")),
 
   // On-chain config — used for ProvenanceRegistry recording.
@@ -757,6 +758,64 @@ management.post("/auth/validate-key", async (c) => {
     orgId: project?.orgId ?? null,
     userId: owner?.userId ?? null,
     permissions: apiKey.permissions,
+  });
+});
+
+// ─── Network ──────────────────────────────────────────────────────────────────
+
+/**
+ * GET /management/network
+ *
+ * Returns the blockchain network this API instance is configured to record on.
+ * Used by the dashboard to show the active network indicator.
+ *
+ * No X-User-Id required (system-level information, management key auth is sufficient).
+ *
+ * Response:
+ *   { configured: false }                          — no blockchain configured
+ *   { configured: true, chainId, chainName, contractAddress, isTestnet, explorerUrl }
+ */
+management.get("/network", (c) => {
+  let ctx;
+  try {
+    ctx = getContext();
+  } catch {
+    // Context not initialized — API running without blockchain
+    return c.json({ configured: false });
+  }
+
+  if (!ctx.blockchain) {
+    return c.json({ configured: false });
+  }
+
+  const { chainId, chainName, contractAddress } = ctx.blockchain;
+
+  // Derive testnet status and explorer URL from known chain IDs
+  const KNOWN_CHAINS: Record<number, { isTestnet: boolean; explorerUrl: string }> = {
+    1:        { isTestnet: false, explorerUrl: "https://etherscan.io" },
+    11155111: { isTestnet: true,  explorerUrl: "https://sepolia.etherscan.io" },
+    8453:     { isTestnet: false, explorerUrl: "https://basescan.org" },
+    84532:    { isTestnet: true,  explorerUrl: "https://sepolia.basescan.org" },
+    137:      { isTestnet: false, explorerUrl: "https://polygonscan.com" },
+    80002:    { isTestnet: true,  explorerUrl: "https://amoy.polygonscan.com" },
+    42161:    { isTestnet: false, explorerUrl: "https://arbiscan.io" },
+    421614:   { isTestnet: true,  explorerUrl: "https://sepolia.arbiscan.io" },
+    10:       { isTestnet: false, explorerUrl: "https://optimistic.etherscan.io" },
+    11155420: { isTestnet: true,  explorerUrl: "https://sepolia-optimism.etherscan.io" },
+    100:      { isTestnet: false, explorerUrl: "https://gnosisscan.io" },
+    56:       { isTestnet: false, explorerUrl: "https://bscscan.com" },
+    43114:    { isTestnet: false, explorerUrl: "https://snowtrace.io" },
+  };
+
+  const known = KNOWN_CHAINS[chainId];
+
+  return c.json({
+    configured: true,
+    chainId,
+    chainName,
+    contractAddress,
+    isTestnet: known?.isTestnet ?? false,
+    explorerUrl: known?.explorerUrl ?? null,
   });
 });
 
