@@ -7,28 +7,28 @@ export const mockBundle: ProvenanceBundle = {
       id: "user:alice",
       role: "human",
       name: "Alice Chen",
-      createdAt: "2026-03-01T10:00:00Z",
     },
     {
       id: "app:poetry-service",
       role: "organization",
       name: "Poetry Service",
-      createdAt: "2026-03-01T10:00:00Z",
     },
   ],
   actions: [
     {
       id: "action-001",
       type: "create",
-      entityId: "user:alice",
+      performedBy: "user:alice",
       timestamp: "2026-03-07T14:22:00Z",
-      extensions: {},
+      outputs: [{ ref: "bafybeia...prompt" }],
     },
     {
       id: "action-002",
       type: "create",
-      entityId: "app:poetry-service",
+      performedBy: "app:poetry-service",
       timestamp: "2026-03-07T14:23:00Z",
+      inputs: [{ ref: "bafybeia...prompt" }],
+      outputs: [{ ref: "bafybei...poem" }],
       extensions: {
         "ext:ai@1.0.0": {
           provider: "anthropic",
@@ -41,29 +41,36 @@ export const mockBundle: ProvenanceBundle = {
   ],
   resources: [
     {
-      address: { ref: "bafybeia...prompt", "@type": "ResourceAddress" },
-      resourceType: "text",
-      name: "prompt.txt",
+      address: { ref: "bafybeia...prompt" },
+      type: "text",
+      locations: [],
       createdAt: "2026-03-07T14:22:00Z",
+      createdBy: "user:alice",
+      rootAction: "action-001",
     },
     {
-      address: { ref: "bafybei...poem", "@type": "ResourceAddress" },
-      resourceType: "text",
-      name: "poem.txt",
+      address: { ref: "bafybei...poem" },
+      type: "text",
+      locations: [],
       createdAt: "2026-03-07T14:23:10Z",
+      createdBy: "app:poetry-service",
+      rootAction: "action-002",
     },
   ],
   attributions: [
     {
       entityId: "user:alice",
-      weight: 7000,
+      role: "creator",
+      resourceRef: { ref: "bafybei...poem" },
+      extensions: { weight: 7000 },
     },
     {
       entityId: "app:poetry-service",
-      weight: 3000,
+      role: "contributor",
+      resourceRef: { ref: "bafybei...poem" },
+      extensions: { weight: 3000 },
     },
   ],
-  rootCid: "bafybei...poem",
 };
 
 // ── Mock Graph (nodes + edges) ─────────────────────────────────────────────
@@ -78,7 +85,7 @@ export const mockNodes: GraphNode[] = [
     id: "resource:prompt",
     type: "resource",
     label: "prompt.txt",
-    data: { resourceType: "text", cid: "bafybeia...prompt" },
+    data: { type: "text", cid: "bafybeia...prompt" },
   },
   {
     id: "action:create-poem",
@@ -93,7 +100,7 @@ export const mockNodes: GraphNode[] = [
     id: "resource:poem",
     type: "resource",
     label: "poem.txt",
-    data: { resourceType: "text", cid: "bafybei...poem" },
+    data: { type: "text", cid: "bafybei...poem" },
   },
   {
     id: "entity:poetry-service",
@@ -117,15 +124,17 @@ export const mockSession: SessionProvenance = {
     {
       id: "act-001",
       type: "create",
-      entityId: "user:alice",
+      performedBy: "user:alice",
       timestamp: "2026-03-07T14:20:00Z",
-      extensions: {},
+      outputs: [{ ref: "bafybeia...msg1" }],
     },
     {
       id: "act-002",
       type: "create",
-      entityId: "app:chat-service",
+      performedBy: "app:chat-service",
       timestamp: "2026-03-07T14:20:05Z",
+      inputs: [{ ref: "bafybeia...msg1" }],
+      outputs: [{ ref: "bafybei...reply1" }],
       extensions: {
         "ext:ai@1.0.0": {
           provider: "anthropic",
@@ -138,15 +147,17 @@ export const mockSession: SessionProvenance = {
     {
       id: "act-003",
       type: "create",
-      entityId: "user:alice",
+      performedBy: "user:alice",
       timestamp: "2026-03-07T14:21:10Z",
-      extensions: {},
+      outputs: [{ ref: "bafybeia...msg2" }],
     },
     {
       id: "act-004",
       type: "create",
-      entityId: "app:chat-service",
+      performedBy: "app:chat-service",
       timestamp: "2026-03-07T14:21:18Z",
+      inputs: [{ ref: "bafybeia...msg2" }],
+      outputs: [{ ref: "bafybei...reply2" }],
       extensions: {
         "ext:ai@1.0.0": {
           provider: "anthropic",
@@ -159,20 +170,42 @@ export const mockSession: SessionProvenance = {
   ],
   resources: [
     {
-      address: { ref: "bafybeia...msg1", "@type": "ResourceAddress" },
-      resourceType: "text",
+      address: { ref: "bafybeia...msg1" },
+      type: "text",
+      locations: [],
       createdAt: "2026-03-07T14:20:00Z",
+      createdBy: "user:alice",
+      rootAction: "act-001",
     },
     {
-      address: { ref: "bafybei...reply1", "@type": "ResourceAddress" },
-      resourceType: "text",
+      address: { ref: "bafybei...reply1" },
+      type: "text",
+      locations: [],
       createdAt: "2026-03-07T14:20:05Z",
+      createdBy: "app:chat-service",
+      rootAction: "act-002",
     },
   ],
   entities: [
     { id: "user:alice", role: "human", name: "Alice" },
     { id: "app:chat-service", role: "organization", name: "Chat Service" },
   ],
-  startedAt: "2026-03-07T14:20:00Z",
-  lastActionAt: "2026-03-07T14:21:18Z",
+  attributions: [
+    {
+      entityId: "user:alice",
+      role: "creator",
+      resourceRef: { ref: "bafybeia...msg1" },
+    },
+    {
+      entityId: "app:chat-service",
+      role: "creator",
+      resourceRef: { ref: "bafybei...reply1" },
+    },
+  ],
+  summary: {
+    actions: 4,
+    resources: 2,
+    entities: 2,
+    attributions: 2,
+  },
 };

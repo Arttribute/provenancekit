@@ -4,7 +4,8 @@ import { cn } from "../../lib/utils";
 import type { LicenseExtension } from "../../lib/extensions";
 
 interface LicenseChipProps {
-  license: LicenseExtension;
+  license?: LicenseExtension | null;
+  spdxId?: string;
   showIcons?: boolean;
   className?: string;
 }
@@ -24,9 +25,18 @@ function formatLicenseLabel(type: string): string {
   return shorts[type] ?? type;
 }
 
-export function LicenseChip({ license, showIcons = true, className }: LicenseChipProps) {
-  const label = formatLicenseLabel(license.type);
-  const isPublicDomain = license.type === "CC0-1.0" || license.type === "CC0";
+export function LicenseChip({ 
+  license, 
+  spdxId, 
+  showIcons = true, 
+  className 
+}: LicenseChipProps) {
+  // Support both license object and spdxId string
+  const licenseType = license?.type ?? spdxId;
+  if (!licenseType) return null;
+
+  const label = formatLicenseLabel(licenseType);
+  const isPublicDomain = licenseType === "CC0-1.0" || licenseType === "CC0";
 
   return (
     <span
@@ -36,11 +46,11 @@ export function LicenseChip({ license, showIcons = true, className }: LicenseChi
         "dark:bg-slate-800 dark:text-slate-300 dark:ring-slate-700",
         className
       )}
-      title={`License: ${license.type}${license.termsUrl ? ` — ${license.termsUrl}` : ""}`}
+      title={`License: ${licenseType}${license?.termsUrl ? ` — ${license.termsUrl}` : ""}`}
     >
       <Scale size={10} strokeWidth={2} className="shrink-0" />
       <span>{label}</span>
-      {showIcons && !isPublicDomain && (
+      {showIcons && !isPublicDomain && license && (
         <>
           {license.commercial === false && (
             <span title="Non-commercial">
