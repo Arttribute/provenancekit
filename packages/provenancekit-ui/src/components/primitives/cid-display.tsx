@@ -9,17 +9,21 @@ interface CidDisplayProps {
   cid: string | undefined | null;
   prefixLen?: number;
   suffixLen?: number;
+  short?: boolean;
   showCopy?: boolean;
   className?: string;
 }
 
 export function CidDisplay({
   cid,
-  prefixLen = 8,
-  suffixLen = 6,
+  prefixLen: prefixLenProp,
+  suffixLen: suffixLenProp,
+  short = false,
   showCopy = true,
   className,
 }: CidDisplayProps) {
+  const prefixLen = short ? 8 : (prefixLenProp ?? 8);
+  const suffixLen = short ? 4 : (suffixLenProp ?? 6);
   const [copied, setCopied] = useState(false);
 
   if (!cid) return null;
