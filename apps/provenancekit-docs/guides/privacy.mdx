@@ -1,0 +1,202 @@
+---
+title: "Privacy & Selective Disclosure"
+description: "Selective disclosure, encrypted storage, Pedersen commitments, and AI training opt-out using @provenancekit/privacy."
+---
+
+> Prove provenance facts without revealing all details. Built on @noble/ciphers (Cure53-audited), SD-JWT-like presentations, and Pedersen commitments.
+
+## Overview
+
+`@provenancekit/privacy` provides five layers of privacy:
+
+| Layer | What it does |
+|-------|-------------|
+| **Encryption primitives** | AES-256-GCM, PBKDF2, HKDF, KeyRing |
+| **Encrypted file storage** | Wrap any `IFileStorage` to encrypt before upload |
+| **Access control** | Lit Protocol format for token-gated decryption |
+| **Selective disclosure** | SD-JWT-like: reveal only chosen fields from a bundle |
+| **Commitment schemes** | Pedersen commitments for ZK-friendly delayed reveal |
+
+## Installation
+
+```bash
+pnpm add @provenancekit/privacy
+```
+
+## Selective Disclosure
+
+Allow a contributor to prove specific provenance facts without revealing all fields.
+
+```typescript
+import {
+  createDisclosureBundle,
+  createPresentation,
+  verifyPresentation,
+} from "@provenancekit/privacy";
+
+// 1. Creator commits to all fields
+const bundle = await createDisclosureBundle({
+  entityId: "user:alice",
+  actionType: "create",
+  resourceCid: "bafybeig...",
+  timestamp: new Date().toISOString(),
+  model: "gpt-4o",
+  promptHash: "sha256:abc...",
+});
+// bundle.commitment is stored on-chain / in DB
+// bundle.saltedFields is kept private by the creator
+
+// 2. Later: reveal only what's needed
+const presentation = await createPresentation(bundle, ["entityId", "actionType", "timestamp"]);
+// presentation contains only the selected fields + their salts
+
+// 3. Verifier checks the presentation against the commitment
+const result = await verifyPresentation(presentation, bundle.commitment);
+console.log(result.valid);    // true
+console.log(result.fields);   // { entityId, actionType, timestamp }
+// model and promptHash are NOT in result.fields — never revealed
+```
+
+## Encrypted File Storage
+
+Wrap any `IFileStorage` adapter to automatically encrypt files before upload and decrypt on retrieval:
+
+```typescript
+import { EncryptedFileStorage } from "@provenancekit/privacy";
+import { PinataStorage } from "@provenancekit/storage";
+
+const pinata = new PinataStorage({ jwt: process.env.PINATA_JWT! });
+
+const encrypted = new EncryptedFileStorage(pinata, {
+  // Master key — 32 bytes, store in secrets manager
+  masterKey: Buffer.from(process.env.ENCRYPTION_KEY!, "hex"),
+});
+
+// Upload — automatically encrypted before sending to Pinata
+const { cid, iv } = await encrypted.upload(fileBuffer, { filename: "document.pdf" });
+
+// Download — automatically decrypted
+const decrypted = await encrypted.download(cid, { iv });
+```
+
+### Key Derivation
+
+`EncryptedFileStorage` uses HKDF to derive per-file keys from the master key + file CID, so each file has a unique encryption key. Store only the master key in your secrets manager.
+
+## Pedersen Commitments
+
+Commit to a value now, reveal it later — with homomorphic properties for aggregation.
+
+```typescript
+import {
+  createCommitment,
+  createProof,
+  verifyProof,
+  addCommitments,
+} from "@provenancekit/privacy";
+
+// Commit to a contribution weight
+const { commitment, randomness } = await createCommitment(75n); // 75% contribution
+
+// Store commitment on-chain; keep randomness private
+
+// Later: reveal the value
+const proof = await createProof(75n, randomness);
+const valid = await verifyProof(commitment, proof);
+console.log(valid); // true
+
+// Homomorphic addition — aggregate without revealing individual values
+const totalCommitment = addCommitments([commitment1, commitment2, commitment3]);
+```
+
+## Lit Protocol Access Control
+
+Define token-gated access conditions for encrypted resources:
+
+```typescript
+import { createLitAccessCondition, encryptWithLit } from "@provenancekit/privacy";
+
+// Require ownership of an NFT to decrypt
+const condition = createLitAccessCondition({
+  contractAddress: "0x...",
+  chainId: 8453, // Base
+  standardContractType: "ERC721",
+  method: "balanceOf",
+  parameters: [":userAddress"],
+  returnValueTest: { comparator: ">=", value: "1" },
+});
+
+const { encryptedKey, cid } = await encryptWithLit(fileBuffer, condition);
+// Store encryptedKey alongside the CID — only NFT holders can decrypt
+```
+
+## AI Training Opt-Out
+
+The most immediately actionable privacy feature: signal that your content may not be used for AI model training.
+
+### Per-project (dashboard)
+
+In the ProvenanceKit dashboard → Project → Privacy Settings, enable **AI training opt-out**. This automatically attaches `ext:license@1.0.0 / hasAITrainingReservation: true` to every resource uploaded via that project's API key.
+
+### Per-resource (SDK/API)
+
+```typescript
+import { withExtension } from "@provenancekit/extensions";
+import type { Resource } from "@provenancekit/eaa-types";
+
+const resource: Resource = withExtension(baseResource, "ext:license@1.0.0", {
+  spdxId: "CC-BY-4.0",
+  aiTraining: "reserved",           // explicit opt-out
+  hasAITrainingReservation: true,   // machine-readable flag
+});
+```
+
+### Check opt-out status
+
+```typescript
+import { hasAITrainingReservation } from "@provenancekit/extensions";
+
+if (hasAITrainingReservation(resource)) {
+  console.log("Content opted out of AI training");
+}
+```
+
+## GDPR Compliance Patterns
+
+### Data minimisation (GDPR Art. 5)
+
+Use selective disclosure so only the fields necessary for a given verification are revealed. Store the full commitment on-chain; keep salted fields server-side.
+
+### Right to erasure (GDPR Art. 17)
+
+ProvenanceKit gives you the tools; erasure workflows are your responsibility:
+
+1. **Off-chain**: Delete the entity record and all associated provenance records from your DB
+2. **IPFS**: Unpin the resource CID from your Pinata/IPFS node (note: other nodes may have copies)
+3. **On-chain**: Cannot be deleted — by design. To "erase" on-chain: encrypt the data before anchoring so the commitment is meaningless without the key, then destroy the key.
+
+### Pseudonymisation (GDPR Art. 4(5))
+
+Replace real entity IDs with pseudonymous IDs before recording:
+
+```typescript
+import { createHash } from "crypto";
+
+function pseudonymize(realId: string, salt: string): string {
+  return "pseudo:" + createHash("sha256").update(salt + realId).digest("hex").slice(0, 16);
+}
+
+await pk.entity({
+  id: pseudonymize("user@example.com", process.env.PSEUDONYM_SALT!),
+  role: "human",
+  name: "Anonymous Contributor",
+});
+```
+
+## Gotchas
+
+- **Master key rotation**: Changing `masterKey` in `EncryptedFileStorage` means old CIDs can no longer be decrypted. Implement key rotation by re-encrypting all files under the new key.
+- **SD-JWT salts**: The `saltedFields` in a disclosure bundle must be stored securely by the creator. Losing them means you can't create future presentations.
+- **Lit Protocol network**: Lit is a separate decentralised network. Test on `cayenne` (Lit's testnet) before mainnet.
+- **IPFS is not private**: Unencrypted content uploaded to IPFS is publicly readable by CID. Always encrypt sensitive content before uploading.
+- **Commitments are binding**: A Pedersen commitment reveals the value when opened. Make sure the randomness is kept private and never reused.

@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import Link from "next/link";
 import { getServerUser } from "@/lib/auth";
+import { mgmt } from "@/lib/management-client";
 import { getOrgBySlug, getProjectBySlug, getProjectApiKeys, getProjectUsageSummary } from "@/lib/queries";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Key, BarChart3, Database, GitBranch, Link2, Plus, Activity, CheckCircle } from "lucide-react";
+import { NetworkBadge, NetworkStatus } from "@/components/network-badge";
 
 interface Props { params: Promise<{ orgSlug: string; projectSlug: string }> }
 
@@ -27,9 +29,10 @@ export default async function ProjectPage({ params }: Props) {
   if (!project) notFound();
 
   const projectId = project.id;
-  const [keys, usage] = await Promise.all([
+  const [keys, usage, apiNetwork] = await Promise.all([
     getProjectApiKeys(projectId, user.privyDid),
     getProjectUsageSummary(projectId, user.privyDid),
+    mgmt(user.privyDid).network.get().catch(() => ({ configured: false as const })),
   ]);
 
   const activeKeys = keys.filter((k) => !k.revokedAt);
@@ -51,10 +54,24 @@ export default async function ProjectPage({ params }: Props) {
         </Button>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {project.storageType && <Badge variant="secondary" className="flex items-center gap-1"><Database className="h-3 w-3" />{project.storageType}</Badge>}
         {project.ipfsProvider && <Badge variant="secondary" className="flex items-center gap-1"><Link2 className="h-3 w-3" />{project.ipfsProvider}</Badge>}
-        {project.chainId && <Badge variant="secondary" className="flex items-center gap-1"><CheckCircle className="h-3 w-3" />chain:{project.chainId}</Badge>}
+        {/* Network badge — shows project chain if set, or the API relayer's chain */}
+        {project.chainId ? (
+          <NetworkBadge
+            chainId={project.chainId}
+            contractAddress={project.contractAddress}
+            showExplorer
+          />
+        ) : apiNetwork.configured ? (
+          <NetworkBadge
+            chainId={apiNetwork.chainId}
+            chainName={apiNetwork.chainName}
+            contractAddress={apiNetwork.contractAddress}
+            showExplorer
+          />
+        ) : null}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -106,6 +123,31 @@ export default async function ProjectPage({ params }: Props) {
           </CardContent>
         </Card>
       </div>
+
+      {/* On-chain network status panel */}
+      {apiNetwork.configured && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">On-Chain Network</h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <NetworkStatus
+              chainId={apiNetwork.chainId}
+              chainName={apiNetwork.chainName}
+              contractAddress={apiNetwork.contractAddress}
+            />
+            {project.chainId && project.chainId !== apiNetwork.chainId && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/20 dark:text-amber-300">
+                <CheckCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <div>
+                  <p className="font-medium">Project chain mismatch</p>
+                  <p className="opacity-80 mt-0.5">
+                    Project is configured for chain {project.chainId} but the API relayer is on chain {apiNetwork.chainId}. Update your project chain ID in Settings.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

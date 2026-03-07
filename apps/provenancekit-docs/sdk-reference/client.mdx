@@ -1,0 +1,380 @@
+---
+title: "SDK Client Reference"
+description: "Complete reference for the ProvenanceKit JavaScript/TypeScript SDK — all methods, options, and return types."
+---
+
+> `@provenancekit/sdk` — the primary way to interact with the ProvenanceKit API from JavaScript and TypeScript.
+
+## Installation
+
+```bash
+pnpm add @provenancekit/sdk
+# or
+npm install @provenancekit/sdk
+```
+
+## Constructor
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+const pk = new ProvenanceKit(opts?: ProvenanceKitOptions);
+```
+
+### ProvenanceKitOptions
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `apiKey` | `string` | — | Your `pk_live_...` API key from the dashboard |
+| `baseUrl` | `string` | `https://api.provenancekit.com` | Override for self-hosted API instances |
+| `projectId` | `string` | — | Explicit project ID (not needed with dashboard-issued keys) |
+| `signingKey` | `string` | — | 64-char hex Ed25519 private key for auto-signing actions |
+| `signingEntityId` | `string` | — | Entity ID bound to `signingKey` (required when `signingKey` is set) |
+| `chain` | `IChainAdapter` | — | On-chain adapter — see [Chain Adapters](/sdk-reference/chain-adapters) |
+
+```typescript
+// Minimal
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+// With auto-signing
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  signingKey: process.env.SIGNING_KEY,
+  signingEntityId: "user:alice",
+});
+
+// Self-hosted API
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  baseUrl: "https://your-api.example.com",
+});
+
+// With on-chain recording
+import { createViemAdapter } from "@provenancekit/sdk";
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  chain: createViemAdapter({ walletClient, publicClient, contractAddress }),
+});
+```
+
+---
+
+## pk.file()
+
+The primary method — upload a file to IPFS, record EAA provenance, and optionally anchor on-chain.
+
+```typescript
+pk.file(
+  file: Blob | File | Buffer | Uint8Array,
+  opts: FileOpts
+): Promise<FileResult>
+```
+
+### FileOpts
+
+```typescript
+interface FileOpts {
+  entity: {
+    id?: string;      // entity ID; generated if omitted
+    role: string;     // "human" | "ai" | "organization" | "ext:*"
+    name?: string;
+    publicKey?: string;
+  };
+  action?: {
+    type?: string;         // "create" | "transform" | "aggregate" | "verify" | "ext:*"
+    inputCids?: string[];  // CIDs of resources that were inputs to this action
+    toolCid?: string;      // CID of the AI tool used (for ext:ai@1.0.0)
+    proof?: string;        // Raw proof hex (alternative to actionProof)
+    actionProof?: ActionProof;  // Structured Ed25519/ECDSA proof
+    extensions?: Record<string, unknown>;  // Any ext:* extensions
+  };
+  resourceType?: string;   // "text" | "image" | "audio" | "video" | "code" | "dataset" | "model" | "other"
+  sessionId?: string;      // Link to an app-managed session
+}
+```
+
+### FileResult
+
+```typescript
+interface FileResult {
+  cid: string;           // IPFS CID of the uploaded resource
+  actionId?: string;     // ID of the recorded action
+  entityId?: string;     // ID of the entity
+  duplicate?: DuplicateDetails;  // Set if a near-duplicate was found
+  matched?: Match;       // Set if a similar resource was found
+  onchain?: OnchainRecord;       // Set if on-chain recording succeeded
+}
+```
+
+### Examples
+
+```typescript
+// Basic file upload
+const { cid } = await pk.file(imageBuffer, {
+  entity: { id: "user:alice", role: "human" },
+  resourceType: "image",
+});
+
+// AI-generated content with ext:ai@1.0.0
+const { cid, onchain } = await pk.file(textBuffer, {
+  entity: { id: "app:my-service", role: "organization" },
+  action: {
+    type: "create",
+    extensions: {
+      "ext:ai@1.0.0": {
+        provider: "openai",
+        model: "gpt-4o",
+        autonomyLevel: "autonomous",
+        tokensUsed: 1500,
+      },
+    },
+  },
+  resourceType: "text",
+  sessionId: "session-abc123",
+});
+
+// Derivative work (remix) — inputs are previous CIDs
+const { cid } = await pk.file(remixBuffer, {
+  entity: { id: "user:bob", role: "human" },
+  action: {
+    type: "transform",
+    inputCids: [originalCid, sourceCid],
+  },
+  resourceType: "image",
+});
+```
+
+---
+
+## pk.entity()
+
+Register or update an entity (human, AI, or organization).
+
+```typescript
+pk.entity(opts: {
+  id?: string;
+  role: string;
+  name?: string;
+  publicKey?: string;
+  wallet?: string;       // EVM wallet address (for payment routing)
+  aiAgent?: {
+    model: { provider: string; model: string; version?: string };
+    delegatedBy?: string;
+    autonomyLevel?: "autonomous" | "supervised" | "assistive";
+  };
+}): Promise<string>  // Returns the entity ID
+```
+
+```typescript
+// Register a human
+const id = await pk.entity({ id: "user:alice", role: "human", name: "Alice" });
+
+// Register an AI agent
+const agentId = await pk.entity({
+  id: "ai:gpt-4o",
+  role: "ai",
+  aiAgent: {
+    model: { provider: "openai", model: "gpt-4o" },
+    autonomyLevel: "autonomous",
+  },
+});
+
+// Register with wallet for payment routing
+const id = await pk.entity({
+  id: "user:alice",
+  role: "human",
+  wallet: "0xAliceAddress",
+});
+```
+
+---
+
+## pk.graph()
+
+Get the full provenance graph for a resource — walks backwards through all inputs, actions, and entities.
+
+```typescript
+pk.graph(cid: string, depth?: number): Promise<ProvenanceGraph>
+```
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `cid` | required | Resource CID to start from |
+| `depth` | `10` | How many hops back to traverse |
+
+```typescript
+const graph = await pk.graph("bafybeig...", 5);
+
+graph.nodes.forEach(node => {
+  console.log(node.type);   // "resource" | "action" | "entity"
+  console.log(node.label);
+  console.log(node.data);   // All fields including ext:* extensions
+});
+
+graph.edges.forEach(edge => {
+  console.log(edge.from, edge.type, edge.to);
+  // edge.type: "produces" | "consumes" | "tool" | "performedBy"
+});
+```
+
+---
+
+## pk.bundle() / pk.provenance()
+
+Get the full provenance bundle for a resource.
+
+```typescript
+pk.bundle(cid: string): Promise<ProvenanceBundle>
+pk.provenance(cid: string): Promise<ProvenanceBundle>  // alias
+```
+
+Returns a `ProvenanceBundle` containing entities, actions, resources, and attributions.
+
+---
+
+## pk.sessionProvenance()
+
+Get all provenance records linked to an app-managed session.
+
+```typescript
+pk.sessionProvenance(sessionId: string): Promise<SessionProvenance>
+```
+
+```typescript
+const session = await pk.sessionProvenance("chat-session-xyz");
+console.log(session.actions);    // all actions in this session
+console.log(session.resources);  // all resources (files) produced
+console.log(session.entities);   // all participants
+```
+
+Sessions are set by passing `sessionId` to `pk.file()`. Use them to group related actions (e.g. all turns in a conversation).
+
+---
+
+## pk.search() / pk.searchText()
+
+Semantic similarity search across provenance records.
+
+```typescript
+// Unified search (encrypted + non-encrypted)
+pk.search(
+  query: string,
+  opts?: {
+    topK?: number;         // default: 5
+    minScore?: number;     // default: 0
+    type?: string;         // filter by resource type
+    encryptionKey?: string; // for encrypted resource search
+  }
+): Promise<SearchResult[]>
+
+// Server-side only
+pk.searchText(query: string, opts?: { topK?: number; type?: string }): Promise<TextSearchResult>
+
+// Upload a file and find similar existing resources
+pk.uploadAndMatch(file: Buffer | Blob, opts?: UploadOptions): Promise<UploadMatchResult>
+```
+
+---
+
+## pk.similar()
+
+Find resources similar to an existing CID using vector embeddings.
+
+```typescript
+pk.similar(cid: string, topK?: number): Promise<Match[]>
+```
+
+---
+
+## pk.getEntity() / pk.listEntities() / pk.getAIAgent()
+
+Query entity records.
+
+```typescript
+pk.getEntity(id: string): Promise<EntityResult>
+pk.listEntities(opts?: { role?: string; limit?: number; offset?: number }): Promise<EntityListResult>
+pk.getAIAgent(id: string): Promise<AIAgentResult>
+```
+
+---
+
+## pk.ownership()
+
+Ownership tracking for resources.
+
+```typescript
+// Get current ownership state and full history
+pk.ownership(cid: string): Promise<OwnershipState>
+
+// Record an ownership claim (does not change ownership state)
+pk.ownershipClaim(cid: string, opts: OwnershipClaimOpts): Promise<OwnershipActionResult>
+
+// Transfer ownership
+pk.ownershipTransfer(cid: string, opts: OwnershipTransferOpts): Promise<OwnershipActionResult>
+```
+
+---
+
+## pk.health()
+
+Health check.
+
+```typescript
+pk.health(): Promise<string>  // "ok"
+```
+
+---
+
+## Signing Utilities
+
+```typescript
+import { signAction, verifyAction, generateKeyPair } from "@provenancekit/sdk";
+
+// Generate a new Ed25519 key pair
+const { privateKey, publicKey } = await generateKeyPair();
+// privateKey: 64-char hex; publicKey: 64-char hex
+
+// Sign an action payload
+const actionProof = await signAction(
+  { entityId: "user:alice", actionType: "create", inputs: [], timestamp: new Date().toISOString() },
+  privateKey
+);
+
+// Verify a proof
+const valid = await verifyAction(actionProof, publicKey);
+```
+
+Pass the public key when registering an entity, and the `signingKey` in `ProvenanceKitOptions` for auto-signing on every `pk.file()` call.
+
+---
+
+## Error Handling
+
+```typescript
+import { ProvenanceKitError } from "@provenancekit/sdk";
+
+try {
+  await pk.file(buffer, opts);
+} catch (e) {
+  if (e instanceof ProvenanceKitError) {
+    console.log(e.code);      // "Unauthorized" | "NotFound" | "Duplicate" | etc.
+    console.log(e.message);
+    console.log(e.recovery);  // Human hint to fix the problem
+    console.log(e.status);    // HTTP status code
+  }
+}
+```
+
+### Duplicate detection
+
+When a near-duplicate resource is uploaded, `pk.file()` returns (not throws) with `duplicate` populated:
+
+```typescript
+const result = await pk.file(buffer, opts);
+
+if (result.duplicate) {
+  console.log("Near-duplicate found:", result.duplicate.cid);
+  console.log("Similarity:", result.duplicate.similarity);
+  // result.cid is the original (existing) CID, not a new one
+}
+```

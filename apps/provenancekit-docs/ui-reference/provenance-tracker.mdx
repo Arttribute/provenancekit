@@ -1,0 +1,46 @@
+---
+title: "ProvenanceTracker"
+description: "A real-time session feed that displays actions as they are recorded."
+---
+
+> Polls `pk.sessionProvenance()` and displays a live feed of recorded actions. Ideal for chat apps and multi-step AI workflows where you want users to see provenance building in real time.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/tracker"
+        style={{ width: "100%", height: "380px", border: "none", borderRadius: "8px" }}
+        title="ProvenanceTracker preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import { ProvenanceTracker } from "@provenancekit/ui";
+
+    // Auto-polls by sessionId
+    <ProvenanceTracker
+      sessionId="chat-session-abc123"
+      pollInterval={3000}
+      onNewAction={(action) => {
+        console.log("New action recorded:", action.type);
+      }}
+    />
+
+    // Headless mode — pass session directly (no polling)
+    <ProvenanceTracker session={mySession} maxActions={10} />
+    ```
+  </Tab>
+</Tabs>
+
+## Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `sessionId` | `string` | — | Session ID to poll |
+| `pollInterval` | `number` | `3000` | Polling interval in milliseconds |
+| `session` | `SessionProvenance` | — | Headless mode — pass session directly |
+| `maxActions` | `number` | `20` | Maximum number of actions to display |
+| `onNewAction` | `(action: Action) => void` | — | Called when a new action is detected |
+| `className` | `string` | — | Additional CSS classes |

@@ -1,0 +1,107 @@
+---
+title: "Primitives"
+description: "Atomic components used internally by the UI library, also available for custom layouts."
+---
+
+> All primitive components are individually importable from `@provenancekit/ui`. Use them to build custom provenance UIs that match your design system.
+
+<Tabs>
+  <Tab title="Preview">
+    <Frame>
+      <iframe
+        src="https://ui-preview.provenancekit.com/primitives"
+        style={{ width: "100%", height: "560px", border: "none", borderRadius: "8px" }}
+        title="Primitives preview"
+      />
+    </Frame>
+  </Tab>
+  <Tab title="Code">
+    ```tsx
+    import {
+      RoleBadge,
+      EntityAvatar,
+      ContributionBar,
+      CidDisplay,
+      LicenseChip,
+      VerificationIndicator,
+      Timestamp,
+    } from "@provenancekit/ui";
+
+    // Role badges
+    <RoleBadge role="human" />
+    <RoleBadge role="ai" />
+    <RoleBadge role="organization" />
+
+    // Entity avatar with role indicator dot
+    <EntityAvatar role="human" size="md" />
+    <EntityAvatar role="ai" size="lg" />
+
+    // Contribution weight bar (basis points: 0–10000)
+    <ContributionBar bps={7000} />           // "70%"
+    <ContributionBar bps={3000} label="Alice Chen" />
+
+    // CID display with copy-to-clipboard
+    <CidDisplay cid="bafybeiemxf5..." />
+    <CidDisplay cid="bafybeiemxf5..." short />  // truncated
+
+    // SPDX license chip
+    <LicenseChip spdxId="MIT" />
+    <LicenseChip spdxId="CC-BY-4.0" />
+    <LicenseChip spdxId="CC0-1.0" />
+
+    // Verification status
+    <VerificationIndicator status="verified" />
+    <VerificationIndicator status="partial" />
+    <VerificationIndicator status="unverified" />
+    <VerificationIndicator status="failed" />
+
+    // Human-readable timestamp with hover tooltip for full ISO date
+    <Timestamp iso="2026-03-07T14:22:00Z" />
+    ```
+  </Tab>
+</Tabs>
+
+## RoleBadge
+
+| Role | Color |
+|------|-------|
+| `"human"` | Blue |
+| `"ai"` | Violet |
+| `"organization"` | Green |
+| `"creator"` | Blue |
+| `"contributor"` | Violet |
+| `"source"` | Amber |
+
+## EntityAvatar
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `role` | `string` | required | `"human"`, `"ai"`, `"organization"` |
+| `size` | `"xs" \| "sm" \| "md" \| "lg"` | `"md"` | Avatar size |
+
+## ContributionBar
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `bps` | `number` | required | Basis points (0–10000) |
+| `label` | `string` | — | Custom label (default: formatted %) |
+| `showLabel` | `boolean` | `true` | Show the percentage label |
+
+## CidDisplay
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `cid` | `string` | required | IPFS CID |
+| `short` | `boolean` | `false` | Truncate to first 8 + last 4 chars |
+
+## LicenseChip
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `spdxId` | `string` | required | SPDX license identifier |
+
+## VerificationIndicator
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `status` | `"verified" \| "partial" \| "unverified" \| "failed"` | required | Verification status |

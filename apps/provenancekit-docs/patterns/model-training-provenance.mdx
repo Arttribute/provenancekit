@@ -1,0 +1,195 @@
+---
+title: "Model Training Provenance"
+description: "Record the full dataset → training → model provenance chain. Satisfies EU AI Act Art. 53(1)(d) training data disclosure requirements."
+---
+
+> A model is a resource. A dataset is a resource. Training is an action that consumes datasets and produces a model. This pattern records the full chain natively in the EAA graph.
+
+## Legal Context
+
+**EU AI Act Art. 53(1)(d)** requires providers of general-purpose AI models to maintain a "sufficiently detailed summary" of training data. **Art. 53(1)(c)** requires that models comply with copyright law, including DSM Art. 4 text-and-data-mining opt-outs.
+
+ProvenanceKit records this natively — no special AI-specific schema required.
+
+## The Pattern
+
+```
+Dataset A ──┐
+Dataset B ──┤── [Action: training] ──► Model v1.0 (resource)
+Dataset C ──┘
+```
+
+Every node in this graph is an EAA record. The training action records exactly which datasets were consumed and which model was produced.
+
+## Recording the Pattern
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { withExtension } from "@provenancekit/extensions";
+
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+// 1. Register the training entity (the team / org that trained the model)
+const trainer = await pk.entity({
+  id: "org:acme-ai",
+  role: "organization",
+  name: "Acme AI Lab",
+});
+
+// 2. Register datasets as resources
+// Upload each dataset file to IPFS and record the CID
+const datasetA = await pk.file(datasetABuffer, {
+  name: "web-crawl-2024-q1.parquet",
+  type: "dataset",
+});
+
+const datasetB = await pk.file(datasetBBuffer, {
+  name: "books-cleaned-v3.parquet",
+  type: "dataset",
+});
+
+// Or reference existing CIDs (datasets you don't own the bytes of)
+const openDataset = {
+  cid: "bafybeig...",  // Known CID of e.g. Common Crawl
+  type: "dataset" as const,
+  name: "Common Crawl CC-MAIN-2024-10",
+};
+
+// 3. Record the training action
+const { action } = await pk.activity({
+  entity: trainer,
+  action: {
+    type: "transform",           // "transform" = produces a new artifact from inputs
+    description: "Fine-tune LLaMA 3.1 on curated web + books corpus",
+    inputs: [
+      { cid: datasetA.cid, type: "dataset" },
+      { cid: datasetB.cid, type: "dataset" },
+      { cid: openDataset.cid, type: "dataset" },
+    ],
+    extensions: {
+      "ext:ai@1.0.0": {
+        provider: "meta",
+        model: "llama-3.1-8b",
+        parameters: {
+          epochs: 3,
+          learningRate: 2e-5,
+          batchSize: 32,
+        },
+      },
+    },
+  },
+  output: {
+    file: modelWeightsBuffer,     // Upload model weights to IPFS
+    name: "acme-v1.0.safetensors",
+    type: "model",
+  },
+});
+
+// 4. The model resource is now the output CID
+const modelCid = action.outputs[0];
+console.log("Model CID:", modelCid);
+
+// 5. Record license/training opt-out status on each dataset
+// (if datasets have known opt-out status)
+const datasetMeta = withExtension(
+  { id: datasetB.cid, type: "dataset" as const },
+  "ext:license@1.0.0",
+  {
+    spdxId: "CC-BY-4.0",
+    aiTraining: "permitted",    // explicitly permitted for training
+    hasAITrainingReservation: false,
+  }
+);
+```
+
+## Querying the Training Provenance
+
+```typescript
+// Get the full provenance graph for a model
+const graph = await pk.graph(modelCid, 10);
+
+// Find all datasets in the lineage
+const datasets = graph.nodes.filter(n => n.type === "resource" && n.data.resourceType === "dataset");
+console.log("Training datasets:", datasets.map(d => d.data.name));
+
+// Get the training action
+const training = graph.nodes.find(n => n.type === "action" && n.data.type === "transform");
+console.log("Training params:", training?.data?.["ext:ai@1.0.0"]);
+```
+
+## Generating an EU AI Act Summary
+
+```typescript
+async function generateAIActSummary(modelCid: string) {
+  const graph = await pk.graph(modelCid, 10);
+
+  const datasets = graph.nodes
+    .filter(n => n.data.resourceType === "dataset")
+    .map(n => ({
+      name: n.data.name,
+      cid: n.id,
+      license: n.data?.["ext:license@1.0.0"]?.spdxId,
+      aiTraining: n.data?.["ext:license@1.0.0"]?.aiTraining,
+      optedOut: n.data?.["ext:license@1.0.0"]?.hasAITrainingReservation === true,
+    }));
+
+  const optedOut = datasets.filter(d => d.optedOut);
+
+  return {
+    modelCid,
+    trainingDatasets: datasets,
+    optedOutDatasets: optedOut,
+    complianceNote: optedOut.length === 0
+      ? "No datasets with training opt-outs detected"
+      : `${optedOut.length} dataset(s) have AI training reservations — review usage rights`,
+  };
+}
+```
+
+## Checking Dataset Opt-Out Status Before Training
+
+```typescript
+import { hasAITrainingReservation } from "@provenancekit/extensions";
+
+async function checkDatasetCompliance(datasetCids: string[]) {
+  for (const cid of datasetCids) {
+    const bundle = await pk.getBundle(cid);
+    const resource = bundle.resources.find(r => r.cid === cid);
+
+    if (resource && hasAITrainingReservation(resource)) {
+      throw new Error(
+        `Dataset ${cid} has opted out of AI training (ext:license@1.0.0/aiTraining: "reserved")`
+      );
+    }
+  }
+  console.log("All datasets cleared for training");
+}
+```
+
+## Incremental Training and Fine-Tuning
+
+For fine-tuning (model → fine-tuned model):
+
+```typescript
+// Base model is an input resource
+const { action } = await pk.activity({
+  entity: trainer,
+  action: {
+    type: "transform",
+    description: "Fine-tune on domain-specific data",
+    inputs: [
+      { cid: baseModelCid, type: "model" },         // Base model
+      { cid: fineTuneDatasetCid, type: "dataset" }, // Fine-tune data
+    ],
+  },
+  output: { file: fineTunedWeights, name: "model-ft-v1.safetensors", type: "model" },
+});
+// The graph now shows: baseModel + dataset → fineTunedModel
+// Full lineage traced back to original training data
+```
+
+## Gotchas
+
+- **Large dataset files**: Don't upload raw multi-GB datasets to IPFS via ProvenanceKit. Upload a **manifest file** (JSON listing dataset shards, checksums, source URLs) and pin that. The CID of the manifest is what goes in the provenance graph.
+- **Existing datasets**: For well-known public datasets (Common Crawl, The Pile, etc.), use their known CIDs if published, or create a resource with `cid: "external:commonCrawl-2024-10"` and document the reference in metadata.
+- **Model weights on IPFS**: Safetensors / GGUF files can be hundreds of GB. Same as datasets — upload a model card (JSON) and pin that. The actual weights can live on HuggingFace Hub with the HuggingFace URL recorded in metadata.

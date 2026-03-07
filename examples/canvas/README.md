@@ -14,7 +14,7 @@ pnpm install
 
 ### 2. Create a ProvenanceKit project
 
-1. Sign in at [app.provenancekit.org](https://app.provenancekit.org)
+1. Sign in at [app.provenancekit.com](https://app.provenancekit.com)
 2. Create a new project → copy the **API key** (`pk_live_...`)
 3. Paste it as `PROVENANCEKIT_API_KEY` in your `.env.local`
 
@@ -88,8 +88,8 @@ Client reads (provenance panel, splits display)
 | `NEXT_PUBLIC_PRIVY_APP_ID` | Privy app ID (from privy.io) |
 | `PRIVY_APP_SECRET` | Privy app secret |
 | `MONGODB_URI` | MongoDB connection string |
-| `PROVENANCEKIT_API_KEY` | Platform API key from app.provenancekit.org |
-| `PROVENANCEKIT_API_URL` | ProvenanceKit API URL (default: https://api.provenancekit.org) |
+| `PROVENANCEKIT_API_KEY` | Platform API key from app.provenancekit.com |
+| `PROVENANCEKIT_API_URL` | ProvenanceKit API URL (default: https://api.provenancekit.com) |
 | `NEXT_PUBLIC_BASE_RPC_URL` | Base RPC URL (default: Base Sepolia) |
 | `NEXT_PUBLIC_CHAIN_ID` | Chain ID — `84532` for Sepolia, `8453` for Mainnet |
 | `PINATA_JWT` | Pinata JWT for IPFS media uploads |

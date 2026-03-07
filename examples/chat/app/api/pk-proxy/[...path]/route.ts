@@ -10,8 +10,9 @@ import { NextRequest, NextResponse } from "next/server";
  *   2. Add Authorization: Bearer <PK_API_KEY> server-side on every request
  *   3. Allow all @provenancekit/ui components to work with zero browser config
  *
- * The proxy forwards GET and POST requests verbatim, adding the auth header.
- * The SDK defaults to https://api.provenancekit.com — no PK_API_URL env var needed.
+ * Supports both JSON and multipart/form-data (required for pk.uploadAndMatch
+ * file provenance search). The Content-Type header is forwarded as-is to
+ * preserve the multipart boundary.
  */
 
 const PK_API_BASE = process.env.PK_API_URL ?? "https://api.provenancekit.com";
@@ -30,24 +31,29 @@ async function proxyRequest(req: NextRequest, { params }: Params, method: string
   const search = req.nextUrl.search;
   const targetUrl = `${PK_API_BASE}/${pathStr}${search}`;
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
+  // Forward content-type as-is — critical for multipart/form-data where the
+  // boundary parameter must be preserved exactly.
+  const forwardHeaders: Record<string, string> = {
     Authorization: `Bearer ${pkApiKey}`,
   };
+  const contentType = req.headers.get("content-type");
+  if (contentType) {
+    forwardHeaders["Content-Type"] = contentType;
+  }
 
-  const fetchOpts: RequestInit = { method, headers };
+  const fetchOpts: RequestInit & { duplex?: string } = {
+    method,
+    headers: forwardHeaders,
+  };
 
-  if (method === "POST" || method === "PUT" || method === "PATCH") {
-    try {
-      const body = await req.text();
-      if (body) fetchOpts.body = body;
-    } catch {
-      // No body — that's fine
-    }
+  if (["POST", "PUT", "PATCH"].includes(method) && req.body) {
+    // Stream raw body through — works for JSON, multipart/form-data, etc.
+    fetchOpts.body = req.body;
+    fetchOpts.duplex = "half"; // required for streaming request body in Node.js
   }
 
   try {
-    const response = await fetch(targetUrl, fetchOpts);
+    const response = await fetch(targetUrl, fetchOpts as RequestInit);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (err) {

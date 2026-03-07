@@ -6,10 +6,14 @@
  * Tracks:
  *   - recordChatProvenance: text prompt/response pairs with ext:ai@1.0.0
  *   - recordImageProvenance: DALL-E generated images with ext:ai@1.0.0
+ *
+ * On-chain provenance: if CHAIN_PRIVATE_KEY + BASE_SEPOLIA_RPC_URL are set,
+ * every pk.file() call also records the action on the Base Sepolia
+ * ProvenanceRegistry (fire-and-forget; off-chain record always stands).
  */
 
 import { createHash } from "crypto";
-import { getPKClient } from "./pk-client";
+import { getPKClientAsync } from "./pk-client";
 import type { AIProvider, ModelInfo } from "@/types";
 
 export type SupportedProvider = AIProvider;
@@ -39,10 +43,19 @@ export interface ProvenanceResult {
   cid: string;
   actionId?: string;
   promptCid?: string;
+  /** Present when on-chain recording succeeded */
+  onchain?: {
+    txHash: string;
+    actionId: string;
+    chainId?: number;
+    chainName?: string;
+    contractAddress: string;
+  };
 }
 
 /**
  * Record provenance for a text chat response.
+ * Uses getPKClientAsync to ensure the on-chain adapter is initialised.
  */
 export async function recordChatProvenance(opts: {
   userPrivyDid: string;
@@ -53,7 +66,7 @@ export async function recordChatProvenance(opts: {
   tokens: number;
   sessionId: string | null;
 }): Promise<ProvenanceResult | null> {
-  const pk = getPKClient();
+  const pk = await getPKClientAsync();
   if (!pk) return null;
 
   try {
@@ -92,7 +105,16 @@ export async function recordChatProvenance(opts: {
       ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
     });
 
-    return { cid: responseResult.cid, actionId: responseResult.actionId, promptCid: promptResult.cid };
+    if (responseResult.onchain) {
+      console.log(`[PK] On-chain recorded: txHash=${responseResult.onchain.txHash} chain=${responseResult.onchain.chainName}`);
+    }
+
+    return {
+      cid: responseResult.cid,
+      actionId: responseResult.actionId,
+      promptCid: promptResult.cid,
+      onchain: responseResult.onchain,
+    };
   } catch (error) {
     console.warn("[PK] recordChatProvenance failed:", error);
     return null;
@@ -112,7 +134,7 @@ export async function recordImageProvenance(opts: {
   inputCids: string[]; // prompt CID(s) from the parent chat exchange
   sessionId: string | null;
 }): Promise<ProvenanceResult | null> {
-  const pk = getPKClient();
+  const pk = await getPKClientAsync();
   if (!pk || !opts.imageUrl) return null;
 
   try {
@@ -143,7 +165,11 @@ export async function recordImageProvenance(opts: {
       ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
     });
 
-    return { cid: result.cid, actionId: result.actionId };
+    if (result.onchain) {
+      console.log(`[PK] Image on-chain: txHash=${result.onchain.txHash} chain=${result.onchain.chainName}`);
+    }
+
+    return { cid: result.cid, actionId: result.actionId, onchain: result.onchain };
   } catch (error) {
     console.warn("[PK] recordImageProvenance failed:", error);
     return null;

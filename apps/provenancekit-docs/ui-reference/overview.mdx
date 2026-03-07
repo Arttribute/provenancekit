@@ -1,0 +1,158 @@
+---
+title: "Getting Started"
+description: "Drop-in React components for displaying provenance data — badges, graphs, bundle views, session trackers, and search."
+---
+
+> `@provenancekit/ui` is a theme-aware React component library. Add a `<ProvenanceBadge>` to any piece of AI-generated content and users can instantly inspect its full provenance chain.
+
+## Installation
+
+<CodeGroup>
+```bash pnpm
+pnpm add @provenancekit/ui
+```
+```bash npm
+npm install @provenancekit/ui
+```
+```bash yarn
+yarn add @provenancekit/ui
+```
+</CodeGroup>
+
+## Setup
+
+### 1. Add the stylesheet
+
+Import the design tokens in your global CSS file:
+
+```css
+/* globals.css */
+@import "@provenancekit/ui/styles";
+```
+
+### 2. Wrap your app with the provider
+
+```tsx
+// app/layout.tsx (Next.js App Router)
+import { ProvenanceKitProvider } from "@provenancekit/ui";
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <ProvenanceKitProvider
+          apiUrl="https://api.provenancekit.com"
+          apiKey={process.env.NEXT_PUBLIC_PK_API_KEY}
+        >
+          {children}
+        </ProvenanceKitProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+The provider creates an SDK instance that all child components use for data fetching.
+
+### Provider props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `pk` | `ProvenanceKit` | Pre-built SDK instance (takes priority over `apiUrl`/`apiKey`) |
+| `apiUrl` | `string` | API base URL |
+| `apiKey` | `string` | API key |
+| `theme` | `ProvenanceKitTheme` | CSS custom property overrides |
+
+## CSS Design Tokens
+
+Every component reads its colors from CSS custom properties. Override them globally or per-scope:
+
+```css
+:root {
+  --pk-node-resource: oklch(0.55 0.15 220);  /* resource node color */
+  --pk-node-action:   oklch(0.52 0.18 145);  /* action node color */
+  --pk-node-entity:   oklch(0.65 0.18 75);   /* entity node color */
+  --pk-role-human:    oklch(0.52 0.18 250);  /* human entity accent */
+  --pk-role-ai:       oklch(0.52 0.2  310);  /* AI entity accent */
+  --pk-role-org:      oklch(0.55 0.18 145);  /* org entity accent */
+  --pk-surface:       oklch(1 0 0);          /* card/popover background */
+  --pk-radius:        0.5rem;                /* border radius */
+}
+```
+
+Or use the `theme` prop on `ProvenanceKitProvider`:
+
+```tsx
+<ProvenanceKitProvider
+  apiUrl="..."
+  theme={{
+    nodeResourceColor: "#6366f1",
+    nodeActionColor:   "#22c55e",
+    badgeBg:           "rgba(0,0,0,0.85)",
+    radius:            "0.75rem",
+  }}
+>
+  {children}
+</ProvenanceKitProvider>
+```
+
+## Headless Mode
+
+Every data-fetching component supports passing data directly — no network requests needed. This is useful for SSR, Storybook, and testing:
+
+```tsx
+// Pass nodes/edges directly — no auto-fetch
+<ProvenanceGraph nodes={myNodes} edges={myEdges} />
+
+// Pass a pre-fetched bundle
+<ProvenanceBadge bundle={myBundle}>…</ProvenanceBadge>
+
+// Pass a session object directly
+<ProvenanceTracker session={mySession} />
+```
+
+## Next.js App Router pattern
+
+Components are marked `"use client"` internally. In Next.js, re-export from a client boundary so Server Components can import them:
+
+```tsx
+// components/ui/pk-ui.tsx
+"use client";
+export {
+  ProvenanceBadge,
+  ProvenanceBundleView,
+  ProvenanceGraph,
+  ProvenanceTracker,
+} from "@provenancekit/ui";
+```
+
+Then import from `components/ui/pk-ui` in any Server Component.
+
+## Available Hooks
+
+All data-fetching is available as standalone hooks:
+
+```tsx
+import {
+  useProvenanceBundle,
+  useProvenanceGraph,
+  useSessionProvenance,
+  useDistribution,
+  useProvenanceKit,
+} from "@provenancekit/ui";
+
+// Access the configured SDK instance
+const { pk } = useProvenanceKit();
+
+// Fetch a provenance bundle
+const { data: bundle, loading, error } = useProvenanceBundle("bafybei...");
+
+// Fetch a provenance graph
+const { data: graph } = useProvenanceGraph("bafybei...", { depth: 5 });
+
+// Poll a session in real-time
+const { data: session } = useSessionProvenance("session-xyz", { pollInterval: 3000 });
+
+// Compute contribution weights from a bundle
+const { data: distribution } = useDistribution("bafybei...");
+```

@@ -46,7 +46,7 @@ The foundation. Pure provenance primitives with no opinions about usage.
 
 ---
 
-## Layer 2: Extension Layer (🚧 NEXT)
+## Layer 2: Extension Layer (✅ COMPLETE)
 
 Pluggable, opinionated modules. Developers choose which to use.
 
@@ -316,7 +316,7 @@ const verified = await pk.verify(action.id);
 
 ---
 
-## Layer 3: Platform Layer (🔮 FUTURE)
+## Layer 3: Platform Layer (✅ SUBSTANTIALLY COMPLETE)
 
 The fully opinionated provenance platform for end users.
 
@@ -346,79 +346,35 @@ Hosted API service:
 
 ---
 
-## Implementation Phases
+## Implementation Status (as of 2026-03-07)
 
-### Phase 1: Extension Foundations (Weeks 1-2)
+All three layers are now substantially complete. See `MASTER-PLAN.md` for the detailed phase plan. The remaining work is focused on go-to-market readiness:
 
-**Goal:** Define extension schemas and enhance SDK
+### Phase A — Foundation (current)
+- First npm publish for all 11 packages (infrastructure ready; CI secrets needed)
+- API rate limiting (middleware exists; implementation missing)
+- SDK legacy field cleanup (entity.wallet in v1 compat layer)
 
-| Task | Package | Priority |
-|------|---------|----------|
-| Define `ext:contrib@1.0.0` schema | extensions | P0 |
-| Define `ext:license@1.0.0` schema | extensions | P0 |
-| Define `ext:payment@1.0.0` schema | extensions | P0 |
-| Register extensions in global registry | extensions | P0 |
-| Add blockchain recording to SDK | sdk | P0 |
-| Implement `ISyncableStorage` in Postgres adapter | storage | P1 |
+### Phase B — Documentation Sprint (highest leverage)
+- 10+ missing guide pages: payments, privacy, git, media, self-hosting, on-chain
+- Pattern pages for legal use cases: model training, human creative input, authorization
+- SDK method reference, UI component reference
+- docs.json navigation update
 
-### Phase 2: Payment Infrastructure (Weeks 3-4)
+### Phase C — Developer Experience
+- OpenAPI specification (auto-generate from Hono Zod validators)
+- Multi-chain deploy CLI
+- Storybook for @provenancekit/ui
 
-**Goal:** Enable revenue distribution from provenance
+### Phase D — Quality & Reliability
+- API management route tests, auth edge case tests
+- provenancekit-app tests
+- DB initialize() / migration SQL files
+- Testnet contract integration tests
 
-| Task | Package | Priority |
-|------|---------|----------|
-| Distribution calculator from provenance graph | payments | P0 |
-| x402 middleware integration | payments | P0 |
-| Superfluid streaming integration | payments | P1 |
-| 0xSplits integration | payments | P1 |
-| Payment recording in provenance | payments | P0 |
-
-### Phase 3: Privacy & Security (Weeks 5-6)
-
-**Goal:** Enable private and encrypted provenance
-
-| Task | Package | Priority |
-|------|---------|----------|
-| Encryption utilities (AES, hybrid) | privacy | P0 |
-| Selective disclosure schema | privacy | P0 |
-| ZK commitment helpers (use existing contract) | privacy | P1 |
-| Lit Protocol access control | privacy | P1 |
-| TEE integration (Marlin/Nitro) | privacy | P2 |
-
-### Phase 4: Domain Packages (Weeks 7-8)
-
-**Goal:** Support specific use cases
-
-| Task | Package | Priority |
-|------|---------|----------|
-| Git hook system | git | P1 |
-| AI code attribution detection | git | P2 |
-| C2PA extraction/embedding | media | P1 |
-| EXIF/metadata handling | media | P2 |
-
-### Phase 5: Platform MVP (Weeks 9-12)
-
-**Goal:** Usable end-to-end platform
-
-| Task | Component | Priority |
-|------|-----------|----------|
-| API routes for provenance CRUD | api | P0 |
-| Authentication & API keys | api | P0 |
-| Basic dashboard UI | app | P0 |
-| Provenance graph visualization | app | P1 |
-| Revenue/attribution dashboard | app | P1 |
-
-### Phase 6: Production Readiness (Weeks 13-14)
-
-**Goal:** Production deployment
-
-| Task | Component | Priority |
-|------|-----------|----------|
-| Contract deployment to mainnet | contracts | P0 |
-| Deployment registry | contracts | P0 |
-| Rate limiting & security | api | P0 |
-| Documentation site | docs | P0 |
-| Example applications | examples | P1 |
+### Phase E — Protocol Standardisation
+- EIP proposal (provenance event schema as Ethereum standard)
+- ISCN compatibility bridge (LikeCoin interoperability)
 
 ---
 

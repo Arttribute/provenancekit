@@ -128,19 +128,34 @@ export const appProjects = pgTable("app_projects", {
   slug:            text("slug").notNull(),
   description:     text("description"),
 
-  // Storage config
-  storageType:     text("storage_type").default("supabase"),  // "supabase" | "ipfs" | "custom"
-  storageUrl:      text("storage_url"),
+  // Advisory storage label — describes what DB adapter a self-hosted provenancekit-api
+  // instance uses for EAA records. Has no effect on the hosted api.provenancekit.com.
+  // Valid values: "memory" | "postgres" | "mongodb" | "supabase" | "ipfs" | "custom"
+  storageType:     text("storage_type").default("supabase"),
 
-  // IPFS config (Pinata, Web3.Storage, etc.)
+  // Per-project IPFS / file storage config.
+  // When ipfsApiKey is set, the ProvenanceKit API uses these credentials for file
+  // uploads belonging to this project instead of the platform-level defaults.
+  // This lets developers pin files to their own Pinata/IPFS/Arweave account.
+  // Supported providers: "pinata" | "infura" | "web3storage" | "arweave" | "local"
   ipfsProvider:    text("ipfs_provider").default("pinata"),
   ipfsApiKey:      text("ipfs_api_key"),
   ipfsGateway:     text("ipfs_gateway"),
+
+  // Self-hosted API URL. When set, the SDK should use this endpoint for
+  // provenance operations instead of the hosted api.provenancekit.com.
+  // Leave null/blank when using the hosted ProvenanceKit API.
+  apiUrl:          text("api_url"),
 
   // On-chain config (for ProvenanceRegistry recording)
   chainId:         integer("chain_id"),
   contractAddress: text("contract_address"),
   rpcUrl:          text("rpc_url"),
+
+  // Privacy settings
+  // When true, every resource uploaded via this project's API key gets
+  // ext:license@1.0.0 / hasAITrainingReservation: true attached automatically.
+  aiTrainingOptOut: boolean("ai_training_opt_out").default(false),
 
   createdAt:       timestamp("created_at").defaultNow().notNull(),
   updatedAt:       timestamp("updated_at").defaultNow().notNull(),

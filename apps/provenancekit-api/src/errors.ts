@@ -8,6 +8,7 @@ export type ErrorCode =
   | "ValidationError" // Zod aggregated errors
   | "Unauthorized" // missing or invalid API key
   | "Forbidden" // valid credentials but lacking permission
+  | "TooManyRequests" // rate limit exceeded
   | "Duplicate" // conflict / already exists
   | "Unsupported" // unsupported media or operation
   | "NotFound" // resource not found
@@ -41,6 +42,7 @@ export class ProvenanceKitError extends Error {
         ValidationError: 422,
         Unauthorized: 401,
         Forbidden: 403,
+        TooManyRequests: 429,
         Duplicate: 409,
         Unsupported: 415,
         NotFound: 404,

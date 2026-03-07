@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
+import { mgmt } from "@/lib/management-client";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +16,20 @@ import {
   Bot,
   AlertCircle,
   ArrowRight,
+  ExternalLink,
+  Link2,
 } from "lucide-react";
 import { createPK } from "@/lib/pk-api";
+import { NetworkBadge } from "@/components/network-badge";
+import { explorerTxUrl, getChainName } from "@/lib/chains";
 import type { ProvenanceGraph, GraphNode } from "@provenancekit/sdk";
+
+/** Extract ext:onchain@1.0.0 data from a node's data object */
+function getOnchainExt(data: Record<string, unknown>) {
+  const key = "ext:onchain@1.0.0";
+  if (!data[key] || typeof data[key] !== "object") return null;
+  return data[key] as { txHash?: string; chainId?: number; chainName?: string; contractAddress?: string; actionId?: string };
+}
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
@@ -58,6 +70,7 @@ function NodeCard({ node }: { node: GraphNode }) {
   const cfg = nodeTypeConfig[node.type] ?? nodeTypeConfig.resource;
   const Icon = cfg.icon;
   const isAI = node.type === "entity" && node.data?.role === "ai";
+  const onchain = getOnchainExt(node.data);
 
   return (
     <div className="rounded-lg border bg-card p-3 space-y-1.5">
@@ -69,11 +82,17 @@ function NodeCard({ node }: { node: GraphNode }) {
           <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
         )}
         <span className="text-xs font-semibold truncate flex-1">{node.label}</span>
+        {onchain && (
+          <span className="inline-flex items-center gap-0.5 text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 shrink-0">
+            <Link2 className="h-2.5 w-2.5" />
+            on-chain
+          </span>
+        )}
         <span className={`text-[10px] font-medium ${cfg.textClass} shrink-0`}>{cfg.label}</span>
       </div>
       <div className="text-xs text-muted-foreground space-y-0.5 pl-5">
         {Object.entries(node.data)
-          .filter(([, v]) => v != null && typeof v !== "object")
+          .filter(([k, v]) => v != null && typeof v !== "object" && !k.startsWith("ext:"))
           .slice(0, 4)
           .map(([k, v]) => (
             <div key={k} className="flex gap-1.5 min-w-0">
@@ -81,8 +100,50 @@ function NodeCard({ node }: { node: GraphNode }) {
               <span className="truncate font-mono text-[10px]">{String(v)}</span>
             </div>
           ))}
+        {/* On-chain anchor — shown inline with link */}
+        {onchain && onchain.txHash && (
+          <div className="mt-1.5 rounded border border-emerald-200 bg-emerald-50/60 px-2 py-1.5 space-y-0.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-emerald-800">
+              <Link2 className="h-2.5 w-2.5" />
+              On-chain anchor
+            </div>
+            {onchain.chainName && (
+              <div className="flex gap-1.5 text-[10px]">
+                <span className="text-muted-foreground/60">chain:</span>
+                <span className="font-mono text-emerald-800">{onchain.chainName}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1.5 text-[10px]">
+              <span className="text-muted-foreground/60">tx:</span>
+              {onchain.chainId && explorerTxUrl(onchain.chainId, onchain.txHash) ? (
+                <a
+                  href={explorerTxUrl(onchain.chainId, onchain.txHash)!}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-emerald-700 hover:text-emerald-900 underline underline-offset-2 truncate max-w-[120px] inline-flex items-center gap-0.5"
+                >
+                  {onchain.txHash.slice(0, 10)}…{onchain.txHash.slice(-6)}
+                  <ExternalLink className="h-2 w-2 shrink-0" />
+                </a>
+              ) : (
+                <span className="font-mono truncate max-w-[120px]">
+                  {onchain.txHash.slice(0, 10)}…{onchain.txHash.slice(-6)}
+                </span>
+              )}
+            </div>
+            {onchain.actionId && (
+              <div className="flex gap-1.5 text-[10px]">
+                <span className="text-muted-foreground/60">actionId:</span>
+                <span className="font-mono text-muted-foreground truncate max-w-[100px]">
+                  {onchain.actionId.slice(0, 10)}…
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+        {/* Other ext: keys (non-onchain) */}
         {Object.keys(node.data)
-          .filter((k) => k.startsWith("ext:"))
+          .filter((k) => k.startsWith("ext:") && k !== "ext:onchain@1.0.0")
           .slice(0, 2)
           .map((k) => (
             <div key={k} className="font-mono text-[10px] text-purple-600/70">
@@ -107,6 +168,10 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
   const project = await getProjectBySlug(orgSlug, projectSlug, user.privyDid);
   if (!project) notFound();
 
+  const [apiNetwork] = await Promise.all([
+    mgmt(user.privyDid).network.get().catch(() => ({ configured: false as const })),
+  ]);
+
   let graph: ProvenanceGraph | null = null;
   let fetchError: string | null = null;
 
@@ -125,11 +190,21 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Provenance Graph</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Visualize attribution chains for any resource CID
-        </p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Provenance Graph</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Visualize attribution chains for any resource CID
+          </p>
+        </div>
+        {apiNetwork.configured && (
+          <NetworkBadge
+            chainId={apiNetwork.chainId}
+            chainName={apiNetwork.chainName}
+            contractAddress={apiNetwork.contractAddress}
+            showExplorer
+          />
+        )}
       </div>
 
       <div className="flex items-start gap-3 rounded-lg border bg-muted/30 p-4 text-sm">

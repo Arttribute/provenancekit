@@ -1,0 +1,210 @@
+---
+title: "Chain Adapters"
+description: "Connect ProvenanceKit SDK to any EVM blockchain — viem, MetaMask, Privy, WalletConnect, or any EIP-1193 provider."
+---
+
+> Record provenance actions on-chain using `createViemAdapter` (server-side) or `createEIP1193Adapter` (browser wallets). Both implement `IChainAdapter`.
+
+## IChainAdapter Interface
+
+```typescript
+export interface IChainAdapter {
+  /** Call to record an action on the ProvenanceRegistry contract. */
+  recordAction(params: {
+    actionType: string;
+    inputs: string[];    // CIDs of input resources
+    outputs: string[];   // CIDs of output resources
+    proof?: string;      // Optional ECDSA/Ed25519 proof hex
+  }): Promise<{
+    txHash: string;
+    actionId: string;   // bytes32 from contract event
+  }>;
+
+  /** Chain ID for ext:onchain@1.0.0. Optional. */
+  chainId?: number;
+  chainName?: string;
+  contractAddress?: string;
+}
+```
+
+Any object satisfying this interface works as a chain adapter — you can implement it directly for ethers.js, wagmi, or any other library.
+
+## createViemAdapter
+
+For server-side or Node.js environments.
+
+```typescript
+import { createViemAdapter } from "@provenancekit/sdk";
+import { createWalletClient, createPublicClient, http } from "viem";
+import { baseSepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+
+const account = privateKeyToAccount(process.env.PRIVATE_KEY as `0x${string}`);
+
+const adapter = createViemAdapter({
+  walletClient: createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http("https://sepolia.base.org"),
+  }),
+  publicClient: createPublicClient({
+    chain: baseSepolia,
+    transport: http("https://sepolia.base.org"),
+  }),
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+});
+```
+
+### ViemAdapterOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `walletClient` | `WalletClient` | viem wallet client with `account` set |
+| `publicClient` | `PublicClient` | viem public client for simulation + receipts |
+| `contractAddress` | `0x${string}` | Deployed `ProvenanceRegistry` address |
+
+## createEIP1193Adapter
+
+For browser environments with any EIP-1193 wallet.
+
+```typescript
+import { createEIP1193Adapter } from "@provenancekit/sdk";
+
+// MetaMask
+const adapter = createEIP1193Adapter({
+  provider: window.ethereum,
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+  chainId: 84532,
+  chainName: "base-sepolia",
+});
+
+// Privy embedded wallet
+const { wallets } = useWallets();
+const provider = await wallets[0].getEthereumProvider();
+const adapter = createEIP1193Adapter({
+  provider,
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+  chainId: 84532,
+  from: wallets[0].address, // explicit sender address
+});
+```
+
+### EIP1193AdapterOptions
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `provider` | `EIP1193Provider` | Any EIP-1193 compatible provider |
+| `contractAddress` | `string` | Deployed `ProvenanceRegistry` address |
+| `chainId` | `number` | Chain ID (used in `ext:onchain@1.0.0`) |
+| `chainName` | `string` | Human-readable chain name |
+| `from` | `string` | Optional: override sender address (e.g. smart wallet) |
+
+The EIP-1193 adapter uses a self-contained ABI encoder — no viem or ethers.js dependency. It calls:
+1. `eth_call` to simulate `recordActionAndRegisterOutputs` → get `actionId` bytes32
+2. `eth_sendTransaction` to broadcast with the same calldata
+
+## Using the Adapter with ProvenanceKit
+
+Pass the adapter as `chain` when constructing `ProvenanceKit`:
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  chain: adapter,
+});
+
+// file() records on-chain automatically
+const result = await pk.file(buffer, { name: "report.pdf", type: "text" });
+
+console.log(result.cid);          // IPFS CID
+console.log(result.onchain?.txHash);      // "0x..."
+console.log(result.onchain?.actionId);    // "0x..." (bytes32)
+console.log(result.onchain?.chainId);     // 84532
+```
+
+## On-Chain Recording Semantics
+
+On-chain recording is **fire-and-forget**:
+- If the chain transaction succeeds → `result.onchain` is populated
+- If it fails (gas, RPC error, etc.) → `result.onchain` is `undefined`; the off-chain IPFS record still succeeds
+
+This means blockchain availability cannot break your application. Check `result.onchain` to know if on-chain recording succeeded.
+
+```typescript
+const result = await pk.file(buffer, { name: "doc.pdf", type: "text" });
+
+if (result.onchain) {
+  console.log("Anchored on-chain:", result.onchain.txHash);
+} else {
+  console.log("Off-chain only (chain adapter not configured or tx failed)");
+}
+```
+
+## Custom IChainAdapter
+
+Implement `IChainAdapter` directly for ethers.js or any other signing library:
+
+```typescript
+import type { IChainAdapter } from "@provenancekit/sdk";
+import { ethers } from "ethers";
+
+const REGISTRY_ABI = [
+  "function recordActionAndRegisterOutputs(bytes32 actionId, bytes32[] inputs, bytes32[] outputs, bytes proof) returns (bytes32)",
+];
+
+class EthersAdapter implements IChainAdapter {
+  chainId = 84532;
+  chainName = "base-sepolia";
+  contractAddress = "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c";
+
+  private contract: ethers.Contract;
+
+  constructor(signer: ethers.Signer) {
+    this.contract = new ethers.Contract(this.contractAddress, REGISTRY_ABI, signer);
+  }
+
+  async recordAction(params: { actionType: string; inputs: string[]; outputs: string[]; proof?: string }) {
+    const actionId = ethers.id(params.actionType + Date.now());
+    const inputs = params.inputs.map((c) => ethers.id(c));
+    const outputs = params.outputs.map((c) => ethers.id(c));
+
+    const tx = await this.contract.recordActionAndRegisterOutputs(
+      actionId, inputs, outputs, params.proof ?? "0x"
+    );
+    const receipt = await tx.wait();
+    return { txHash: receipt.hash, actionId };
+  }
+}
+
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  chain: new EthersAdapter(signer),
+});
+```
+
+## Smart Wallet Session Keys (No Per-Action Popups)
+
+For the best UX in browser apps: use Privy or Coinbase Smart Wallet session keys. The user approves the session once; all subsequent provenance calls are signed silently.
+
+```typescript
+// Privy smart wallet with session key
+import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+
+const { client } = useSmartWallets();
+
+const adapter = createEIP1193Adapter({
+  provider: client,   // Smart wallet acts as EIP-1193 provider
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+  chainId: 8453,       // Base Mainnet
+  chainName: "base",
+});
+```
+
+## Gotchas
+
+- **`from` address**: The EIP-1193 adapter uses `eth_accounts[0]` as default sender. Override with `from` when using a smart wallet that differs from the EOA signer.
+- **Chain switching**: The adapter does not switch chains automatically. Ensure the provider is on the correct chain before calling `pk.file()`.
+- **Simulation first**: `createViemAdapter` simulates before broadcasting (`publicClient.simulateContract`). If simulation fails, no gas is spent.
+- **EIP-1193 and `eth_call`**: The self-contained encoder encodes function calls without external ABI libraries. The function selector for `recordActionAndRegisterOutputs` is `0xd57e4f08`.

@@ -72,7 +72,7 @@ export interface ToolCall {
 
 /** A file attachment queued by the user before sending */
 export interface FileAttachment {
-  /** browser File object (before upload) */
+  /** Original browser File object — kept for provenance search */
   file?: File;
   /** base64 data URL or remote URL (after upload/processing) */
   url?: string;
@@ -81,6 +81,8 @@ export interface FileAttachment {
   /** For images: width x height (optional display hint) */
   width?: number;
   height?: number;
+  /** Provenance CID if this file was found in the ProvenanceKit registry */
+  provenanceCid?: string;
 }
 
 export interface ChatMessage {

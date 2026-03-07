@@ -25,6 +25,7 @@ export interface ProjectWithOrg {
   orgId: string;
   orgSlug: string;
   storageType: string | null;
+  apiUrl: string | null;
   chainId: number | null;
 }
 

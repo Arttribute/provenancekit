@@ -102,7 +102,7 @@ const attributions: Attribution[] = [
 
 // 5. Bundle it all together
 const bundle: ProvenanceBundle = {
-  context: "https://provenancekit.org/context/v1",
+  context: "https://provenancekit.com/context/v1",
   entities: [human, ai],
   resources: [resource],
   actions: [action],
@@ -478,13 +478,13 @@ ProvenanceKit provides minimal, opinion-free primitives for tracking provenance.
 
 ## License
 
-MIT © [ProvenanceKit](https://provenancekit.org)
+MIT © [ProvenanceKit](https://provenancekit.com)
 
 ---
 
 ## Links
 
-- **Documentation**: https://docs.provenancekit.org
+- **Documentation**: https://docs.provenancekit.com
 - **GitHub**: https://github.com/provenancekit/provenancekit
 - **Discord**: https://discord.gg/provenancekit
-- **Website**: https://provenancekit.org
+- **Website**: https://provenancekit.com

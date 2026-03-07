@@ -9,7 +9,9 @@ import {
   type ChangeEvent,
 } from "react";
 import { Send, Loader2, Paperclip, Mic, MicOff, X, ImageIcon, FileText } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { FileProvenanceTag } from "@/components/provenance/pk-ui";
 import { cn } from "@/lib/utils";
 import type { FileAttachment } from "@/types";
 
@@ -34,6 +36,7 @@ export function ChatInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const router = useRouter();
 
   const [attachments, setAttachments] = useState<FileAttachment[]>([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -75,7 +78,13 @@ export function ChatInput({
         const res = await fetch("/api/media/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
-        newAttachments.push({ url: data.url, mimeType: data.mimeType, name: data.name });
+        // Store original File object so FileProvenanceTag can run background provenance search
+        newAttachments.push({
+          url: data.url,
+          mimeType: data.mimeType,
+          name: data.name,
+          file,
+        });
       } catch { /* skip */ }
     }
     setAttachments((prev) => [...prev, ...newAttachments]);
@@ -126,7 +135,12 @@ export function ChatInput({
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2 px-1">
           {attachments.map((att, i) => (
-            <AttachmentChip key={i} attachment={att} onRemove={() => removeAttachment(i)} />
+            <AttachmentChip
+              key={i}
+              attachment={att}
+              onRemove={() => removeAttachment(i)}
+              onViewProvenance={(cid) => router.push(`/provenance/${cid}`)}
+            />
           ))}
         </div>
       )}
@@ -177,15 +191,37 @@ export function ChatInput({
   );
 }
 
-function AttachmentChip({ attachment, onRemove }: { attachment: FileAttachment; onRemove: () => void }) {
+function AttachmentChip({
+  attachment,
+  onRemove,
+  onViewProvenance,
+}: {
+  attachment: FileAttachment;
+  onRemove: () => void;
+  onViewProvenance: (cid: string) => void;
+}) {
   const isImage = attachment.mimeType.startsWith("image/");
   return (
-    <div className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/50 pl-2 pr-1 py-1 text-xs max-w-[200px]">
-      {isImage ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" /> : <FileText className="h-3 w-3 shrink-0 text-orange-500" />}
-      <span className="truncate text-muted-foreground">{attachment.name}</span>
-      <button type="button" onClick={onRemove} className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground">
-        <X className="h-3 w-3" />
-      </button>
+    <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs max-w-[220px]">
+      {/* File name row */}
+      <div className="flex items-center gap-1.5">
+        {isImage
+          ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
+          : <FileText className="h-3 w-3 shrink-0 text-orange-500" />
+        }
+        <span className="truncate text-muted-foreground flex-1">{attachment.name}</span>
+        <button type="button" onClick={onRemove} className="shrink-0 rounded-sm text-muted-foreground hover:text-foreground ml-1">
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+      {/* Provenance tag — background search fires on mount */}
+      {attachment.file && (
+        <FileProvenanceTag
+          file={attachment.file}
+          onViewDetail={onViewProvenance}
+          topK={3}
+        />
+      )}
     </div>
   );
 }

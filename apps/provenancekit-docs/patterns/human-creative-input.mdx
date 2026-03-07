@@ -1,0 +1,218 @@
+---
+title: "Human Creative Input & Copyright"
+description: "Record human-authored inputs as provenance evidence for copyright protection and EU AI Act compliance. The EAA graph is evidence of human creative contribution."
+---
+
+> A human's authored prompt document, concept note, or creative brief can be recorded as a resource and referenced as an input to an AI action — making the provenance graph machine-readable evidence of human creative contribution.
+
+## Legal Context
+
+**US Copyright Office (2025 report)**: AI-generated content is not copyrightable, but human-authored *inputs* to an AI (prompts, selection, arrangement, editing) can constitute sufficient creative contribution for copyright protection.
+
+**USCO guidance**: The more a human's creative choices are recorded and evidenced, the stronger the copyright claim over the resulting work.
+
+**EU AI Act Art. 50**: Requires disclosure of AI involvement in content creation.
+
+This pattern provides the data foundation for these claims. ProvenanceKit does not make legal determinations — it gives developers and legal practitioners the provenance data to build on.
+
+## The Core Insight
+
+Instead of a single AI-creates-content relationship:
+```
+[AI Action: generate] ──► [Output: poem.txt]
+```
+
+Record the human input explicitly:
+```
+[Human resource: prompt.txt] ──┐
+                                ├── [Action: create] ──► [Output: poem.txt]
+[AI tool resource: gpt-4o]  ──┘
+```
+
+The human's prompt document is a **resource in the EAA graph** — it has a CID, it's an input to the action, and the human creator is the entity who created it.
+
+## Recording the Pattern
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { withExtension } from "@provenancekit/extensions";
+
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+// 1. Record the human's authored input (prompt, brief, concept note)
+const humanPrompt = await pk.file(
+  Buffer.from("Write a sonnet about the ethics of AI in the style of Shakespeare..."),
+  {
+    entity: {
+      id: "user:alice",
+      role: "human",
+      name: "Alice",
+    },
+    action: { type: "create" },
+    resourceType: "text",
+  }
+);
+// humanPrompt.cid = "bafybei..." — the prompt is now a content-addressed resource
+
+// 2. Record the AI-generated output, referencing the human prompt as input
+const { cid: outputCid } = await pk.file(
+  Buffer.from(aiGeneratedPoem),
+  {
+    entity: { id: "app:poetry-service", role: "organization" },
+    action: {
+      type: "create",
+      inputCids: [humanPrompt.cid],   // The human's prompt IS an input
+      extensions: {
+        "ext:ai@1.0.0": {
+          provider: "openai",
+          model: "gpt-4o",
+          autonomyLevel: "assistive",   // Human directed; AI executed
+          promptCid: humanPrompt.cid,   // Explicit reference
+        },
+      },
+    },
+    resourceType: "text",
+  }
+);
+
+// The graph now shows: alice ──creates──► prompt ──inputs──► action ──produces──► poem
+```
+
+## What Gets Recorded
+
+```
+alice (entity: human)
+  └── creates ──► prompt.txt (resource: text, CID: bafybei...)
+                    └── used as input to ──►
+                                           action: create
+                                             ├── performedBy: poetry-service
+                                             ├── ext:ai@1.0.0: { model: gpt-4o, autonomyLevel: "assistive" }
+                                             └── produces ──► poem.txt (resource: text, CID: bafybej...)
+```
+
+The provenance graph is machine-readable evidence that:
+1. A human (Alice) authored the prompt
+2. The prompt was an input to the AI action
+3. The AI acted at an "assistive" autonomy level (human-directed)
+4. The output is the generated poem
+
+## Autonomy Levels
+
+The `autonomyLevel` field in `ext:ai@1.0.0` signals the degree of human creative control:
+
+| Level | Meaning | Copyright implication |
+|-------|---------|----------------------|
+| `"autonomous"` | AI acts independently, minimal human direction | Weakest copyright claim for human |
+| `"supervised"` | Human reviews and approves AI outputs | Moderate human creative contribution |
+| `"assistive"` | Human directs the AI with detailed instructions | Strongest human copyright claim |
+
+## Richer Creative Inputs
+
+For more complex creative workflows, record each human input separately:
+
+```typescript
+// Design brief
+const brief = await pk.file(designBriefBuffer, {
+  entity: { id: "user:designer", role: "human" },
+  action: { type: "create" },
+  resourceType: "text",
+});
+
+// Style reference image
+const styleRef = await pk.file(moodBoardBuffer, {
+  entity: { id: "user:designer", role: "human" },
+  action: { type: "create" },
+  resourceType: "image",
+});
+
+// Generate the final image with all human inputs referenced
+const { cid } = await pk.file(generatedImageBuffer, {
+  entity: { id: "app:design-tool", role: "organization" },
+  action: {
+    type: "create",
+    inputCids: [brief.cid, styleRef.cid],  // Both human inputs are referenced
+    extensions: {
+      "ext:ai@1.0.0": {
+        provider: "stability",
+        model: "stable-diffusion-3",
+        autonomyLevel: "assistive",
+      },
+      "ext:license@1.0.0": {
+        aiTraining: "reserved",
+        hasAITrainingReservation: true,
+      },
+    },
+  },
+  resourceType: "image",
+});
+```
+
+## Querying Human Contribution
+
+```typescript
+const graph = await pk.graph(outputCid, 5);
+
+// Find all human-authored resources in the lineage
+const humanInputs = graph.nodes.filter(n =>
+  n.type === "resource" &&
+  graph.edges.some(e =>
+    e.to === n.id &&
+    e.from &&
+    graph.nodes.find(en => en.id === e.from)?.data?.role === "human"
+  )
+);
+
+console.log(`${humanInputs.length} human-authored input(s) in provenance chain`);
+
+// Find the autonomy level
+const aiActions = graph.nodes.filter(n =>
+  n.type === "action" && n.data?.["ext:ai@1.0.0"]
+);
+aiActions.forEach(a => {
+  console.log("Autonomy:", a.data["ext:ai@1.0.0"]?.autonomyLevel);
+});
+```
+
+## Editing and Iteration Chains
+
+Record the full editing workflow — each revision is a new resource with the previous as input:
+
+```typescript
+// Draft 1
+const draft1 = await pk.file(draft1Buffer, {
+  entity: { id: "user:alice", role: "human" },
+  action: { type: "create" },
+});
+
+// AI-assisted revision
+const draft2 = await pk.file(draft2Buffer, {
+  entity: { id: "user:alice", role: "human" },
+  action: {
+    type: "transform",
+    inputCids: [draft1.cid],          // Previous draft is an input
+    extensions: {
+      "ext:ai@1.0.0": {
+        provider: "anthropic",
+        model: "claude-sonnet-4-6",
+        autonomyLevel: "assistive",
+      },
+    },
+  },
+});
+
+// Final human edit
+const final = await pk.file(finalBuffer, {
+  entity: { id: "user:alice", role: "human" },
+  action: {
+    type: "transform",
+    inputCids: [draft2.cid],
+  },
+});
+// The final work has a full provenance chain: create → AI-revise → human-edit
+```
+
+## Gotchas
+
+- **Prompt privacy**: Recording a prompt as a resource makes it content-addressed and potentially discoverable. If the prompt is sensitive, encrypt it with `EncryptedFileStorage` before uploading.
+- **Autonomy level is asserted, not verified**: The creator asserts the autonomy level. ProvenanceKit records the assertion — it doesn't verify that the AI actually operated at that level. Trust is established through the consistency and completeness of the provenance graph.
+- **Copyright is a legal determination**: ProvenanceKit provides the data foundation. Whether a specific human contribution rises to the threshold of copyright protection is a legal question that depends on jurisdiction and the specific facts.

@@ -1,15 +1,16 @@
 "use client";
 
-import { use, useCallback, useEffect } from "react";
+import { use, useCallback, useEffect, useState } from "react";
 import { useChat } from "ai/react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck } from "lucide-react";
+import { ShieldCheck, History } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { MessageList } from "@/components/chat/message-list";
 import { ChatInput } from "@/components/chat/chat-input";
 import { ModelSelector } from "@/components/chat/model-selector";
+import { ProvenanceSheet } from "@/components/chat/provenance-sheet";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage, Conversation, AIProvider, FileAttachment } from "@/types";
 
@@ -24,6 +25,7 @@ export default function ConversationPage({
   const userId = user?.id;
   const searchParams = useSearchParams();
   const firstMessage = searchParams.get("q");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const { data: conversation } = useQuery<Conversation>({
     queryKey: ["conversation", id, userId],
@@ -70,6 +72,7 @@ export default function ConversationPage({
       setTimeout(() => {
         refetchMessages();
         queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
+        queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
       }, 800);
     },
   });
@@ -114,6 +117,8 @@ export default function ConversationPage({
     [input, handleSubmit, append, setInput]
   );
 
+  const hasSession = !!conversation?.provenance?.sessionId;
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -129,12 +134,28 @@ export default function ConversationPage({
             disabled={isLoading}
             size="sm"
           />
+          {/* Session provenance sheet toggle */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSheetOpen(true)}
+            disabled={!hasSession}
+            className={
+              hasSession
+                ? "h-7 gap-1 text-xs text-emerald-600 dark:text-emerald-400"
+                : "h-7 gap-1 text-xs text-muted-foreground"
+            }
+            title={hasSession ? "View session provenance" : "No provenance session yet"}
+          >
+            <History className="h-3 w-3" />
+            Provenance
+          </Button>
           {conversation?.provenanceCid && (
             <Button variant="ghost" size="sm" asChild
-              className="h-7 gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+              className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground">
               <Link href={`/provenance/${conversation.provenanceCid}`}>
                 <ShieldCheck className="h-3 w-3" />
-                Provenance
+                Explorer
               </Link>
             </Button>
           )}
@@ -169,6 +190,13 @@ export default function ConversationPage({
           </p>
         </div>
       </div>
+
+      {/* Session provenance sheet */}
+      <ProvenanceSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        conversation={conversation}
+      />
     </div>
   );
 }

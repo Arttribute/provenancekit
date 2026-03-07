@@ -4,7 +4,7 @@ import { z } from "zod";
  * Context URI for ProvenanceKit bundles
  * Used for versioning and identifying the schema
  */
-export const CONTEXT_URI = "https://provenancekit.org/context/v2" as const;
+export const CONTEXT_URI = "https://provenancekit.com/context/v2" as const;
 
 /**
  * Extension namespace validation pattern.

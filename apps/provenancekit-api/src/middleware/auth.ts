@@ -95,7 +95,7 @@ export function createDrizzleKeyProvider(): AuthProvider {
     if (!token.startsWith("pk_live_")) return null;
 
     const { getDb } = await import("../db/index.js");
-    const { appApiKeys } = await import("../db/schema.js");
+    const { appApiKeys, appProjects } = await import("../db/schema.js");
     const { eq } = await import("drizzle-orm");
 
     const db = getDb();
@@ -107,6 +107,9 @@ export function createDrizzleKeyProvider(): AuthProvider {
 
     const keyHash = createHash("sha256").update(token).digest("hex");
 
+    // JOIN to appProjects to get per-project IPFS config in one query.
+    // The API uses these credentials for file uploads belonging to this project
+    // instead of falling back to platform-level env var defaults.
     const [row] = await db
       .select({
         id: appApiKeys.id,
@@ -114,8 +117,12 @@ export function createDrizzleKeyProvider(): AuthProvider {
         permissions: appApiKeys.permissions,
         revokedAt: appApiKeys.revokedAt,
         expiresAt: appApiKeys.expiresAt,
+        ipfsProvider: appProjects.ipfsProvider,
+        ipfsApiKey: appProjects.ipfsApiKey,
+        ipfsGateway: appProjects.ipfsGateway,
       })
       .from(appApiKeys)
+      .leftJoin(appProjects, eq(appApiKeys.projectId, appProjects.id))
       .where(eq(appApiKeys.keyHash, keyHash))
       .limit(1);
 
@@ -151,6 +158,10 @@ export function createDrizzleKeyProvider(): AuthProvider {
         projectId: row.projectId,
         permissions: row.permissions,
         keyId: row.id,
+        // Per-project IPFS credentials — resolved in context.resolveFileStorage()
+        ipfsProvider: row.ipfsProvider ?? undefined,
+        ipfsApiKey: row.ipfsApiKey ?? undefined,
+        ipfsGateway: row.ipfsGateway ?? undefined,
       },
     };
   };

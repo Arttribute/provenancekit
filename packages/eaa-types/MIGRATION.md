@@ -537,10 +537,10 @@ const MyExtension: ExtensionDefinition = {
 
 ## Need Help?
 
-- **Documentation**: https://docs.provenancekit.org
+- **Documentation**: https://docs.provenancekit.com
 - **Discord**: https://discord.gg/provenancekit
 - **Issues**: https://github.com/provenancekit/provenancekit/issues
-- **Email**: support@provenancekit.org
+- **Email**: support@provenancekit.com
 
 ---
 

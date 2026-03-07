@@ -34,7 +34,7 @@ export default function LandingPage() {
           Get started
         </button>
         <a
-          href="https://docs.provenancekit.org"
+          href="https://docs.provenancekit.com"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center rounded-md border border-input px-6 py-2.5 text-sm font-medium hover:bg-muted transition-colors"

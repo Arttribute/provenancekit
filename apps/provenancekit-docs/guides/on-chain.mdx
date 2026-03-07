@@ -1,0 +1,293 @@
+---
+title: "On-Chain Provenance"
+description: "Record provenance actions on the ProvenanceRegistry smart contract — tamper-evident, verifiable without ProvenanceKit."
+---
+
+> Deploy provenance records to an EVM blockchain. Records are cryptographically tamper-evident and independently verifiable — even if ProvenanceKit's API goes away.
+
+## Overview
+
+ProvenanceKit supports two on-chain recording modes:
+
+| Mode | Who signs | Gas payer | Best for |
+|------|-----------|-----------|----------|
+| **API-side (relayer)** | API server wallet | You (operator) | High-frequency recording; no user wallet required |
+| **SDK-side (user wallet)** | User's wallet | User | User-initiated actions; wallet address in on-chain record |
+
+Both modes write to the same `ProvenanceRegistry` contract. Records are never deleted on-chain — this is the source of truth.
+
+## Deployed Contracts
+
+| Network | Chain ID | Contract Address |
+|---------|----------|-----------------|
+| Base Sepolia (testnet) | 84532 | `0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c` |
+
+## API-Side Recording (Relayer Model)
+
+When `BLOCKCHAIN_*` env vars are set on `provenancekit-api`, the server wallet acts as a trusted relayer. Every provenance action is automatically anchored on-chain — **no user wallet or transaction signing required**.
+
+```bash
+# .env for provenancekit-api
+BLOCKCHAIN_RPC_URL=https://sepolia.base.org
+BLOCKCHAIN_CHAIN_ID=84532
+BLOCKCHAIN_CHAIN_NAME=Base Sepolia
+BLOCKCHAIN_CONTRACT_ADDRESS=0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c
+BLOCKCHAIN_PRIVATE_KEY=0x<your-server-wallet-private-key>
+```
+
+On startup you'll see:
+```
+✓ Blockchain client ready (Base Sepolia, contract: 0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c)
+```
+
+Every `POST /v1/activity` call now records on-chain automatically. The on-chain anchor is added to the action's `ext:onchain@1.0.0` extension:
+
+```json
+{
+  "ext:onchain@1.0.0": {
+    "txHash": "0xabc...",
+    "actionId": "0xdef...",
+    "chainId": 84532,
+    "chainName": "base-sepolia",
+    "contractAddress": "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c"
+  }
+}
+```
+
+The API records on-chain **fire-and-forget** — if the blockchain transaction fails, the off-chain record still succeeds. This makes on-chain recording non-fatal and prevents blockchain congestion from breaking your application.
+
+## SDK-Side Recording (User Wallet)
+
+For user-initiated actions where the user's wallet address should appear on-chain, use the SDK chain adapters.
+
+### Option 1: viem (server-side or Node.js)
+
+```typescript
+import { ProvenanceKit, createViemAdapter } from "@provenancekit/sdk";
+import { createWalletClient, createPublicClient, http } from "viem";
+import { baseSepolia } from "viem/chains";
+import { privateKeyToAccount } from "viem/accounts";
+
+const account = privateKeyToAccount("0x...");
+
+const chainAdapter = createViemAdapter({
+  walletClient: createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http("https://sepolia.base.org"),
+  }),
+  publicClient: createPublicClient({
+    chain: baseSepolia,
+    transport: http("https://sepolia.base.org"),
+  }),
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+});
+
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  chain: chainAdapter,
+});
+
+const result = await pk.file(fileBuffer, {
+  name: "my-document.pdf",
+  type: "text",
+});
+
+console.log(result.cid);         // IPFS CID
+console.log(result.onchain);     // { txHash, actionId, chainId, chainName, contractAddress }
+```
+
+### Option 2: EIP-1193 Provider (MetaMask / Privy / WalletConnect)
+
+For browser environments using any EIP-1193 compatible wallet:
+
+```typescript
+import { ProvenanceKit, createEIP1193Adapter } from "@provenancekit/sdk";
+
+// From MetaMask
+const provider = window.ethereum;
+
+// From Privy embedded wallet
+const { wallets } = useWallets();
+const provider = await wallets[0].getEthereumProvider();
+
+const chainAdapter = createEIP1193Adapter({
+  provider,
+  contractAddress: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+  chainId: 84532,
+  chainName: "base-sepolia",
+  // Optional: override the `from` address (e.g. smart wallet address)
+  from: "0x...",
+});
+
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  chain: chainAdapter,
+});
+```
+
+## UX: No Per-Action Signing Required
+
+A common concern: "Does recording provenance require users to sign a transaction for every action?"
+
+**No — and this is by design.**
+
+The API-side relayer model (recommended for most apps) means:
+- Users never see MetaMask popups for provenance recording
+- The server wallet pays gas and signs on behalf of the app
+- Entity IDs and content CIDs are what's recorded — not raw wallet addresses
+- Attribution is anchored via content hashing, not wallet signing
+
+For the SDK model, you only need user signing when:
+1. You want the **user's wallet address** to appear as `msg.sender` on-chain (e.g. on-chain splits)
+2. The user is explicitly publishing a work and should own the on-chain record
+
+Use **smart wallet session keys** (Privy, Coinbase Smart Wallet) to avoid per-action popups even with user wallets:
+
+```typescript
+// User sets up once — app gets a session key
+// All subsequent provenance calls use the session key (no popup)
+const sessionKey = await smartWallet.createSessionKey({
+  permissions: [{ target: CONTRACT_ADDRESS }],
+});
+```
+
+## Payment Routing and On-Chain Splits
+
+When using the relayer model, payment streaming (Superfluid) still works because:
+1. The entity's `wallet` address is stored off-chain in the database
+2. The distribution calculator reads `entityId → walletAddress` from the DB
+3. Superfluid streams tokens to the resolved wallet addresses
+
+The on-chain record attests to *what happened* (content hash, action type, timestamp). The *payment routing* is a separate concern resolved from the provenance graph in the off-chain DB.
+
+For on-chain splits (0xSplits, canvas example), entities' wallet addresses must be registered when creating entities:
+
+```typescript
+await pk.entity({
+  id: "user:alice",
+  role: "human",
+  name: "Alice",
+  wallet: "0xAliceWalletAddress",  // Required for payment routing
+});
+```
+
+## Verifying On-Chain Records
+
+Any record can be independently verified without ProvenanceKit:
+
+```typescript
+import { createPublicClient, http } from "viem";
+import { baseSepolia } from "viem/chains";
+
+const client = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+});
+
+// Read action from registry
+const action = await client.readContract({
+  address: "0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c",
+  abi: [...], // ProvenanceRegistry ABI
+  functionName: "getAction",
+  args: [actionId],
+});
+```
+
+## Multi-Network Environment Isolation
+
+ProvenanceKit API supports **one active network at a time**. To maintain clean separation between development, staging, and production, deploy separate API instances with different environment variables.
+
+### Recommended pattern
+
+| Environment | Network | API instance |
+|-------------|---------|--------------|
+| Local dev | Base Sepolia | `localhost:3001` |
+| Staging | Base Sepolia | `staging-api.yourapp.com` |
+| Production | Base Mainnet | `api.yourapp.com` |
+
+Each API instance has its own `pk_live_` API keys, separate database, and its own blockchain relayer wallet. Provenance records on testnet and mainnet are completely isolated — they share no state.
+
+### Dashboard network indicator
+
+The ProvenanceKit dashboard (provenancekit-app) shows the active network on every project page and in the provenance explorer. When a project's configured Chain ID differs from the API's active chain, the dashboard shows a mismatch warning:
+
+- **Amber badge** — testnet (Base Sepolia, Ethereum Sepolia, etc.)
+- **Emerald badge** — mainnet (Base, Ethereum, Polygon, etc.)
+- **Grey badge** — unknown / custom chain
+
+The badge links to the block explorer so you can verify transactions directly.
+
+### Environment variables per network
+
+```bash
+# ── Base Sepolia (staging) ────────────────────────────────────────────────────
+BLOCKCHAIN_RPC_URL=https://sepolia.base.org
+BLOCKCHAIN_CHAIN_ID=84532
+BLOCKCHAIN_CHAIN_NAME=Base Sepolia
+BLOCKCHAIN_CONTRACT_ADDRESS=0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c
+BLOCKCHAIN_PRIVATE_KEY=0x...
+
+# ── Base Mainnet (production) ─────────────────────────────────────────────────
+BLOCKCHAIN_RPC_URL=https://mainnet.base.org
+BLOCKCHAIN_CHAIN_ID=8453
+BLOCKCHAIN_CHAIN_NAME=Base
+BLOCKCHAIN_CONTRACT_ADDRESS=0x<your-mainnet-contract>
+BLOCKCHAIN_PRIVATE_KEY=0x...
+```
+
+<Warning>
+Never use the same `BLOCKCHAIN_PRIVATE_KEY` across environments. Use separate relayer wallets per environment with minimal funded balances.
+</Warning>
+
+### Querying network info from the API
+
+The API exposes its current network configuration via `GET /management/network`:
+
+```typescript
+// In a server component or API route
+import { mgmt } from "@/lib/management-client";
+
+const network = await mgmt(userId).network.get();
+if (network.configured) {
+  console.log(network.chainId);        // 84532
+  console.log(network.chainName);      // "Base Sepolia"
+  console.log(network.isTestnet);      // true
+  console.log(network.explorerUrl);    // "https://sepolia.basescan.org"
+}
+```
+
+## Deploying to Your Own Chain
+
+Use the Foundry deploy script to deploy `ProvenanceRegistry` to any EVM chain:
+
+```bash
+cd packages/provenancekit-contracts
+
+# Set env vars
+export PRIVATE_KEY=0x...
+export BASESCAN_API_KEY=...  # optional, for verification
+
+# Deploy to Base Sepolia
+forge script script/Deploy.s.sol \
+  --rpc-url base-sepolia \
+  --broadcast \
+  --verify \
+  -vvvv
+
+# Deploy to any custom chain
+forge script script/Deploy.s.sol \
+  --rpc-url $CUSTOM_RPC_URL \
+  --broadcast \
+  -vvvv
+```
+
+Update `deployments/<network>.json` with the deployed address, then set `BLOCKCHAIN_CONTRACT_ADDRESS` in your API env.
+
+## Gotchas
+
+- **Gas**: The API server wallet must have ETH on the target chain. Monitor the balance — if it runs out, on-chain recording silently falls back to off-chain only (fire-and-forget semantics).
+- **Chain ID mismatch**: `BLOCKCHAIN_CHAIN_ID` must match the chain ID of `BLOCKCHAIN_RPC_URL`. Wrong chain ID causes viem to reject transactions.
+- **Private key format**: `BLOCKCHAIN_PRIVATE_KEY` must include the `0x` prefix.
+- **Verification**: Contract verification on Basescan requires `BASESCAN_API_KEY`. The contract is already deployed and functional without it.
+- **Testnet vs mainnet**: Use Base Sepolia (`84532`) for development. Get test ETH from the [Coinbase Base Sepolia faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet).
