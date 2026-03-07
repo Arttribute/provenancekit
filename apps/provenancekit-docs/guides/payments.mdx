@@ -1,0 +1,220 @@
+---
+title: "Payments & Revenue Distribution"
+description: "Automatically distribute revenue to contributors based on the provenance graph using 0xSplits, Superfluid streaming, or direct transfers."
+---
+
+> Turn your provenance graph into a payment distribution engine. Contributors are paid proportionally to their recorded contributions — no spreadsheets, no manual splits.
+
+## Overview
+
+`@provenancekit/payments` provides three adapters:
+
+| Adapter | Model | Gas | Best for |
+|---------|-------|-----|---------|
+| `DirectTransferAdapter` | One-time ETH/ERC-20 | Per-transfer | Milestone payments, lump sums |
+| `SplitsAdapter` | 0xSplits automatic split | Contract deploy + update | Revenue sharing for published works |
+| `SuperfluidAdapter` | Real-time token streaming | Flow create/update | Subscription revenue, royalties |
+
+## Installation
+
+```bash
+pnpm add @provenancekit/payments
+```
+
+## Step 1: Calculate Distribution
+
+The distribution calculator reads the provenance graph and computes fair splits using the **Largest Remainder Method** (Hamilton's method) — the same algorithm used to apportion parliamentary seats.
+
+```typescript
+import { calculateDistribution } from "@provenancekit/extensions";
+
+const contributions = [
+  { entityId: "user:alice", weight: 60 },
+  { entityId: "user:bob", weight: 30 },
+  { entityId: "user:carol", weight: 10 },
+];
+
+const distribution = calculateDistribution(contributions, 10_000); // basis points
+// { "user:alice": 6000, "user:bob": 3000, "user:carol": 1000 }
+// Sum always equals 10_000 — no dust, no rounding errors
+```
+
+### From a provenance bundle
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { calculateDistributionFromBundle } from "@provenancekit/extensions";
+
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+const bundle = await pk.getBundle(resourceCid);
+
+const distribution = calculateDistributionFromBundle(bundle, 10_000);
+```
+
+## Step 2: Resolve Entity Wallet Addresses
+
+Payment adapters need wallet addresses, not entity IDs. Resolve them from your database:
+
+```typescript
+async function resolveWallets(distribution: Record<string, number>) {
+  const resolved: Array<{ address: string; share: number }> = [];
+  for (const [entityId, share] of Object.entries(distribution)) {
+    const entity = await db.getEntity(entityId);
+    if (entity?.wallet) {
+      resolved.push({ address: entity.wallet, share });
+    }
+  }
+  return resolved;
+}
+```
+
+## Option A: 0xSplits (Automatic Revenue Sharing)
+
+0xSplits is a smart contract that automatically routes any ETH/ERC-20 sent to it according to configured splits. Update splits when the provenance graph changes.
+
+```typescript
+import { SplitsAdapter } from "@provenancekit/payments";
+import { createWalletClient, http } from "viem";
+import { base } from "viem/chains";
+
+const adapter = new SplitsAdapter({
+  walletClient: createWalletClient({
+    account: privateKeyToAccount(process.env.PRIVATE_KEY!),
+    chain: base,
+    transport: http(),
+  }),
+  chainId: 8453,
+});
+
+const recipients = await resolveWallets(distribution);
+
+// Deploy a new splits contract for this resource
+const { splitAddress } = await adapter.createSplit(recipients);
+console.log("Split contract:", splitAddress);
+
+// Any ETH sent to splitAddress is automatically routed to contributors
+// according to their shares — no further action needed
+
+// Update splits as provenance changes (new contributors, remixes, etc.)
+await adapter.updateSplit(splitAddress, newRecipients);
+```
+
+### Supported chains
+
+Base, Ethereum, Polygon, Arbitrum, Optimism, Gnosis
+
+## Option B: Superfluid (Real-Time Streaming)
+
+Stream tokens to contributors in real-time — payments accumulate every second proportional to contribution.
+
+```typescript
+import { SuperfluidAdapter } from "@provenancekit/payments";
+
+const adapter = new SuperfluidAdapter({
+  chainId: 8453, // Base
+  superTokenAddress: "0x...", // e.g. USDCx on Base
+  senderPrivateKey: process.env.PRIVATE_KEY!,
+});
+
+const recipients = await resolveWallets(distribution);
+const totalFlowRate = BigInt("1000000000000"); // wei/second total (~86 USDC/day)
+
+// Start streams to all contributors
+await adapter.distributeFlow(recipients, totalFlowRate);
+// Each contributor now receives: totalFlowRate × (share / 10_000) per second
+
+// Update when provenance changes
+await adapter.updateFlow(recipients, newTotalFlowRate);
+
+// Stop all streams
+await adapter.stopFlow(recipients);
+```
+
+### Supported chains
+
+Ethereum, Polygon, Arbitrum, Optimism, Base, Avalanche, BSC, Gnosis
+
+## Option C: Direct Transfer
+
+One-time ETH or ERC-20 transfers — simplest option for milestone payments.
+
+```typescript
+import { DirectTransferAdapter } from "@provenancekit/payments";
+
+const adapter = new DirectTransferAdapter({
+  walletClient,
+  publicClient,
+});
+
+const totalAmount = parseEther("1.0"); // 1 ETH to distribute
+
+const recipients = await resolveWallets(distribution);
+// Amounts are proportional to shares
+const amounts = recipients.map(r => (totalAmount * BigInt(r.share)) / 10_000n);
+
+await adapter.distribute(
+  recipients.map((r, i) => ({ address: r.address, amount: amounts[i] }))
+);
+```
+
+## Recording Payments in Provenance
+
+Record that a payment was made as part of the provenance graph:
+
+```typescript
+import { withExtension } from "@provenancekit/extensions";
+
+const paymentExtension = {
+  method: "superfluid",
+  currency: "USDCx",
+  chainId: 8453,
+  splitAddress: "0x...",
+  totalFlowRate: "1000000000000",
+  recipients: [
+    { entityId: "user:alice", share: 6000 },
+    { entityId: "user:bob", share: 3000 },
+    { entityId: "user:carol", share: 1000 },
+  ],
+};
+
+const action = withExtension(baseAction, "ext:payment@1.0.0", paymentExtension);
+```
+
+## Complete Example: Canvas-Style Revenue Sharing
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+import { calculateDistributionFromBundle } from "@provenancekit/extensions";
+import { SplitsAdapter } from "@provenancekit/payments";
+
+async function setupRevenueSplitting(resourceCid: string) {
+  const pk = new ProvenanceKit({ apiKey: process.env.PK_API_KEY! });
+
+  // 1. Get the provenance graph for this resource
+  const bundle = await pk.getBundle(resourceCid);
+
+  // 2. Calculate distribution (basis points)
+  const distribution = calculateDistributionFromBundle(bundle, 10_000);
+
+  // 3. Resolve wallet addresses
+  const recipients = await resolveWallets(distribution);
+
+  // 4. Deploy 0xSplits contract
+  const splitsAdapter = new SplitsAdapter({ walletClient, chainId: 8453 });
+  const { splitAddress } = await splitsAdapter.createSplit(recipients);
+
+  // 5. Record the payment setup in provenance
+  await pk.entity({ id: "payment-contract:" + splitAddress, role: "organization" });
+
+  return splitAddress;
+}
+```
+
+## Gotchas
+
+- **Wallet registration**: Entities must have a `wallet` address in the database for payment routing to work. Set it when calling `POST /entity` with the `wallet` field.
+- **Dust amounts**: The distribution calculator ensures shares sum exactly to the total (Largest Remainder Method). Adapters should check for zero-amount recipients and skip them.
+- **Chain mismatch**: Ensure `SplitsAdapter.chainId` matches your `walletClient.chain.id`. Wrong chain causes silent transaction failures.
+- **Superfluid token approval**: The Superfluid adapter requires the sender to have approved the `host` contract for token transfers. Approve the SuperToken before calling `distributeFlow`.
+- **0xSplits immutability**: Once deployed, a 0xSplits contract's recipients can be updated by calling `updateSplit`. The split address stays the same — no need to redeploy.
+- **Gas estimation**: On Base, gas costs are very low (~$0.01 per transaction). Mainnet Ethereum is significantly more expensive — use L2s or 0xSplits (single deployment + cheap updates) for cost efficiency.

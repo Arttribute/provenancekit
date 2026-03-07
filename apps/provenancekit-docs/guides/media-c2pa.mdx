@@ -1,0 +1,229 @@
+---
+title: "Media Provenance & C2PA"
+description: "Read and write C2PA manifests, detect AI-generated content, and bridge C2PA ↔ EAA types using @provenancekit/media."
+---
+
+> Embed cryptographically signed provenance directly into image and video files. Interoperable with Adobe, Microsoft, BBC, and others via the C2PA standard. Satisfies EU AI Act Art. 50(2) for AI-generated media.
+
+## What is C2PA?
+
+The [Coalition for Content Provenance and Authenticity (C2PA)](https://c2pa.org) is an open standard for embedding signed provenance manifests directly into media files. ProvenanceKit bridges C2PA ↔ the EAA type system, giving you both formats from a single workflow.
+
+## Installation
+
+```bash
+pnpm add @provenancekit/media
+```
+
+The package wraps `@contentauth/c2pa-node`, which requires a native binary. It's an **optional peer dependency** — C2PA features gracefully degrade if unavailable:
+
+```typescript
+import { isC2PAAvailable } from "@provenancekit/media";
+
+if (!await isC2PAAvailable()) {
+  console.warn("C2PA not available — install @contentauth/c2pa-node");
+}
+```
+
+## Reading a C2PA Manifest
+
+```typescript
+import { readManifest, readManifestFromBuffer } from "@provenancekit/media";
+
+// From file path
+const manifest = await readManifest("/path/to/image.jpg");
+
+if (manifest) {
+  console.log(manifest.title);
+  console.log(manifest.generator);   // tool that created the content
+  console.log(manifest.aiDisclosure); // "ai_generated" | "ai_assisted" | null
+  console.log(manifest.ingredients); // previous versions, training data
+  console.log(manifest.actions);     // list of edits/transformations
+}
+
+// From buffer (e.g. in-memory or uploaded file)
+const buffer = await fs.readFile("photo.jpg");
+const manifest = await readManifestFromBuffer(buffer, "image/jpeg");
+```
+
+## Writing a C2PA Manifest
+
+```typescript
+import { embedManifest } from "@provenancekit/media";
+
+const outputBuffer = await embedManifest({
+  inputPath: "/path/to/original.jpg",
+  manifest: {
+    title: "My Photograph",
+    generator: { name: "Lightroom", version: "25.0" },
+    actions: [
+      { action: "c2pa.color_adjustments", when: new Date().toISOString() },
+      { action: "c2pa.cropped", when: new Date().toISOString() },
+    ],
+    aiDisclosure: null,  // purely human-authored
+    signingCertificate: process.env.SIGNING_CERT_PEM!,
+    signingKey: process.env.SIGNING_KEY_PEM!,
+  },
+});
+
+await fs.writeFile("/path/to/signed.jpg", outputBuffer);
+```
+
+## Detecting AI-Generated Content
+
+```typescript
+import { detectAIContent, hasManifest, getManifestSummary } from "@provenancekit/media";
+
+// Quick check — is this file AI-generated or AI-assisted?
+const detection = await detectAIContent("/path/to/image.jpg");
+// { isAIGenerated: true, isAIAssisted: false, confidence: "high", source: "c2pa-manifest" }
+
+// Get a human-readable summary
+const summary = await getManifestSummary("/path/to/image.jpg");
+// "Adobe Firefly (AI generated) · edited in Photoshop · signed by Adobe"
+```
+
+## C2PA ↔ EAA Conversion
+
+Bidirectional conversion between C2PA manifests and EAA types:
+
+```typescript
+import { c2paToEAA, eaaToC2PA } from "@provenancekit/media";
+
+// Convert a C2PA manifest to an EAA ProvenanceBundle
+const manifest = await readManifest("/path/to/image.jpg");
+if (manifest) {
+  const bundle = c2paToEAA(manifest);
+  // bundle.entities = [{ id: "c2pa:Adobe", role: "organization" }]
+  // bundle.actions = [{ type: "create", ... }]
+  // bundle.resources = [{ cid: "...", type: "image" }]
+
+  // Store in ProvenanceKit
+  const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+  // Use bundle data to record EAA provenance...
+}
+
+// Convert an EAA bundle to a C2PA manifest
+import type { ProvenanceBundle } from "@provenancekit/eaa-types";
+
+const bundle: ProvenanceBundle = { ... };
+const c2paManifest = eaaToC2PA(bundle);
+```
+
+## EU AI Act Art. 50 Compliance Pattern
+
+Art. 50(2) requires AI-generated content to be "marked in a machine-readable format" so it can be detected by automated tools. C2PA is the designated standard.
+
+```typescript
+import { embedManifest } from "@provenancekit/media";
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+async function publishAIGeneratedImage(
+  imageBuffer: Buffer,
+  generatingModel: { provider: string; model: string }
+) {
+  const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+  // 1. Record EAA provenance
+  const { cid, actionId } = await pk.file(imageBuffer, {
+    entity: { id: "org:myapp", role: "organization" },
+    action: {
+      type: "create",
+      extensions: {
+        "ext:ai@1.0.0": {
+          provider: generatingModel.provider,
+          model: generatingModel.model,
+          autonomyLevel: "autonomous",
+        },
+      },
+    },
+    resourceType: "image",
+  });
+
+  // 2. Embed C2PA manifest for interoperability
+  const signedBuffer = await embedManifest({
+    inputBuffer: imageBuffer,
+    mimeType: "image/jpeg",
+    manifest: {
+      title: `AI-generated image (${generatingModel.model})`,
+      generator: {
+        name: generatingModel.provider,
+        version: generatingModel.model,
+      },
+      aiDisclosure: "ai_generated",   // required by EU AI Act Art. 50
+      actions: [
+        {
+          action: "c2pa.created",
+          softwareAgent: `${generatingModel.provider}/${generatingModel.model}`,
+          when: new Date().toISOString(),
+        },
+      ],
+      // Link to EAA provenance record
+      metadata: {
+        "provenancekit:cid": cid,
+        "provenancekit:actionId": actionId,
+      },
+    },
+  });
+
+  return { cid, signedBuffer };
+}
+```
+
+## Supported Formats
+
+| Format | Read | Write |
+|--------|------|-------|
+| JPEG | ✅ | ✅ |
+| PNG | ✅ | ✅ |
+| HEIC / HEIF | ✅ | ✅ |
+| AVIF | ✅ | ✅ |
+| WebP | ✅ | ✅ |
+| MP4 | ✅ | ✅ |
+| MOV | ✅ | ✅ |
+| MP3 | ✅ | ✅ |
+| M4A | ✅ | ✅ |
+| PDF | ✅ | ✅ |
+
+## The ext:c2pa@1.0.0 Extension
+
+When a media file with a C2PA manifest is recorded via ProvenanceKit, the manifest summary is stored in the `ext:c2pa@1.0.0` extension on the resource:
+
+```typescript
+{
+  "ext:c2pa@1.0.0": {
+    "manifestCid": "bafybeig...",
+    "generator": "Adobe Firefly 3.0",
+    "aiDisclosure": "ai_generated",
+    "actions": ["c2pa.created"],
+    "ingredientCids": [],
+    "validSignature": true,
+    "signedBy": "Adobe Inc."
+  }
+}
+```
+
+## Via the ProvenanceKit API
+
+The API exposes C2PA endpoints for direct use without the npm package:
+
+```bash
+# Extract manifest from an uploaded image
+curl -X POST https://api.provenancekit.org/v1/media/extract \
+  -H "Authorization: Bearer pk_live_..." \
+  -F "file=@image.jpg"
+
+# Embed manifest and record provenance in one call
+curl -X POST https://api.provenancekit.org/v1/media/embed \
+  -H "Authorization: Bearer pk_live_..." \
+  -F "file=@image.jpg" \
+  -F 'json={"entityId":"org:myapp","generator":"DALL-E 3","aiDisclosure":"ai_generated"}'
+```
+
+## Gotchas
+
+- **`@contentauth/c2pa-node` is optional**: The package is listed as a peer dependency. Install it explicitly; it ships a native binary compiled per platform.
+- **Signing certificates**: C2PA manifests must be signed with a valid X.509 certificate. For testing, use the C2PA test credentials. For production, obtain a certificate from a C2PA-approved certificate authority.
+- **Manifest validation**: Reading a manifest with `readManifest` returns `null` if no valid manifest is present — it does not throw. Check the return value before using.
+- **HEIC on Linux**: HEIC support requires `libheif` to be installed on the host OS. On macOS it's available by default.
+- **File mutation**: `embedManifest` returns a new buffer — it does not modify the input file. Write the returned buffer to a new path.

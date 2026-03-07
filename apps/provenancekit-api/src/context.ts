@@ -15,6 +15,7 @@ import type { SupabaseClient as StorageSupabaseClient } from "@provenancekit/sto
 import { MemoryDbStorage } from "@provenancekit/storage/adapters/db/memory";
 import { MemoryFileStorage } from "@provenancekit/storage/adapters/files/memory";
 import { PinataStorage } from "@provenancekit/storage/adapters/files/ipfs-pinata";
+import type { AuthIdentity } from "./middleware/auth.js";
 import type { IProvenanceStorage } from "@provenancekit/storage";
 import type { IFileStorage } from "@provenancekit/storage/files";
 import {
@@ -287,6 +288,86 @@ export async function closeContext(): Promise<void> {
     await ctx.dbStorage.close();
     await ctx.fileStorage.close();
     ctx = null;
+    projectFileStorageCache.clear();
     console.log("Context closed");
   }
+}
+
+/*─────────────────────────────────────────────────────────────*\
+ | Per-Project File Storage                                      |
+ |                                                              |
+ | When a project has its own IPFS credentials set, the API     |
+ | uses those for file uploads instead of the platform defaults. |
+ | This lets developers pin to their own Pinata/IPFS account.   |
+\*─────────────────────────────────────────────────────────────*/
+
+/**
+ * Cache of per-project file storage adapters.
+ * Key: `{projectId}:{ipfsProvider}:{ipfsApiKey}` — invalidated if config changes.
+ */
+const projectFileStorageCache = new Map<string, IFileStorage>();
+
+/**
+ * Resolve the file storage adapter for a request.
+ *
+ * If the request's auth identity carries per-project IPFS credentials
+ * (populated by the Drizzle auth provider via a JOIN on app_projects),
+ * those are used to instantiate or retrieve a cached per-project adapter.
+ *
+ * Falls back to the platform-level file storage from the global context.
+ */
+export async function resolveFileStorage(
+  identity?: AuthIdentity | null
+): Promise<IFileStorage> {
+  const projectId = identity?.claims?.["projectId"] as string | undefined;
+  const ipfsApiKey = identity?.claims?.["ipfsApiKey"] as string | undefined;
+  const ipfsProvider = (identity?.claims?.["ipfsProvider"] as string | undefined) ?? "pinata";
+  const ipfsGateway = identity?.claims?.["ipfsGateway"] as string | undefined;
+
+  // No per-project config — use platform default
+  if (!projectId || !ipfsApiKey) {
+    return getContext().fileStorage;
+  }
+
+  const cacheKey = `${projectId}:${ipfsProvider}:${ipfsApiKey}`;
+  const cached = projectFileStorageCache.get(cacheKey);
+  if (cached) return cached;
+
+  // Instantiate the appropriate adapter for this project
+  let adapter: IFileStorage;
+
+  if (ipfsProvider === "pinata" || !ipfsProvider) {
+    const pinata = new PinataStorage({
+      jwt: ipfsApiKey,
+      gateway: ipfsGateway,
+    });
+    await pinata.initialize();
+    adapter = pinata;
+  } else {
+    // Unknown provider — fall back to platform default
+    return getContext().fileStorage;
+  }
+
+  projectFileStorageCache.set(cacheKey, adapter);
+  return adapter;
+}
+
+/**
+ * Resolve an EncryptedFileStorage wrapping the per-project (or platform default)
+ * file storage adapter. Used by the activity service for encrypted uploads.
+ */
+export async function resolveEncryptedFileStorage(
+  identity?: AuthIdentity | null
+): Promise<EncryptedFileStorage> {
+  const fileStorage = await resolveFileStorage(identity);
+  const globalCtx = getContext();
+
+  // If resolved to the same object as the global adapter, reuse the pre-warmed
+  // encrypted wrapper — avoids unnecessary construction on every request.
+  if (fileStorage === globalCtx.fileStorage) {
+    return globalCtx.encryptedStorage;
+  }
+
+  // Per-project adapter — wrap in a fresh EncryptedFileStorage.
+  return new EncryptedFileStorage(fileStorage as unknown as MinimalFileStorage);
 }

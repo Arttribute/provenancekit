@@ -41,9 +41,56 @@
             ]
           },
           {
-            "group": "Protocol",
+            "group": "Infrastructure",
             "pages": [
-              "protocol/contracts"
+              "guides/on-chain",
+              "guides/payments",
+              "guides/privacy",
+              "guides/self-hosting"
+            ]
+          },
+          {
+            "group": "Domain Packages",
+            "pages": [
+              "guides/git-provenance",
+              "guides/media-c2pa"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "UI Components",
+        "groups": [
+          {
+            "group": "Components",
+            "pages": [
+              "ui-reference/overview",
+              "ui-reference/components"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "SDK Reference",
+        "groups": [
+          {
+            "group": "SDK",
+            "pages": [
+              "sdk-reference/client",
+              "sdk-reference/chain-adapters"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Patterns",
+        "groups": [
+          {
+            "group": "Legal & Compliance",
+            "pages": [
+              "patterns/model-training-provenance",
+              "patterns/human-creative-input",
+              "patterns/authorization-consent"
             ]
           }
         ]

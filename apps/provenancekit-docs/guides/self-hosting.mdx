@@ -1,0 +1,199 @@
+---
+title: "Self-Hosting the API"
+description: "Run your own provenancekit-api instance locally or in production with Docker, Supabase/Postgres, Pinata, and blockchain support."
+---
+
+> Run provenancekit-api on your own infrastructure. All features (Supabase storage, IPFS, blockchain anchoring) work exactly the same as the hosted version at api.provenancekit.org.
+
+## Prerequisites
+
+- Node.js 20+ and pnpm
+- PostgreSQL database (Supabase recommended) or in-memory mode for development
+- Pinata account for IPFS file storage (optional — in-memory for local dev)
+- An EVM wallet for blockchain recording (optional)
+
+## Quick Start (Local Development)
+
+```bash
+git clone https://github.com/provenancekit/provenancekit
+cd provenancekit
+pnpm install
+
+# Copy the example env file
+cp apps/provenancekit-api/.env.example apps/provenancekit-api/.env
+
+# Start in development mode (in-memory storage — data is lost on restart)
+pnpm --filter provenancekit-api dev
+```
+
+The API starts at `http://localhost:3001`. In-memory mode works out of the box with no external services required.
+
+## Environment Variables
+
+```bash
+# ─── Server ──────────────────────────────────────────────────
+PORT=3001
+NODE_ENV=production
+
+# ─── Database (Required in production) ───────────────────────
+# Run pnpm db:push after setting this to sync the schema
+DATABASE_URL=postgresql://user:password@host:5432/provenancekit
+
+# ─── Management API ──────────────────────────────────────────
+# Shared secret for server-to-server calls (dashboard → API)
+# Generate: openssl rand -hex 32
+MANAGEMENT_API_KEY=mk_live_...
+
+# ─── Authentication ───────────────────────────────────────────
+# Optional: static API keys for dev/testing
+# In production, keys are managed via the dashboard (Drizzle-backed)
+API_KEYS=
+
+# ─── Proof Policy ─────────────────────────────────────────────
+# off = no verification | warn = log only | enforce = reject invalid
+PROOF_POLICY=off
+
+# ─── Supabase ─────────────────────────────────────────────────
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=eyJ...
+
+# ─── Pinata (IPFS) ────────────────────────────────────────────
+PINATA_JWT=eyJ...
+PINATA_GATEWAY=https://gateway.pinata.cloud/ipfs
+
+# ─── Blockchain ───────────────────────────────────────────────
+BLOCKCHAIN_RPC_URL=https://sepolia.base.org
+BLOCKCHAIN_CHAIN_ID=84532
+BLOCKCHAIN_CHAIN_NAME=base-sepolia
+BLOCKCHAIN_CONTRACT_ADDRESS=0x7B2Fe7899a4d227AF2E5F0354b749df31179Db4c
+BLOCKCHAIN_PRIVATE_KEY=0x...
+```
+
+## Database Setup
+
+ProvenanceKit uses **two data layers**:
+
+1. **Control plane** (`app_*` tables via Drizzle ORM) — orgs, projects, API keys, usage metrics
+2. **Provenance storage** (`pk_*` tables via Supabase JS SDK + pgvector) — EAA records, embeddings
+
+Both can live in the same PostgreSQL/Supabase database.
+
+### Supabase (Recommended)
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Copy **Project URL** and **service_role** key from Settings → API
+3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
+4. Set `DATABASE_URL` to the **pooler connection string** (Settings → Database → Connection pooling)
+5. Run migrations: `pnpm --filter provenancekit-api db:push`
+
+Enable `pgvector` in Supabase SQL Editor:
+```sql
+create extension if not exists vector;
+```
+
+### PostgreSQL Direct
+
+Set `DATABASE_URL` to a direct PostgreSQL connection string. Run:
+```bash
+pnpm --filter provenancekit-api db:push
+```
+
+This syncs the Drizzle schema to your database.
+
+## Production Deployment
+
+### Docker
+
+```dockerfile
+FROM node:20-alpine AS base
+WORKDIR /app
+RUN npm install -g pnpm
+
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/ packages/
+COPY apps/provenancekit-api/ apps/provenancekit-api/
+
+RUN pnpm install --frozen-lockfile --filter provenancekit-api...
+
+WORKDIR /app/apps/provenancekit-api
+RUN pnpm build
+
+EXPOSE 3001
+CMD ["node", "dist/index.js"]
+```
+
+```bash
+docker build -t provenancekit-api .
+docker run -p 3001:3001 --env-file .env provenancekit-api
+```
+
+### Railway / Render / Fly.io
+
+Set the build command to:
+```bash
+pnpm install && pnpm --filter provenancekit-api build
+```
+
+Start command:
+```bash
+pnpm --filter provenancekit-api start
+```
+
+Set all environment variables in the platform's UI.
+
+## Pointing the Dashboard at Your API
+
+In the ProvenanceKit dashboard → Project → Settings → Self-hosted API, set your API URL. The dashboard will use your instance for all provenance operations for that project.
+
+Or set it via the SDK:
+```typescript
+const pk = new ProvenanceKit({
+  apiKey: "pk_live_...",
+  baseUrl: "https://your-api.example.com",
+});
+```
+
+## API Key Management
+
+There are two types of API keys:
+
+| Type | Format | Purpose |
+|------|--------|---------|
+| Management key | `mk_live_...` | Dashboard → API server-to-server (set in `MANAGEMENT_API_KEY`) |
+| Provenance key | `pk_live_...` | Developer apps → Provenance API (managed via dashboard or direct DB) |
+
+Management key is a single shared secret. Provenance keys are scoped to a project, stored as SHA-256 hashes in `app_api_keys`.
+
+## Rate Limiting
+
+The API includes in-memory sliding-window rate limiting on all `/v1/*` routes:
+
+```bash
+# Env vars (defaults shown)
+RATE_LIMIT_RPM=60    # requests per minute per key
+RATE_LIMIT_BURST=20  # additional burst allowance
+```
+
+Response headers:
+```
+X-RateLimit-Limit: 80
+X-RateLimit-Remaining: 75
+X-RateLimit-Reset: 1710000060
+```
+
+When exceeded, the API returns `429 TooManyRequests` with a `Retry-After` header.
+
+## Health Check
+
+```bash
+curl http://localhost:3001/
+# {"status":"ok","version":"0.0.0"}
+```
+
+## Gotchas
+
+- **DATABASE_URL pooler vs direct**: For Drizzle/migrations use the **direct** connection. For the app at runtime, the **pooler** is fine (and required for serverless).
+- **pgvector**: Must be enabled in your Postgres instance before running `db:push`. On Supabase, enable it via the Dashboard → Extensions or with `CREATE EXTENSION vector`.
+- **MANAGEMENT_API_KEY**: Never expose this to the browser. It's used only for server-to-server calls between the dashboard app and the API.
+- **Blockchain private key**: The server wallet must have ETH on the target chain. Monitor the balance; on-chain recording is fire-and-forget and won't crash the API if it fails.
+- **In-memory mode**: When `SUPABASE_URL` is not set, the API uses in-memory storage. All data is lost on restart. Only use this for local testing.

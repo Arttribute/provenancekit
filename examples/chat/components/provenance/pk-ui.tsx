@@ -12,4 +12,5 @@ export {
   ProvenanceTracker,
   ProvenancePopover,
   AIExtensionView,
+  FileProvenanceTag,
 } from "@provenancekit/ui";

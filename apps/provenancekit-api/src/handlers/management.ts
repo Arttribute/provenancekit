@@ -167,14 +167,31 @@ const CreateProjectSchema = z.object({
   name:            z.string().min(1).max(64),
   slug:            z.string().min(1).max(40).regex(/^[a-z0-9-]+$/),
   description:     z.string().max(500).optional().nullable(),
-  storageType:     z.enum(["supabase", "ipfs", "custom"]).optional(),
-  storageUrl:      z.string().url().optional().nullable(),
+
+  // Advisory label — describes what DB adapter a self-hosted provenancekit-api
+  // is using for EAA provenance records. Has no effect on the hosted API.
+  storageType:     z.enum(["memory", "postgres", "mongodb", "supabase", "ipfs", "custom"]).optional(),
+
+  // Per-project IPFS / file storage config.
+  // When set, the ProvenanceKit API uses these credentials for file uploads
+  // belonging to this project (rather than platform-level defaults).
   ipfsProvider:    z.string().optional().nullable(),
   ipfsApiKey:      z.string().optional().nullable(),
-  ipfsGateway:     z.string().url().optional().nullable(),
+  ipfsGateway:     z.string().url().optional().nullable().or(z.literal("")),
+
+  // Self-hosted API URL. If set, the SDK and dashboard use this endpoint
+  // instead of the hosted api.provenancekit.org.
+  apiUrl:          z.string().url().optional().nullable().or(z.literal("")),
+
+  // On-chain config — used for ProvenanceRegistry recording.
   chainId:         z.number().int().optional().nullable(),
   contractAddress: z.string().optional().nullable(),
-  rpcUrl:          z.string().url().optional().nullable(),
+  rpcUrl:          z.string().url().optional().nullable().or(z.literal("")),
+
+  // Privacy
+  // When true, ext:license@1.0.0 / hasAITrainingReservation: true is attached
+  // to every resource uploaded via this project's API key.
+  aiTrainingOptOut: z.boolean().optional(),
 });
 
 const UpdateProjectSchema = CreateProjectSchema.partial();

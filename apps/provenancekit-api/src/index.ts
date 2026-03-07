@@ -21,6 +21,7 @@ import {
 } from "./middleware/auth.js";
 import { createUsageMiddleware } from "./middleware/usage.js";
 import { createManagementAuthMiddleware } from "./middleware/management-auth.js";
+import { createRateLimitMiddleware } from "./middleware/rate-limit.js";
 
 // Handlers
 import health from "./handlers/health.js";
@@ -149,6 +150,12 @@ async function main() {
     }
 
     const app = createApp(authProviders.length > 0 ? { authProviders } : undefined);
+
+    // Rate limiting — sliding window per API key / IP (v1 routes only; management has own auth)
+    app.use("/v1/*", createRateLimitMiddleware());
+    app.use("/activities*", createRateLimitMiddleware());
+    app.use("/entities*", createRateLimitMiddleware());
+    app.use("/resources*", createRateLimitMiddleware());
 
     // Usage recording (fire-and-forget via Drizzle, only when DATABASE_URL is set)
     app.use("*", createUsageMiddleware());

@@ -82,3 +82,9 @@ export { LicenseExtensionView } from "./components/extensions/license-extension-
 export { OnchainExtensionView } from "./components/extensions/onchain-extension-view";
 export { VerificationView } from "./components/extensions/verification-view";
 export { ContribExtensionView } from "./components/extensions/contrib-extension-view";
+
+// ── File Provenance ───────────────────────────────────────────
+export {
+  FileProvenanceTag,
+  type FileProvenanceTagProps,
+} from "./components/provenance/file-provenance-tag";

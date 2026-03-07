@@ -1,0 +1,298 @@
+---
+title: "Authorization & Consent Recording"
+description: "Record structured consent and access control decisions in the provenance graph. Satisfies GDPR Art. 6/7 consent requirements and provides audit trails for permission-gated AI actions."
+---
+
+> Record *who authorized what*, *when*, and *under what scope* as a first-class provenance event. The EAA graph becomes a machine-readable consent ledger.
+
+## Legal Context
+
+**GDPR Art. 6**: Processing of personal data requires a lawful basis — consent is one of the six. The consent must be informed, specific, freely given, and withdrawable.
+
+**GDPR Art. 7**: Controllers must demonstrate that consent was given. The provenance graph provides this audit trail.
+
+**EU AI Act Art. 9**: High-risk AI systems must have human oversight mechanisms. `ext:authorization@1.0.0` records human approval of AI decisions.
+
+**CCPA / US state laws**: Opt-in/opt-out signals for data processing must be recorded and honored.
+
+## The Pattern
+
+Every authorization event is an action in the EAA graph. The actor (who granted access), the scope (what was authorized), and the target (what resource or capability) are all recorded.
+
+```
+[Entity: alice (human)]
+  └── grants ──► [Authorization action]
+                   ├── scope: "read:provenance, write:provenance"
+                   ├── target: "project:my-app"
+                   ├── expiresAt: "2026-12-31"
+                   └── produces ──► [Resource: consent-record (CID: bafybei...)]
+```
+
+## Recording Authorization
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+// 1. Record that a user granted consent/authorization
+const consentRecord = await pk.file(
+  Buffer.from(JSON.stringify({
+    subject: "user:alice",
+    scope: ["read:content", "write:content", "ai:generate"],
+    grantedAt: new Date().toISOString(),
+    expiresAt: "2026-12-31T23:59:59Z",
+    purpose: "AI-assisted content generation for personal blog",
+    withdrawable: true,
+  })),
+  {
+    entity: { id: "user:alice", role: "human", name: "Alice" },
+    action: {
+      type: "verify",     // "verify" = an assertion/decision action in EAA
+      extensions: {
+        "ext:authorization@1.0.0": {
+          grantedTo: "app:content-generator",
+          scope: ["read:content", "write:content", "ai:generate"],
+          expiresAt: "2026-12-31T23:59:59Z",
+          purpose: "AI-assisted content generation",
+          consentVersion: "1.2",
+          withdrawable: true,
+        },
+      },
+    },
+    resourceType: "text",
+  }
+);
+// consentRecord.cid = the CID of the consent document itself
+```
+
+## Referencing Authorization in AI Actions
+
+When an authorized action is later performed, reference the consent CID:
+
+```typescript
+// 2. Later: perform an AI action, referencing the consent that authorized it
+const { cid: outputCid } = await pk.file(
+  Buffer.from(aiGeneratedContent),
+  {
+    entity: { id: "app:content-generator", role: "organization" },
+    action: {
+      type: "create",
+      inputCids: [consentRecord.cid],    // Consent is an input to the action
+      extensions: {
+        "ext:ai@1.0.0": {
+          provider: "anthropic",
+          model: "claude-sonnet-4-6",
+          autonomyLevel: "assistive",
+        },
+        "ext:authorization@1.0.0": {
+          authorizedBy: "user:alice",
+          consentCid: consentRecord.cid,  // Explicit back-reference
+          scope: ["ai:generate"],
+          verifiedAt: new Date().toISOString(),
+        },
+      },
+    },
+    resourceType: "text",
+  }
+);
+
+// The graph: alice-grants-consent → consent-cid ← ai-action → output
+```
+
+## What Gets Recorded
+
+```
+alice (entity: human)
+  └── verify ──► consent.json (resource: text, CID: bafybei...)
+                   ├── ext:authorization@1.0.0:
+                   │     grantedTo: "app:content-generator"
+                   │     scope: ["read:content", "write:content", "ai:generate"]
+                   │     expiresAt: "2026-12-31"
+                   │     purpose: "AI-assisted content generation"
+                   └── used as input to ──►
+                                           action: create
+                                             ├── performedBy: content-generator
+                                             ├── ext:ai@1.0.0: { model: claude-sonnet-4-6 }
+                                             ├── ext:authorization@1.0.0: { consentCid: bafybei... }
+                                             └── produces ──► output.txt (CID: bafybej...)
+```
+
+## Checking Authorization Before Processing
+
+```typescript
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+async function checkAuthorization(
+  entityId: string,
+  requiredScope: string[]
+): Promise<boolean> {
+  const pk = new ProvenanceKit({ apiKey: process.env.PK_API_KEY! });
+
+  // Search for recent consent records from this entity
+  const results = await pk.searchText(`authorization consent ${entityId}`, {
+    topK: 10,
+    type: "text",
+  });
+
+  for (const result of results) {
+    const bundle = await pk.bundle(result.cid);
+    const action = bundle.actions?.find(
+      a => a.extensions?.["ext:authorization@1.0.0"]
+    );
+    const authExt = action?.extensions?.["ext:authorization@1.0.0"] as any;
+
+    if (!authExt) continue;
+
+    // Check scope
+    const hasScope = requiredScope.every(s => authExt.scope?.includes(s));
+    if (!hasScope) continue;
+
+    // Check expiry
+    if (authExt.expiresAt && new Date(authExt.expiresAt) < new Date()) continue;
+
+    return true;
+  }
+
+  return false;
+}
+
+// Use before processing
+const authorized = await checkAuthorization("user:alice", ["ai:generate"]);
+if (!authorized) throw new Error("User has not granted required consent");
+```
+
+## Consent Withdrawal
+
+Record withdrawal as a new action that supersedes the original consent:
+
+```typescript
+// Record that consent was withdrawn
+const withdrawalRecord = await pk.file(
+  Buffer.from(JSON.stringify({
+    withdraws: consentRecord.cid,
+    withdrawnAt: new Date().toISOString(),
+    reason: "User opted out via privacy settings",
+  })),
+  {
+    entity: { id: "user:alice", role: "human" },
+    action: {
+      type: "verify",
+      inputCids: [consentRecord.cid],   // Points to the consent being withdrawn
+      extensions: {
+        "ext:authorization@1.0.0": {
+          action: "withdraw",
+          withdrawsCid: consentRecord.cid,
+          withdrawnAt: new Date().toISOString(),
+        },
+      },
+    },
+    resourceType: "text",
+  }
+);
+// The graph now shows: original consent → withdrawal
+// Any system checking authorization must walk the graph and check for withdrawals
+```
+
+## Human Approval of AI Decisions
+
+For supervised AI workflows where a human must approve each AI output before it becomes canonical:
+
+```typescript
+// Step 1: AI generates a draft (autonomyLevel: supervised)
+const draft = await pk.file(aiDraftBuffer, {
+  entity: { id: "app:ai-writer", role: "organization" },
+  action: {
+    type: "create",
+    extensions: {
+      "ext:ai@1.0.0": {
+        provider: "openai",
+        model: "gpt-4o",
+        autonomyLevel: "supervised",  // Human review required
+      },
+    },
+  },
+});
+
+// Step 2: Human reviews and approves — records the approval
+const approval = await pk.file(
+  Buffer.from(JSON.stringify({ approved: true, notes: "Good. Publish it." })),
+  {
+    entity: { id: "user:editor", role: "human", name: "Editor" },
+    action: {
+      type: "verify",
+      inputCids: [draft.cid],     // References the draft being approved
+      extensions: {
+        "ext:authorization@1.0.0": {
+          action: "approve",
+          approvedCid: draft.cid,
+          approvedAt: new Date().toISOString(),
+          approvedBy: "user:editor",
+        },
+      },
+    },
+    resourceType: "text",
+  }
+);
+
+// Step 3: Publish — references both draft and approval
+const published = await pk.file(finalBuffer, {
+  entity: { id: "app:publishing-system", role: "organization" },
+  action: {
+    type: "transform",
+    inputCids: [draft.cid, approval.cid],  // Both draft + approval are inputs
+  },
+  resourceType: "text",
+});
+
+// Graph: ai-generates-draft → editor-approves → publishing-system-publishes
+```
+
+## Querying the Consent Chain
+
+```typescript
+const graph = await pk.graph(outputCid, 10);
+
+// Find all authorization events in the lineage
+const authActions = graph.nodes.filter(n =>
+  n.type === "action" &&
+  n.data?.extensions?.["ext:authorization@1.0.0"]
+);
+
+authActions.forEach(a => {
+  const auth = a.data.extensions["ext:authorization@1.0.0"];
+  console.log("Authorization:", {
+    action: auth.action ?? "grant",
+    grantedTo: auth.grantedTo,
+    scope: auth.scope,
+    expiresAt: auth.expiresAt,
+    withdrawsCid: auth.withdrawsCid,
+  });
+});
+
+// Check for withdrawals
+const withdrawals = authActions.filter(
+  a => a.data.extensions["ext:authorization@1.0.0"]?.action === "withdraw"
+);
+
+if (withdrawals.length > 0) {
+  console.warn("Consent has been withdrawn — stop processing");
+}
+```
+
+## GDPR Compliance Summary
+
+| GDPR Requirement | How ProvenanceKit Records It |
+|-----------------|------------------------------|
+| Art. 7(1): Demonstrate consent was given | Consent CID in provenance graph; entity who granted it; timestamp |
+| Art. 7(3): Consent withdrawal | Withdrawal action with `withdrawsCid` back-reference |
+| Art. 13/14: Inform data subjects | `purpose` field in `ext:authorization@1.0.0` |
+| Art. 17: Right to erasure | Record deletion action; consent withdrawal first |
+| Art. 9: High-risk AI human oversight | Human `verify` action approving AI output before publishing |
+
+## Gotchas
+
+- **Authorization check is app responsibility**: ProvenanceKit records the authorization event — it doesn't enforce it. Your API middleware must check for valid, unexpired, unrevoked consent before processing.
+- **Withdrawal graph walk**: To check if consent is still valid, you must walk the graph forward from the consent CID and check for withdrawal actions. A simple CID lookup is not sufficient.
+- **Scope granularity**: Design scope strings carefully. `["ai:generate"]` is specific; `["*"]` is too broad to be meaningful for audit purposes.
+- **Consent versioning**: If your consent terms change, use `consentVersion` in the extension and re-collect consent. Old consent records remain in the graph as historical evidence.

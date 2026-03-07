@@ -57,7 +57,7 @@ import {
   type FullActionSignPayload,
 } from "@provenancekit/sdk";
 import { eq } from "drizzle-orm";
-import { getContext } from "../context.js";
+import { getContext, resolveFileStorage, resolveEncryptedFileStorage } from "../context.js";
 import { config } from "../config.js";
 import { getDb } from "../db/index.js";
 import { pkApiEntityFlags } from "../db/schema.js";
@@ -473,7 +473,13 @@ export async function createActivity(
   body: unknown,
   authIdentity?: AuthIdentity
 ): Promise<ActivityResult> {
-  const { dbStorage, fileStorage, encryptedStorage, ipfsGateway } = getContext();
+  const { dbStorage, ipfsGateway } = getContext();
+  // Resolve per-project file storage adapters (uses project's own IPFS credentials
+  // if configured, otherwise falls back to platform-level defaults).
+  const [fileStorage, encryptedStorage] = await Promise.all([
+    resolveFileStorage(authIdentity),
+    resolveEncryptedFileStorage(authIdentity),
+  ]);
 
   // Initialize claim tracker
   const claims: ClaimTracker = {

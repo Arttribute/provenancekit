@@ -1,0 +1,83 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@layer base {
+  :root {
+    /* ── ProvenanceKit design tokens ── */
+    --pk-node-resource: oklch(0.55 0.18 250);
+    --pk-node-resource-muted: oklch(0.55 0.18 250 / 12%);
+    --pk-node-resource-border: oklch(0.55 0.18 250 / 35%);
+    --pk-node-resource-fg: oklch(0.98 0 0);
+
+    --pk-node-action: oklch(0.52 0.18 145);
+    --pk-node-action-muted: oklch(0.52 0.18 145 / 12%);
+    --pk-node-action-border: oklch(0.52 0.18 145 / 35%);
+    --pk-node-action-fg: oklch(0.98 0 0);
+
+    --pk-node-entity: oklch(0.65 0.18 75);
+    --pk-node-entity-muted: oklch(0.65 0.18 75 / 12%);
+    --pk-node-entity-border: oklch(0.65 0.18 75 / 35%);
+    --pk-node-entity-fg: oklch(0.15 0 0);
+
+    --pk-role-human: oklch(0.52 0.18 250);
+    --pk-role-ai: oklch(0.52 0.2 310);
+    --pk-role-org: oklch(0.55 0.18 145);
+
+    --pk-verified: oklch(0.52 0.18 145);
+    --pk-partial: oklch(0.65 0.18 75);
+    --pk-unverified: oklch(0.55 0 0);
+    --pk-failed: oklch(0.58 0.22 25);
+
+    --pk-edge-produces: oklch(0.52 0.18 250);
+    --pk-edge-consumes: oklch(0.58 0.22 25);
+    --pk-edge-performedby: oklch(0.65 0.18 75);
+    --pk-edge-tool: oklch(0.52 0.2 310);
+
+    --pk-badge-bg: oklch(0.15 0.05 250 / 85%);
+    --pk-badge-fg: oklch(0.98 0 0);
+    --pk-badge-border: oklch(0.52 0.18 250 / 40%);
+    --pk-badge-hover: oklch(0.52 0.18 250 / 90%);
+
+    --pk-surface: oklch(1 0 0);
+    --pk-surface-muted: oklch(0.97 0 0);
+    --pk-surface-border: oklch(0.922 0 0);
+    --pk-foreground: oklch(0.145 0 0);
+    --pk-muted-foreground: oklch(0.556 0 0);
+
+    --pk-radius: 0.5rem;
+    --pk-node-gap-h: 320px;
+    --pk-node-gap-v: 140px;
+    --pk-node-width: 220px;
+  }
+
+  .dark {
+    --pk-node-resource: oklch(0.58 0.2 250);
+    --pk-node-resource-muted: oklch(0.58 0.2 250 / 15%);
+    --pk-node-resource-border: oklch(0.58 0.2 250 / 30%);
+
+    --pk-node-action: oklch(0.55 0.2 145);
+    --pk-node-action-muted: oklch(0.55 0.2 145 / 15%);
+    --pk-node-action-border: oklch(0.55 0.2 145 / 30%);
+
+    --pk-node-entity: oklch(0.68 0.2 75);
+    --pk-node-entity-muted: oklch(0.68 0.2 75 / 15%);
+    --pk-node-entity-border: oklch(0.68 0.2 75 / 30%);
+
+    --pk-surface: oklch(0.145 0 0);
+    --pk-surface-muted: oklch(0.205 0 0);
+    --pk-surface-border: oklch(1 0 0 / 10%);
+    --pk-foreground: oklch(0.985 0 0);
+    --pk-muted-foreground: oklch(0.708 0 0);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background: var(--pk-surface);
+  color: var(--pk-foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  margin: 0;
+}

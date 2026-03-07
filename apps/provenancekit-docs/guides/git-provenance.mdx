@@ -1,0 +1,225 @@
+---
+title: "Git & Code Provenance"
+description: "Track code contributions, detect AI co-authorship, and record git commit provenance using @provenancekit/git."
+---
+
+> Attach provenance to every commit: who wrote what, what percentage was AI-assisted, and which tools were involved. Auto-detect GitHub Copilot, Claude, ChatGPT, Cursor, and Aider.
+
+## Installation
+
+```bash
+pnpm add @provenancekit/git
+```
+
+## Recording a Single Commit
+
+```typescript
+import { recordCommit } from "@provenancekit/git";
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+const result = await recordCommit({
+  pk,
+  repoPath: "/path/to/repo",
+  commitHash: "a1b2c3d",     // defaults to HEAD if omitted
+  entity: {
+    id: "dev:alice",
+    role: "human",
+    name: "Alice",
+  },
+});
+
+console.log(result.cid);           // IPFS CID of the commit record
+console.log(result.aiAssistance);  // detected AI tools, if any
+```
+
+## AI Co-Author Detection
+
+ProvenanceKit automatically scans commit messages, file names, and diff patterns to detect AI-assisted code:
+
+```typescript
+import { detectAIAssistance, detectFromMessage } from "@provenancekit/git";
+
+// Detect from a commit message
+const fromMessage = detectFromMessage("Co-authored-by: GitHub Copilot <copilot@github.com>");
+// { detected: true, tool: "copilot", confidence: "high" }
+
+// Detect from changed files and diff content
+const fromFiles = detectAIAssistance({
+  message: "feat: add auth module",
+  files: ["src/auth.ts", ".copilot/config.json"],
+  diff: "...",
+});
+
+// Supported tools
+// GitHub Copilot — Co-authored-by header, .copilot/ dir
+// Claude/Anthropic — CLAUDE.md, claude-trace/, Co-authored-by: Claude
+// ChatGPT/OpenAI — chatgpt- prefixed files
+// Cursor — .cursorrules, Cursor-AI headers
+// Aider — aider.chat markers, Co-authored-by: aider
+```
+
+## Git Blame → Contribution Weights
+
+Analyse a file's full history to compute contribution weights per author:
+
+```typescript
+import { analyzeBlame, getTopContributors } from "@provenancekit/git";
+
+const blame = await analyzeBlame({
+  repoPath: "/path/to/repo",
+  filePath: "src/index.ts",
+});
+
+// blame.contributors: Record<string, { lines, percentage, commits }>
+const top = getTopContributors(blame, 5);
+console.log(top);
+// [
+//   { author: "alice@example.com", percentage: 65, lines: 142 },
+//   { author: "bob@example.com", percentage: 28, lines: 61 },
+//   { author: "GitHub Copilot", percentage: 7, lines: 15 },
+// ]
+```
+
+### Whole-repo blame
+
+```typescript
+import { analyzeBlame } from "@provenancekit/git";
+
+const repoBlame = await analyzeBlame({
+  repoPath: "/path/to/repo",
+  // No filePath = analyse all tracked files
+});
+```
+
+## Record Multiple Commits
+
+Record a range of commits as a batch (e.g. on release):
+
+```typescript
+import { recordCommits, getCommitHistory } from "@provenancekit/git";
+
+// Get recent commits
+const commits = await getCommitHistory("/path/to/repo", { limit: 50 });
+
+// Record all of them
+const results = await recordCommits({
+  pk,
+  repoPath: "/path/to/repo",
+  commits,
+  defaultEntity: { id: "org:myteam", role: "organization" },
+  // Per-author entity mapping (optional)
+  entityMap: {
+    "alice@example.com": { id: "dev:alice", role: "human" },
+    "bob@example.com":   { id: "dev:bob",   role: "human" },
+  },
+});
+
+console.log(`Recorded ${results.length} commits`);
+```
+
+## GitHub Integration
+
+Record pull request provenance via the GitHub API:
+
+```typescript
+import { recordPullRequest } from "@provenancekit/git";
+
+const result = await recordPullRequest({
+  pk,
+  owner: "myorg",
+  repo: "myrepo",
+  pullNumber: 123,
+  githubToken: process.env.GITHUB_TOKEN!,
+  entity: { id: "dev:alice", role: "human" },
+});
+
+// Captures: title, description, commits, reviewers, labels, merged-by
+console.log(result.cid);
+```
+
+## Git Hooks (Automatic Recording)
+
+Install a `post-commit` hook to automatically record provenance on every commit:
+
+```typescript
+import { initializeHooks, installHook } from "@provenancekit/git";
+
+// Install all standard hooks
+await initializeHooks({
+  repoPath: "/path/to/repo",
+  apiKey: "pk_live_...",
+  entityId: "dev:alice",
+});
+
+// Or install a single hook manually
+const { content, path } = await installHook({
+  repoPath: "/path/to/repo",
+  hookType: "post-commit",
+  config: {
+    apiKey: "pk_live_...",
+    entityId: "dev:alice",
+    apiUrl: "https://api.provenancekit.org",
+  },
+});
+```
+
+The generated hook script calls the ProvenanceKit API with the commit hash, author identity, and detected AI co-authors — no manual work per commit.
+
+## ext:git@1.0.0 Extension Schema
+
+Every recorded commit gets `ext:git@1.0.0` attached to its action:
+
+```typescript
+{
+  "ext:git@1.0.0": {
+    "commitHash": "a1b2c3d4e5f6...",
+    "repoUrl": "https://github.com/org/repo",
+    "branch": "main",
+    "message": "feat: add auth module",
+    "author": {
+      "name": "Alice",
+      "email": "alice@example.com",
+      "timestamp": "2026-03-07T12:00:00Z"
+    },
+    "aiAssistance": {
+      "detected": true,
+      "tool": "copilot",
+      "confidence": "high",
+      "percentage": 15
+    },
+    "stats": {
+      "filesChanged": 4,
+      "insertions": 85,
+      "deletions": 12
+    }
+  }
+}
+```
+
+## Querying Code Provenance
+
+```typescript
+const pk = new ProvenanceKit({ apiKey: "pk_live_..." });
+
+// Get provenance graph for a specific commit CID
+const graph = await pk.graph(commitCid, 5);
+
+// Find all AI-assisted actions in the graph
+const aiActions = graph.nodes.filter(n =>
+  n.type === "action" &&
+  n.data?.["ext:git@1.0.0"]?.aiAssistance?.detected === true
+);
+
+// Session-based: get all commits in a sprint
+const sprint = await pk.sessionProvenance("sprint-2026-q1");
+```
+
+## Gotchas
+
+- **Large repos**: `analyzeBlame` on a large monorepo can be slow. Run it on specific files or directories, not the entire repo. Cache results between runs.
+- **GitHub rate limits**: The GitHub integration uses `@octokit/rest`. Unauthenticated requests are limited to 60/hour; provide `GITHUB_TOKEN` for 5,000/hour.
+- **AI detection confidence**: `"high"` means a definitive marker was found (Co-authored-by header). `"medium"` means a strong pattern (tool config file). `"low"` means heuristic detection only. Don't treat `"low"` as definitive.
+- **Hook conflicts**: If a `post-commit` hook already exists, `installHook` appends to it rather than replacing it. Check your existing hooks before installing.
+- **Binary files**: Blame analysis skips binary files. Only text-tracked files are analysed.
