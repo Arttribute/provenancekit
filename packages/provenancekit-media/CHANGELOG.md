@@ -1,5 +1,14 @@
 # @provenancekit/media
 
+## 0.1.4
+
+### Patch Changes
+
+- Auto patch release
+- Updated dependencies
+  - @provenancekit/eaa-types@0.1.4
+  - @provenancekit/extensions@0.1.4
+
 ## 0.1.3
 
 ### Patch Changes
