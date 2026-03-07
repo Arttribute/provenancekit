@@ -1,9 +1,22 @@
 "use client";
 
-import { RoleBadge, EntityAvatar, ContributionBar, CidDisplay, LicenseChip, VerificationIndicator } from "@provenancekit/ui";
+import {
+  RoleBadge,
+  EntityAvatar,
+  ContributionBar,
+  CidDisplay,
+  LicenseChip,
+  VerificationIndicator,
+} from "@provenancekit/ui";
 import { PreviewShell } from "../../components/preview-shell";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-3">
       <h3
@@ -18,14 +31,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function Divider() {
-  return <div style={{ height: 1, background: "var(--pk-surface-border)", margin: "4px 0" }} />;
+  return (
+    <div
+      style={{
+        height: 1,
+        background: "var(--pk-surface-border)",
+        margin: "4px 0",
+      }}
+    />
+  );
 }
 
 export function PrimitivesPreviewClient() {
   return (
     <PreviewShell className="p-8">
       <div className="space-y-8 max-w-xl">
-
         <Section title="RoleBadge">
           <RoleBadge role="human" />
           <RoleBadge role="ai" />
@@ -40,10 +60,18 @@ export function PrimitivesPreviewClient() {
           {(["xs", "sm", "md", "lg"] as const).map((size) => (
             <div key={size} className="flex flex-col items-center gap-1.5">
               <EntityAvatar role="human" size={size} />
-              <span className="text-xs" style={{ color: "var(--pk-muted-foreground)" }}>{size}</span>
+              <span
+                className="text-xs"
+                style={{ color: "var(--pk-muted-foreground)" }}
+              >
+                {size}
+              </span>
             </div>
           ))}
-          <div className="w-px h-8" style={{ background: "var(--pk-surface-border)" }} />
+          <div
+            className="w-px h-8"
+            style={{ background: "var(--pk-surface-border)" }}
+          />
           <EntityAvatar role="ai" size="md" />
           <EntityAvatar role="organization" size="md" />
         </Section>
@@ -54,19 +82,34 @@ export function PrimitivesPreviewClient() {
           <div className="w-full space-y-3">
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-sm" style={{ color: "var(--pk-foreground)" }}>Alice Chen</span>
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--pk-foreground)" }}
+                >
+                  Alice Chen
+                </span>
               </div>
               <ContributionBar bps={7000} />
             </div>
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-sm" style={{ color: "var(--pk-foreground)" }}>Poetry Service (AI)</span>
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--pk-foreground)" }}
+                >
+                  Poetry Service (AI)
+                </span>
               </div>
               <ContributionBar bps={2000} />
             </div>
             <div>
               <div className="flex justify-between mb-1">
-                <span className="text-sm" style={{ color: "var(--pk-foreground)" }}>Source Dataset</span>
+                <span
+                  className="text-sm"
+                  style={{ color: "var(--pk-foreground)" }}
+                >
+                  Source Dataset
+                </span>
               </div>
               <ContributionBar bps={1000} />
             </div>
@@ -77,7 +120,7 @@ export function PrimitivesPreviewClient() {
 
         <Section title="CidDisplay">
           <CidDisplay cid="bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq" />
-          <CidDisplay cid="bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq" short />
+          {/* <CidDisplay cid="bafybeiemxf5abjwjbikoz4mc3a3dla6ual3jsgpdr4cjr3oz3evfyavhwq" short /> */}
         </Section>
 
         <Divider />
@@ -98,7 +141,6 @@ export function PrimitivesPreviewClient() {
           <VerificationIndicator status="unverified" />
           <VerificationIndicator status="failed" />
         </Section>
-
       </div>
     </PreviewShell>
   );
