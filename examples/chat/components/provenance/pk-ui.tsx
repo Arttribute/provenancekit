@@ -12,5 +12,7 @@ export {
   ProvenanceTracker,
   ProvenancePopover,
   AIExtensionView,
-  FileProvenanceTag,
 } from "@provenancekit/ui";
+
+// Local copy — will import from "@provenancekit/ui" once FileProvenanceTag is published (>= 0.2.0)
+export { FileProvenanceTag } from "./file-provenance-tag";
