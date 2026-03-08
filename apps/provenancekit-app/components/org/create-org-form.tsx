@@ -54,6 +54,7 @@ export function CreateOrgForm({ userId }: { userId: string }) {
       return;
     }
     const org = await res.json();
+    router.refresh();
     router.push(`/${org.slug}`);
   }
 
