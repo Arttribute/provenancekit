@@ -10,7 +10,7 @@ description: "An interactive directed acyclic graph (DAG) powered by React Flow,
     <Frame>
       <iframe
         src="https://ui-preview.provenancekit.com/graph"
-        style={{ width: "100%", height: "520px", border: "none", borderRadius: "8px" }}
+        style={{ width: "100%", height: "560px", border: "none", borderRadius: "8px" }}
         title="ProvenanceGraph preview"
       />
     </Frame>
@@ -22,18 +22,35 @@ description: "An interactive directed acyclic graph (DAG) powered by React Flow,
     // Auto-fetch from CID
     <ProvenanceGraph cid="bafybei..." depth={5} height={500} />
 
-    // Headless mode — pass nodes and edges directly
+    // Headless mode — "The Illustrated Article" editorial workflow
     <ProvenanceGraph
       nodes={[
-        { id: "entity:alice", type: "entity", label: "Alice", data: { role: "human" } },
-        { id: "resource:prompt", type: "resource", label: "prompt.txt", data: { type: "text/plain" } },
-        { id: "action:create", type: "action", label: "Generate", data: { type: "ext:ai@1.0.0", timestamp: "2025-01-01T12:00:00Z" } },
-        { id: "resource:poem", type: "resource", label: "poem.txt", data: { type: "text/plain" } },
+        // Entities
+        { id: "entity:sarah", type: "entity", label: "Sarah Kim", data: { role: "human" } },
+        { id: "entity:digest", type: "entity", label: "Illustrated Digest", data: { role: "organization" } },
+
+        // Resources
+        { id: "resource:draft", type: "resource", label: "article-draft.md", data: { type: "text/markdown" } },
+        { id: "resource:image", type: "resource", label: "header-image.png", data: { type: "image/png" } },
+        { id: "resource:final", type: "resource", label: "illustrated-guide-final.md", data: { type: "text/markdown" } },
+
+        // Actions — AI actions show a tool badge automatically
+        { id: "action:write",    type: "action", label: "Write Draft",     data: { type: "create", timestamp: "2026-03-07T09:15:00Z" } },
+        { id: "action:image",    type: "action", label: "Generate Image",  data: { type: "create", timestamp: "2026-03-07T10:02:00Z", "ext:ai@1.0.0": { provider: "black-forest-labs", model: "flux-schnell" } } },
+        { id: "action:polish",   type: "action", label: "Polish Article",  data: { type: "transform", timestamp: "2026-03-07T10:18:00Z", "ext:ai@1.0.0": { provider: "anthropic", model: "claude-opus-4-6" } } },
+        { id: "action:publish",  type: "action", label: "Editorial Review",data: { type: "verify", timestamp: "2026-03-07T11:45:00Z" } },
       ]}
       edges={[
-        { from: "entity:alice", to: "resource:prompt", type: "produces" },
-        { from: "resource:prompt", to: "action:create", type: "consumes" },
-        { from: "action:create", to: "resource:poem", type: "produces" },
+        { from: "entity:sarah",  to: "action:write",   type: "performedBy" },
+        { from: "action:write",  to: "resource:draft",  type: "produces" },
+        { from: "resource:draft",to: "action:image",    type: "consumes" },
+        { from: "entity:digest", to: "action:image",    type: "performedBy" },
+        { from: "action:image",  to: "resource:image",  type: "produces" },
+        { from: "resource:draft",to: "action:polish",   type: "consumes" },
+        { from: "entity:digest", to: "action:polish",   type: "performedBy" },
+        { from: "resource:image",to: "action:publish",  type: "consumes" },
+        { from: "entity:digest", to: "action:publish",  type: "performedBy" },
+        { from: "action:publish",to: "resource:final",  type: "produces" },
       ]}
       height={500}
       onNodeClick={(node) => console.log("Clicked:", node.id)}
@@ -41,6 +58,17 @@ description: "An interactive directed acyclic graph (DAG) powered by React Flow,
     ```
   </Tab>
 </Tabs>
+
+## What the preview shows
+
+The graph traces the full editorial pipeline for *"The Illustrated Article"*:
+
+1. **Sarah Kim** writes `article-draft.md`
+2. **Illustrated Digest** runs it through **Flux Schnell** to generate `header-image.png`
+3. **Illustrated Digest** runs it through **Claude Opus 4.6** to produce `article-polished.md`
+4. The editorial team combines both and publishes `illustrated-guide-final.md` after review
+
+AI action nodes automatically display a tool badge showing the provider and model (sourced from `ext:ai@1.0.0`). Toggle **Dark mode** with the button in the preview to see the graph on a deep-navy canvas.
 
 ## Prerequisites
 
@@ -73,17 +101,17 @@ Each node type has a distinct color accent — blue for resources, green for act
 | Type | Accent | Icon | Description |
 |------|--------|------|-------------|
 | `"resource"` | Blue | Database | File or data artifact with a CID |
-| `"action"` | Green | Zap | Event (create, transform, verify) — shows AI tool badge if `ext:ai@1.0.0` present |
+| `"action"` | Green | Zap | Event (create, transform, verify) — shows AI tool badge when `ext:ai@1.0.0` is present in `data` |
 | `"entity"` | Amber | User / Bot | Human, AI, or organisation |
 
 ## Edge types
 
-| Type | Color | Animated |
-|------|-------|----------|
-| `"produces"` | Blue | Yes |
-| `"consumes"` | Red | No |
-| `"performedBy"` | Amber | No |
-| `"tool"` | Violet | No |
+| Type | Color | Animated | Meaning |
+|------|-------|----------|---------|
+| `"produces"` | Blue | Yes | Action or entity outputs a resource |
+| `"consumes"` | Red | No | Action takes a resource as input |
+| `"performedBy"` | Amber | No | Entity performed an action |
+| `"tool"` | Violet | No | Tool used within an action |
 
 ## Customising the canvas
 
@@ -98,5 +126,12 @@ Override CSS variables in `:root` (or `.dark`) to change the graph appearance:
   --pk-graph-node-muted:     #64748b;  /* node secondary text */
   --pk-graph-control-bg:     rgba(255,255,255,0.92);
   --pk-graph-control-border: #e2e8f0;
+}
+
+.dark {
+  --pk-graph-bg:             #0a0f1e;
+  --pk-graph-node-bg:        #1e293b;
+  --pk-graph-node-text:      #f8fafc;
+  --pk-graph-node-muted:     #94a3b8;
 }
 ```

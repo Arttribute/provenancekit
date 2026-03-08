@@ -3,14 +3,14 @@ title: "ProvenanceBundleView"
 description: "A structured view of a full provenance bundle — entities, actions, resources, and attribution weights."
 ---
 
-> Renders all sections of a provenance bundle in a structured layout. Each section (entities, actions, resources, attributions) can be toggled independently. An embedded graph can also be shown.
+> Renders all sections of a provenance bundle in a tabbed, structured layout. Entities, actions, resources, attributions, and an embedded graph are each available as toggleable sections.
 
 <Tabs>
   <Tab title="Preview">
     <Frame>
       <iframe
         src="https://ui-preview.provenancekit.com/bundle"
-        style={{ width: "100%", height: "580px", border: "none", borderRadius: "8px" }}
+        style={{ width: "100%", height: "600px", border: "none", borderRadius: "8px" }}
         title="ProvenanceBundleView preview"
       />
     </Frame>
@@ -22,26 +22,41 @@ description: "A structured view of a full provenance bundle — entities, action
     // Auto-fetch from CID
     <ProvenanceBundleView cid="bafybei..." />
 
-    // Pre-fetched bundle — render all sections
+    // Pre-fetched bundle — render all sections including graph
     <ProvenanceBundleView
       bundle={myBundle}
       showEntities
       showActions
       showResources
       showAttributions
-      showGraph={false}    // Graph is off by default — enable for full view
+      showGraph
       graphHeight={400}
     />
 
-    // Minimal view — just resources and attribution
+    // Minimal view — attribution-only sidebar widget
     <ProvenanceBundleView
       cid="bafybei..."
       showActions={false}
-      showEntities={false}
+      showResources={false}
+      showGraph={false}
     />
     ```
   </Tab>
 </Tabs>
+
+## What the preview shows
+
+The bundle view contains *"The Illustrated Article"* — a real-world editorial workflow with four contributors and four distinct actions:
+
+| Tab | What you see |
+|-----|-------------|
+| **Entities** | Sarah Kim (human creator), Illustrated Digest (publisher), Claude Opus 4.6 (AI writing assistant), Flux Schnell (AI image generator) |
+| **Actions** | `write` → `generate image` (Flux) → `polish article` (Claude) → `editorial review & verify` |
+| **Resources** | `article-draft.md`, `header-image.png`, `article-polished.md`, `illustrated-guide-final.md` |
+| **Attributions** | Weighted contributions: Sarah 65% · Illustrated Digest 20% · Claude Opus 10% · Flux Schnell 5% |
+| **Graph** | The full DAG tracing all inputs, outputs, and who performed each step |
+
+This example demonstrates that a single published piece of content can carry **complete, verifiable provenance** for every human and AI contributor, with licenses and verification status attached.
 
 ## Props
 

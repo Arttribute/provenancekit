@@ -35,6 +35,7 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { derivePublicKey } from "@provenancekit/sdk";
 import { config } from "./config.js";
+import { runMigrations } from "./db/migrate.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | Attestation Provider Interface                               |
@@ -139,6 +140,18 @@ export async function initializeContext(): Promise<AppContext> {
   if (ctx) return ctx;
 
   console.log("Initializing ProvenanceKit API context...");
+
+  // 0. Run database migrations (idempotent; skipped when DATABASE_URL is absent)
+  const databaseUrl = process.env.DATABASE_URL;
+  if (databaseUrl) {
+    try {
+      await runMigrations(databaseUrl, config.vectorDimension);
+      console.log("✓ Database migrations applied");
+    } catch (err) {
+      console.error("[migrate] Migration failed — startup aborted:", err);
+      throw err;
+    }
+  }
 
   // 1. Initialize database storage
   // Falls back to in-memory storage when Supabase is not configured (local dev)

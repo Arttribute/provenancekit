@@ -25,16 +25,16 @@ export interface ProvenanceBadgeProps {
 }
 
 const positionStyles: Record<BadgePosition, React.CSSProperties> = {
-  "top-left":     { top: 10, left: 10 },
-  "top-right":    { top: 10, right: 10 },
-  "bottom-left":  { bottom: 10, left: 10 },
-  "bottom-right": { bottom: 10, right: 10 },
+  "top-left":     { top: 7, left: 7 },
+  "top-right":    { top: 7, right: 7 },
+  "bottom-left":  { bottom: 7, left: 7 },
+  "bottom-right": { bottom: 7, right: 7 },
 };
 
 const sizeConfig: Record<BadgeSize, { size: number; fontSize: number }> = {
-  sm: { size: 24, fontSize: 9 },
-  md: { size: 32, fontSize: 12 },
-  lg: { size: 44, fontSize: 16 },
+  sm: { size: 22, fontSize: 9 },
+  md: { size: 28, fontSize: 11 },
+  lg: { size: 38, fontSize: 15 },
 };
 
 /**

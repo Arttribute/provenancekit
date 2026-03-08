@@ -44,7 +44,7 @@ const ConfigSchema = z.object({
   pinataGateway: z.string().url().default("https://gateway.pinata.cloud/ipfs"),
 
   // Vector search
-  vectorDimension: z.coerce.number().default(768), // Xenova CLIP
+  vectorDimension: z.coerce.number().default(512), // Xenova/clip-vit-base-patch16 → 512-dim
   duplicateThreshold: z.coerce.number().default(0.95),
   matchThreshold: z.coerce.number().default(0.75),
 
