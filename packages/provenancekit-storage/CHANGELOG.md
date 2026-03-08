@@ -1,5 +1,11 @@
 # @provenancekit/storage
 
+## 0.1.5
+
+### Patch Changes
+
+- Auto patch release
+
 ## 0.1.4
 
 ### Patch Changes

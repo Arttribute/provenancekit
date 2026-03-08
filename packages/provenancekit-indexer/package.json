@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/indexer",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Blockchain event indexer for ProvenanceKit - syncs on-chain provenance to storage",
   "type": "module",
   "main": "./dist/index.js",

@@ -1,5 +1,12 @@
 # @provenancekit/ui
 
+## 0.1.9
+
+### Patch Changes
+
+- Auto patch release
+  - @provenancekit/sdk@0.1.5
+
 ## 0.1.8
 
 ### Patch Changes
