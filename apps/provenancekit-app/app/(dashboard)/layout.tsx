@@ -6,19 +6,24 @@ import { TopNav } from "@/components/layout/top-nav";
 
 export default async function DashboardLayout({
   children,
+  params,
 }: {
   children: React.ReactNode;
+  params: Promise<{ orgSlug?: string }>;
 }) {
   const user = await getServerUser();
   if (!user) redirect("/login");
 
-  const orgs = await getUserOrgs(user.privyDid);
+  const [orgs, { orgSlug }] = await Promise.all([
+    getUserOrgs(user.privyDid),
+    params,
+  ]);
 
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopNav orgs={orgs} />
+        <TopNav orgs={orgs} currentOrgSlug={orgSlug} />
         <main className="flex-1 overflow-y-auto bg-background">
           {children}
         </main>
