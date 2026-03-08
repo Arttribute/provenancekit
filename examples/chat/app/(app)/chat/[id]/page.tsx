@@ -69,11 +69,17 @@ export default function ConversationPage({
     },
     initialMessages: [],
     onFinish: () => {
+      // Phase 1 — quick refetch so messages appear immediately (messages are saved before provenance)
       setTimeout(() => {
         refetchMessages();
         queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
         queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
-      }, 800);
+      }, 300);
+      // Phase 2 — follow-up refetch to pick up provenance CIDs once async recording completes
+      setTimeout(() => {
+        refetchMessages();
+        queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
+      }, 6000);
     },
   });
 
