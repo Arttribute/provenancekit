@@ -19,7 +19,6 @@ const schema = z.object({
     .max(40)
     .regex(/^[a-z0-9-]+$/, "Only lowercase letters, numbers, and hyphens"),
   description: z.string().max(256).optional(),
-  storageType: z.enum(["memory", "postgres", "mongodb", "supabase"]).default("memory"),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -41,7 +40,6 @@ export function CreateProjectForm({
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: { storageType: "memory" },
   });
 
   function handleNameChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -107,23 +105,6 @@ export function CreateProjectForm({
               placeholder="Provenance tracking for my chat app"
               {...register("description")}
             />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="storageType">Storage backend</Label>
-            <select
-              id="storageType"
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              {...register("storageType")}
-            >
-              <option value="memory">In-memory (development only)</option>
-              <option value="postgres">PostgreSQL</option>
-              <option value="mongodb">MongoDB</option>
-              <option value="supabase">Supabase</option>
-            </select>
-            <p className="text-xs text-muted-foreground">
-              You can change this later in project settings
-            </p>
           </div>
         </CardContent>
       </Card>

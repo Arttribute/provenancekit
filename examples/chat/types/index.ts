@@ -108,11 +108,19 @@ export interface ChatMessage {
   model?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   finishReason?: string;
+  /** "recording" while async provenance write is in-flight; "recorded" on success; "failed" on error */
+  provenanceStatus?: "recording" | "recorded" | "failed";
   createdAt: Date;
   provenance?: {
     cid: string;
     actionId?: string;
     promptCid?: string;
     sessionId?: string;
+  };
+  /** Separate provenance record for a DALL-E generated image in this message */
+  imageProvenance?: {
+    cid: string;
+    actionId?: string;
+    status: "recording" | "recorded" | "failed";
   };
 }

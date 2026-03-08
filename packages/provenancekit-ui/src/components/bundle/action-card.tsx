@@ -25,15 +25,18 @@ export function ActionCard({ action, showExtensions = true, className }: ActionC
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--pk-node-action-border)]",
-        "bg-[var(--pk-node-action-muted)] p-3 space-y-2",
+        "rounded-xl p-4 space-y-3 transition-colors",
+        "bg-[var(--pk-surface)] border border-[var(--pk-surface-border)]",
+        "hover:border-[var(--pk-node-action-border)]",
         className
       )}
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Zap size={13} strokeWidth={2} className="text-[var(--pk-node-action)] shrink-0" />
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--pk-node-action-muted)] shrink-0">
+            <Zap size={13} strokeWidth={2} className="text-[var(--pk-node-action)]" />
+          </div>
           <span className="text-sm font-semibold text-[var(--pk-foreground)] truncate">
             {formatActionType(action.type)}
           </span>
@@ -63,17 +66,17 @@ export function ActionCard({ action, showExtensions = true, className }: ActionC
       {showExtensions && (
         <div className="space-y-2">
           {aiTool && (
-            <div className="border-t border-[var(--pk-surface-border)] pt-2">
+            <div className="border-t border-[var(--pk-surface-border)] pt-3">
               <AIExtensionView extension={aiTool} mode="tool" />
             </div>
           )}
           {verification && (
-            <div className="border-t border-[var(--pk-surface-border)] pt-2">
+            <div className="border-t border-[var(--pk-surface-border)] pt-3">
               <VerificationView extension={verification} showClaims={false} />
             </div>
           )}
           {onchain && (
-            <div className="border-t border-[var(--pk-surface-border)] pt-2">
+            <div className="border-t border-[var(--pk-surface-border)] pt-3">
               <OnchainExtensionView extension={onchain} />
             </div>
           )}

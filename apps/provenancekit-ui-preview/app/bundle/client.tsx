@@ -6,13 +6,18 @@ import { mockBundle } from "../../lib/mock-data";
 
 export function BundlePreviewClient() {
   return (
-    <PreviewShell className="p-6">
+    <PreviewShell className="p-6 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-widest pb-2" style={{ color: "var(--pk-muted-foreground)" }}>
+        ProvenanceBundleView — tabbed layout
+      </p>
       <ProvenanceBundleView
         bundle={mockBundle}
         showEntities
         showActions
         showResources
         showAttributions
+        showGraph
+        graphHeight={340}
       />
     </PreviewShell>
   );

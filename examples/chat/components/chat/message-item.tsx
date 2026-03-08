@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Bot, User, Copy, Check, Image as ImageIcon, Volume2, Wrench } from "lucide-react";
+import { Bot, User, Copy, Check, Image as ImageIcon, Volume2, Wrench, AlertCircle } from "lucide-react";
 import { useState, useRef } from "react";
 import { ProvenanceBadge } from "@/components/provenance/pk-ui";
 import { Badge } from "@/components/ui/badge";
@@ -96,11 +96,51 @@ function GeneratedImage({ url, revisedPrompt }: { url: string; revisedPrompt?: s
   );
 }
 
+/** Squircle "Pr" badge with pulsing animation — shown while provenance is being recorded */
+function ProvenanceRecordingBadge() {
+  return (
+    <div
+      title="Recording provenance…"
+      aria-label="Recording provenance"
+      className={cn(
+        "flex items-center justify-center shrink-0",
+        "w-[18px] h-[18px]",
+        "bg-muted border border-border",
+        "animate-pulse"
+      )}
+      style={{ borderRadius: "28%" }}
+    >
+      <span className="text-[8px] font-bold text-muted-foreground leading-none select-none">Pr</span>
+    </div>
+  );
+}
+
+/** Squircle "Pr" badge in red — shown when provenance recording failed */
+function ProvenanceFailedBadge({ label = "Provenance recording failed" }: { label?: string }) {
+  return (
+    <div
+      title={label}
+      aria-label={label}
+      className={cn(
+        "flex items-center justify-center gap-1 shrink-0 px-1.5",
+        "h-[18px]",
+        "bg-red-100 dark:bg-red-950 border border-red-300 dark:border-red-800",
+        "rounded-md cursor-default"
+      )}
+    >
+      <AlertCircle className="h-2.5 w-2.5 text-red-500 shrink-0" />
+      <span className="text-[8px] font-bold text-red-600 dark:text-red-400 leading-none select-none">Pr</span>
+    </div>
+  );
+}
+
 export function MessageItem({ message, isStreaming }: MessageItemProps) {
   const router = useRouter();
   const isUser = message.role === "user";
   const isAssistant = message.role === "assistant";
   const provenanceCid = message.provenance?.cid;
+  const provenanceStatus = message.provenanceStatus;
+  const imageProv = message.imageProvenance;
   const modelInfo =
     message.model && message.provider ? getModelInfo(message.provider as AIProvider, message.model) : null;
 
@@ -170,14 +210,44 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                 <Wrench className="h-3 w-3 mr-1" />Tool use
               </Badge>
             )}
-            {provenanceCid && (
-              <ProvenanceBadge
-                cid={provenanceCid}
-                variant="inline"
-                size="sm"
-                onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
-              />
+
+            {/* ── Provenance status badge ── */}
+            {/* While streaming, no provenance yet */}
+            {!isStreaming && (
+              <>
+                {provenanceStatus === "recording" && <ProvenanceRecordingBadge />}
+                {provenanceStatus === "failed" && <ProvenanceFailedBadge />}
+                {provenanceStatus === "recorded" && provenanceCid && (
+                  <ProvenanceBadge
+                    cid={provenanceCid}
+                    variant="inline"
+                    size="sm"
+                    onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
+                  />
+                )}
+              </>
             )}
+
+            {/* ── Image provenance status (separate from text provenance) ── */}
+            {hasImage && !isStreaming && (
+              <>
+                {imageProv?.status === "recording" && (
+                  <ProvenanceRecordingBadge />
+                )}
+                {imageProv?.status === "failed" && (
+                  <ProvenanceFailedBadge label="Image provenance recording failed" />
+                )}
+                {imageProv?.status === "recorded" && imageProv.cid && (
+                  <ProvenanceBadge
+                    cid={imageProv.cid}
+                    variant="inline"
+                    size="sm"
+                    onViewDetail={() => router.push(`/provenance/${imageProv.cid}`)}
+                  />
+                )}
+              </>
+            )}
+
             {isStreaming && (
               <span className="text-xs text-muted-foreground animate-pulse">Generating…</span>
             )}

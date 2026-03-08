@@ -22,7 +22,7 @@ export function AttributionList({
   if (attributions.length === 0) return null;
 
   return (
-    <div className={cn("space-y-2", className)}>
+    <div className={cn("space-y-1", className)}>
       {attributions.map((attr, i) => {
         const entity = entities.find((e) => e.id === attr.entityId);
         const contrib = getContribSafe(attr);
@@ -35,27 +35,27 @@ export function AttributionList({
         return (
           <div
             key={i}
-            className="flex items-center gap-2.5 py-1.5 border-b border-[var(--pk-surface-border)] last:border-0"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--pk-surface)] border border-[var(--pk-surface-border)] hover:border-[var(--pk-node-resource-border)] transition-colors"
           >
-            <EntityAvatar role={entity?.role ?? "human"} size="xs" />
+            <EntityAvatar role={entity?.role ?? "human"} size="sm" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-medium text-[var(--pk-foreground)] truncate">
+                <span className="text-sm font-medium text-[var(--pk-foreground)] truncate">
                   {entity?.name ?? (attr.entityId ? attr.entityId.slice(0, 12) + "…" : "Unknown")}
                 </span>
                 {attr.role && <RoleBadge role={attr.role} />}
               </div>
-              {showContribution && bps !== null && (
-                <div className="mt-1">
-                  <ContributionBar bps={bps} />
-                </div>
-              )}
               {attr.note && (
                 <p className="text-xs text-[var(--pk-muted-foreground)] mt-0.5 italic">
                   {attr.note}
                 </p>
               )}
             </div>
+            {showContribution && bps !== null && (
+              <div className="shrink-0 w-32">
+                <ContributionBar bps={bps} />
+              </div>
+            )}
           </div>
         );
       })}

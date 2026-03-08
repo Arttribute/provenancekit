@@ -9,10 +9,10 @@
  * Multi-modal input: user messages can include image_url parts (GPT-4o vision).
  *
  * Provenance flow (non-blocking, in onFinish):
- *   1. Record user prompt → PK resource
- *   2. Record assistant response → PK resource with ext:ai@1.0.0 + inputCids
- *   3. For DALL-E calls: record generated image as separate PK resource
- *   4. Save all messages to MongoDB with provenance CIDs
+ *   1. Save user + assistant messages to DB immediately (provenanceStatus: "recording")
+ *   2. Record provenance async in the background — text first, then image if present
+ *   3. Update messages in DB with CIDs + provenanceStatus: "recorded" | "failed"
+ *   4. Client refetches twice: once quickly for the messages, once later for CIDs
  */
 
 import { streamText, tool } from "ai";
@@ -42,6 +42,149 @@ function getAIProvider(provider: SupportedProvider, model: string) {
     case "openai":
     default:
       return createOpenAI({ apiKey: process.env.OPENAI_API_KEY })(model);
+  }
+}
+
+// ─── Background provenance recorder ──────────────────────────────────────────
+
+/**
+ * Records provenance for a completed chat exchange, then updates MongoDB.
+ * Runs after messages are already saved — never blocks the client response.
+ */
+async function recordAndUpdateProvenance(opts: {
+  assistantMsgId: string;
+  conversationId: string;
+  userId: string;
+  provider: SupportedProvider;
+  model: string;
+  messages: Array<{ role: string; content: unknown }>;
+  text: string;
+  tokens: number;
+  sessionId: string | null;
+  imageToolResult: { name: string; result: unknown } | undefined;
+  conversationFirstCid: string | undefined;
+  conversationTotalMessages: number;
+}) {
+  const {
+    assistantMsgId,
+    conversationId,
+    userId,
+    provider,
+    model,
+    messages,
+    text,
+    tokens,
+    sessionId,
+    imageToolResult,
+    conversationFirstCid,
+    conversationTotalMessages,
+  } = opts;
+
+  // 1. Record text-response provenance
+  const pkResult = await recordChatProvenance({
+    userPrivyDid: userId,
+    provider,
+    model,
+    prompt: messages,
+    response: text,
+    tokens,
+    sessionId,
+  });
+
+  if (!pkResult) {
+    // PK not configured — mark as failed so the UI can show the right state
+    await MessageModel.updateOne(
+      { _id: assistantMsgId },
+      { $set: { provenanceStatus: "failed" } }
+    );
+    return;
+  }
+
+  // 2. If there is a generated image, record its provenance separately
+  let imagePkResult = null;
+  if (imageToolResult) {
+    const imageResult = imageToolResult.result as { imageUrl: string; prompt: string };
+
+    // Mark image provenance as recording first
+    await MessageModel.updateOne(
+      { _id: assistantMsgId },
+      {
+        $set: {
+          provenance: {
+            cid: pkResult.cid,
+            actionId: pkResult.actionId,
+            promptCid: pkResult.promptCid,
+            sessionId: sessionId ?? undefined,
+          },
+          provenanceStatus: "recorded",
+          "imageProvenance.status": "recording",
+        },
+      }
+    );
+
+    imagePkResult = await recordImageProvenance({
+      userPrivyDid: userId,
+      provider,
+      model: "dall-e-3",
+      prompt: imageResult.prompt,
+      imageUrl: imageResult.imageUrl,
+      inputCids: [pkResult.promptCid ?? pkResult.cid],
+      sessionId,
+    });
+
+    if (imagePkResult) {
+      await MessageModel.updateOne(
+        { _id: assistantMsgId },
+        {
+          $set: {
+            imageProvenance: {
+              cid: imagePkResult.cid,
+              actionId: imagePkResult.actionId,
+              status: "recorded",
+            },
+          },
+        }
+      );
+    } else {
+      await MessageModel.updateOne(
+        { _id: assistantMsgId },
+        { $set: { "imageProvenance.status": "failed" } }
+      );
+    }
+  } else {
+    // Text-only: set provenance + mark recorded in one update
+    await MessageModel.updateOne(
+      { _id: assistantMsgId },
+      {
+        $set: {
+          provenance: {
+            cid: pkResult.cid,
+            actionId: pkResult.actionId,
+            promptCid: pkResult.promptCid,
+            sessionId: sessionId ?? undefined,
+          },
+          provenanceStatus: "recorded",
+        },
+      }
+    );
+  }
+
+  // 3. Update conversation provenance fields
+  const primaryCid = pkResult.cid;
+  const convUpdate: Record<string, unknown> = {
+    provenanceCid: primaryCid,
+    "provenance.lastCid": primaryCid,
+    "provenance.totalMessages": conversationTotalMessages + 1,
+  };
+
+  await ConversationModel.updateOne({ _id: conversationId }, { $set: convUpdate });
+
+  // Set firstCid once (only if it doesn't exist yet)
+  if (!conversationFirstCid) {
+    await ConversationModel.updateOne(
+      { _id: conversationId, "provenance.firstCid": { $exists: false } },
+      { $set: { "provenance.firstCid": primaryCid } }
+    );
   }
 }
 
@@ -186,7 +329,6 @@ export async function POST(req: Request) {
           conversationId,
           role: "user",
           content: userContent,
-          // Store any image attachments from contentParts
           contentParts:
             Array.isArray(lastUserMsg?.content)
               ? lastUserMsg.content
@@ -194,34 +336,12 @@ export async function POST(req: Request) {
           createdAt: now,
         };
 
-        // Record provenance for the text response
-        const pkResult = await recordChatProvenance({
-          userPrivyDid: userId ?? "anonymous",
-          provider,
-          model,
-          prompt: messages,
-          response: text,
-          tokens: usage?.totalTokens ?? 0,
-          sessionId,
-        });
-
-        // Record provenance for any generated images
         const imageToolResult = toolResults.find((r) => r.name === "generate_image");
-        let imagePkResult = null;
-        if (imageToolResult && pkResult) {
-          imagePkResult = await recordImageProvenance({
-            userPrivyDid: userId ?? "anonymous",
-            provider,
-            model: "dall-e-3",
-            prompt: (imageToolResult.result as { prompt: string }).prompt,
-            imageUrl: (imageToolResult.result as { imageUrl: string }).imageUrl,
-            inputCids: [pkResult.promptCid ?? pkResult.cid],
-            sessionId,
-          });
-        }
-
-        // Build assistant message
         const ttsResult = toolResults.find((r) => r.name === "text_to_speech");
+
+        // Build assistant message — saved immediately with provenanceStatus: "recording"
+        // so the client can see the message right after streaming ends.
+        // Provenance CIDs will be filled in asynchronously.
         const assistantMsg: Partial<IMessage> = {
           _id: msgIds.assistant,
           conversationId,
@@ -229,15 +349,24 @@ export async function POST(req: Request) {
           content: text,
           provider,
           model,
-          // Embed generated media directly on the assistant message
-          ...(imageToolResult ? {
-            imageUrl: (imageToolResult.result as { imageUrl: string }).imageUrl,
-            imageRevisedPrompt: (imageToolResult.result as { revisedPrompt: string }).revisedPrompt,
-          } : {}),
-          ...(ttsResult ? {
-            audioUrl: (ttsResult.result as { audioUrl: string }).audioUrl,
-            audioText: (ttsResult.result as { text: string }).text,
-          } : {}),
+          provenanceStatus: "recording",
+          ...(imageToolResult
+            ? {
+                imageUrl: (imageToolResult.result as { imageUrl: string }).imageUrl,
+                imageRevisedPrompt: (imageToolResult.result as { revisedPrompt: string }).revisedPrompt,
+                // Pre-populate imageProvenance with "recording" status so the UI shows a spinner
+                imageProvenance: {
+                  cid: "",
+                  status: "recording" as const,
+                },
+              }
+            : {}),
+          ...(ttsResult
+            ? {
+                audioUrl: (ttsResult.result as { audioUrl: string }).audioUrl,
+                audioText: (ttsResult.result as { text: string }).text,
+              }
+            : {}),
           toolCalls: finishedToolCalls?.map((tc) => ({
             id: tc.toolCallId,
             name: tc.toolName,
@@ -254,42 +383,41 @@ export async function POST(req: Request) {
             : undefined,
           finishReason,
           createdAt: now,
-          ...(pkResult
-            ? {
-                provenance: {
-                  cid: imagePkResult?.cid ?? pkResult.cid,
-                  actionId: imagePkResult?.actionId ?? pkResult.actionId,
-                  promptCid: pkResult.promptCid,
-                  sessionId: sessionId ?? undefined,
-                },
-              }
-            : {}),
         };
 
+        // ── STEP 1: Save messages to DB immediately ──────────────────────────
+        // Client can refetch as soon as streaming ends and see the messages.
         await MessageModel.insertMany([userMsg, assistantMsg]);
-
-        // Update conversation
-        const updateFields: Record<string, unknown> = { updatedAt: now };
-        if (pkResult) {
-          const primaryCid = imagePkResult?.cid ?? pkResult.cid;
-          updateFields.provenanceCid = primaryCid;
-          updateFields["provenance.lastCid"] = primaryCid;
-          updateFields["provenance.totalMessages"] =
-            (conversation?.provenance?.totalMessages ?? 0) + 1;
-        }
 
         await ConversationModel.updateOne(
           { _id: conversationId },
-          { $set: updateFields, $inc: { messageCount: 2 } }
+          { $set: { updatedAt: now }, $inc: { messageCount: 2 } }
         );
 
-        // Set firstCid once
-        if (pkResult && !conversation?.provenance?.firstCid) {
-          await ConversationModel.updateOne(
-            { _id: conversationId, "provenance.firstCid": { $exists: false } },
-            { $set: { "provenance.firstCid": imagePkResult?.cid ?? pkResult.cid } }
-          );
-        }
+        // ── STEP 2: Record provenance in the background ─────────────────────
+        // Fire-and-forget: DB already has the messages, so the client sees them.
+        // This will update the messages with CIDs + provenanceStatus once done.
+        recordAndUpdateProvenance({
+          assistantMsgId: msgIds.assistant,
+          conversationId,
+          userId: userId ?? "anonymous",
+          provider,
+          model,
+          messages,
+          text,
+          tokens: usage?.totalTokens ?? 0,
+          sessionId,
+          imageToolResult,
+          conversationFirstCid: conversation?.provenance?.firstCid,
+          conversationTotalMessages: conversation?.provenance?.totalMessages ?? 0,
+        }).catch((err) => {
+          console.error("[chat] provenance background error:", err);
+          // Best-effort: mark the message as failed so the UI can surface it
+          MessageModel.updateOne(
+            { _id: msgIds.assistant },
+            { $set: { provenanceStatus: "failed" } }
+          ).catch(() => {});
+        });
       } catch (err) {
         console.error("[chat] onFinish error:", err);
       }

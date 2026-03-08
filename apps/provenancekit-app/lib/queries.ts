@@ -13,7 +13,11 @@ export type { MgmtOrg as OrgWithRole, MgmtProject as ProjectWithOrg, MgmtApiKey 
 
 /** Get all orgs where a user is a member (with their role). */
 export async function getUserOrgs(userId: string): Promise<MgmtOrg[]> {
-  return mgmt(userId).orgs.list();
+  try {
+    return await mgmt(userId).orgs.list();
+  } catch {
+    return [];
+  }
 }
 
 /** Get a single org by slug (with membership check). Returns null if not found or not a member. */
@@ -28,7 +32,11 @@ export async function getOrgBySlug(slug: string, userId: string) {
 
 /** Get all projects in an org. */
 export async function getOrgProjects(orgSlug: string, userId: string): Promise<MgmtProject[]> {
-  return mgmt(userId).projects.list(orgSlug);
+  try {
+    return await mgmt(userId).projects.list(orgSlug);
+  } catch {
+    return [];
+  }
 }
 
 /** Get a project by its id. */
@@ -42,30 +50,50 @@ export async function getProjectById(projectId: string, userId: string) {
 
 /** Get a project by slug within an org. */
 export async function getProjectBySlug(orgSlug: string, slug: string, userId: string) {
-  const projects = await mgmt(userId).projects.list(orgSlug);
-  return projects.find((p) => p.slug === slug) ?? null;
+  try {
+    const projects = await mgmt(userId).projects.list(orgSlug);
+    return projects.find((p) => p.slug === slug) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Get API keys for a project (keyHash excluded). */
 export async function getProjectApiKeys(projectId: string, userId: string): Promise<MgmtApiKey[]> {
-  return mgmt(userId).apiKeys.list(projectId);
+  try {
+    return await mgmt(userId).apiKeys.list(projectId);
+  } catch {
+    return [];
+  }
 }
 
 /** Usage summary for a project (last 30 days). */
 export async function getProjectUsageSummary(projectId: string, userId: string) {
-  const data = await mgmt(userId).usage.get(projectId);
-  return data.summary;
+  try {
+    const data = await mgmt(userId).usage.get(projectId);
+    return data.summary;
+  } catch {
+    return null;
+  }
 }
 
 /** Usage records grouped by day for the analytics chart (last 30 days). */
 export async function getProjectUsageByDay(projectId: string, userId: string) {
-  const data = await mgmt(userId).usage.get(projectId);
-  return data.byDay;
+  try {
+    const data = await mgmt(userId).usage.get(projectId);
+    return data.byDay;
+  } catch {
+    return [];
+  }
 }
 
 /** Org member list. */
 export async function getOrgMembers(orgSlug: string, userId: string) {
-  return mgmt(userId).members.list(orgSlug);
+  try {
+    return await mgmt(userId).members.list(orgSlug);
+  } catch {
+    return [];
+  }
 }
 
 /** Get the current user record. */

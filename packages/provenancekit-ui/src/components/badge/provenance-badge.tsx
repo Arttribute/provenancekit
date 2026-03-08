@@ -1,7 +1,6 @@
 "use client";
 
 import React from "react";
-import { ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { ProvenancePopover } from "./provenance-popover";
 import { useProvenanceBundle } from "../../hooks/use-provenance-bundle";
@@ -38,37 +37,45 @@ const positionClasses: Record<BadgePosition, string> = {
   "bottom-right": "bottom-2 right-2",
 };
 
-const sizeClasses: Record<BadgeSize, { button: string; icon: number }> = {
-  sm: { button: "size-6", icon: 12 },
-  md: { button: "size-7", icon: 14 },
-  lg: { button: "size-9", icon: 16 },
+// Squircle "Pr" badge — the ProvenanceKit mark
+// border-radius 28% gives a squircle (rounded square) shape, similar to C2PA "cr" badge
+const sizeConfig: Record<BadgeSize, { wh: string; text: string }> = {
+  sm: { wh: "w-[18px] h-[18px]", text: "text-[8px]" },
+  md: { wh: "w-[22px] h-[22px]", text: "text-[10px]" },
+  lg: { wh: "w-[28px] h-[28px]", text: "text-[12px]" },
 };
 
-function BadgeButton({
+function PrSquircle({
   size,
   className,
 }: {
   size: BadgeSize;
   className?: string;
 }) {
-  const sz = sizeClasses[size];
+  const cfg = sizeConfig[size];
   return (
     <div
       className={cn(
-        "rounded-full flex items-center justify-center cursor-pointer",
+        "flex items-center justify-center cursor-pointer select-none shrink-0",
         "bg-[var(--pk-badge-bg)] text-[var(--pk-badge-fg)]",
         "border border-[var(--pk-badge-border)]",
-        "hover:bg-[var(--pk-badge-hover)] transition-colors",
-        "backdrop-blur-sm shadow-sm",
-        sz.button,
+        "hover:opacity-90 active:scale-95 transition-all duration-100",
+        "shadow-sm",
+        cfg.wh,
         className
       )}
+      style={{ borderRadius: "28%" }}
       title="View provenance"
       aria-label="View provenance information"
       role="button"
       tabIndex={0}
     >
-      <ShieldCheck size={sz.icon} strokeWidth={2} />
+      <span
+        className={cn("font-bold tracking-tight leading-none select-none", cfg.text)}
+        style={{ fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)" }}
+      >
+        Pr
+      </span>
     </div>
   );
 }
@@ -100,11 +107,11 @@ function ProvenanceBadgeInner({
         {loadingSlot ?? (
           <div
             className={cn(
-              "absolute rounded-full animate-pulse",
-              "bg-[var(--pk-surface-muted)] border border-[var(--pk-surface-border)]",
-              sizeClasses[size].button,
+              "absolute animate-pulse bg-[var(--pk-surface-muted)] border border-[var(--pk-surface-border)]",
+              sizeConfig[size].wh,
               positionClasses[position]
             )}
+            style={{ borderRadius: "28%" }}
           />
         )}
       </div>
@@ -124,9 +131,7 @@ function ProvenanceBadgeInner({
     return <div className={cn("relative inline-block", className)}>{children}</div>;
   }
 
-  const badgeButton = (
-    <BadgeButton size={size} />
-  );
+  const badge = <PrSquircle size={size} />;
 
   if (variant === "inline") {
     return (
@@ -138,7 +143,7 @@ function ProvenanceBadgeInner({
           side={popoverSide}
           onViewDetail={onViewDetail}
         >
-          {badgeButton}
+          {badge}
         </ProvenancePopover>
       </div>
     );
@@ -154,7 +159,7 @@ function ProvenanceBadgeInner({
           side={popoverSide}
           onViewDetail={onViewDetail}
         >
-          {badgeButton}
+          {badge}
         </ProvenancePopover>
       </div>
     </div>

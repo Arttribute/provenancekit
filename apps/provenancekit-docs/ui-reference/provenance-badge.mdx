@@ -1,16 +1,18 @@
 ---
 title: "ProvenanceBadge"
-description: "A shield icon that users can click to inspect the provenance of any piece of content."
+description: "A squircle 'Pr' mark that users can click to inspect the provenance of any piece of content — modelled on C2PA Content Credentials."
 ---
 
-> Wrap any content element — image, video, text block — and a clickable badge appears that opens a provenance popover.
+> Wrap any content element — image, video, text block — and a clickable **"Pr" squircle tag** appears. Clicking it opens a credentials-style popover showing date, producer, AI tool used, license, and verification status.
+
+The badge is intentionally **always dark** (near-black with white text) so it stands out as a provenance mark on any background, regardless of your app's light/dark theme.
 
 <Tabs>
   <Tab title="Preview">
     <Frame>
       <iframe
         src="https://ui-preview.provenancekit.com/badge"
-        style={{ width: "100%", height: "420px", border: "none", borderRadius: "8px" }}
+        style={{ width: "100%", height: "480px", border: "none", borderRadius: "8px" }}
         title="ProvenanceBadge preview"
       />
     </Frame>
@@ -19,7 +21,7 @@ description: "A shield icon that users can click to inspect the provenance of an
     ```tsx
     import { ProvenanceBadge } from "@provenancekit/ui";
 
-    // Floating badge over content (default)
+    // Floating "Pr" tag over content (default — appears bottom-right)
     <ProvenanceBadge cid="bafybei..." position="bottom-right">
       <img src="/my-image.jpg" alt="AI-generated artwork" />
     </ProvenanceBadge>
@@ -29,13 +31,43 @@ description: "A shield icon that users can click to inspect the provenance of an
       <p>This AI-generated poem has provenance.</p>
     </ProvenanceBadge>
 
-    // Pre-fetched bundle (skip auto-fetch)
+    // Pre-fetched bundle (skip auto-fetch) + navigate on "View full provenance"
     <ProvenanceBadge bundle={myBundle} onViewDetail={() => router.push(`/provenance/${cid}`)}>
       <video src="/video.mp4" />
     </ProvenanceBadge>
     ```
   </Tab>
 </Tabs>
+
+## The popover
+
+Clicking the "Pr" tag opens a **Content Credentials-style card** with labeled rows:
+
+| Row | Source |
+|-----|--------|
+| **Date** | Timestamp of the primary action |
+| **Produced by** | Primary creator entity name |
+| **App or tool used** | AI provider + model (from `ext:ai@1.0.0`) |
+| **License** | SPDX identifier (from `ext:license@1.0.0`) |
+| **Signed with** | Verification policy (from `ext:verification@1.0.0`) |
+
+Only rows with available data are shown. An optional "View full provenance" button navigates to a detail page.
+
+## Font
+
+The "Pr" mark defaults to **Red Hat Display**. If your app already loads Red Hat Display, it will be used automatically. Override with the CSS variable:
+
+```css
+:root {
+  --pk-badge-font-family: 'Your Font', system-ui, sans-serif;
+}
+```
+
+Or import Red Hat Display from Google Fonts if your app doesn't already include it:
+
+```html
+<link href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@700&display=swap" rel="stylesheet" />
+```
 
 ## Props
 
@@ -44,11 +76,11 @@ description: "A shield icon that users can click to inspect the provenance of an
 | `cid` | `string` | — | Resource CID — auto-fetches bundle |
 | `bundle` | `ProvenanceBundle` | — | Pre-fetched bundle (skips auto-fetch) |
 | `children` | `ReactNode` | — | Content to wrap (image, video, text, etc.) |
-| `position` | `"top-left" \| "top-right" \| "bottom-left" \| "bottom-right"` | `"bottom-right"` | Badge position in floating mode |
-| `size` | `"sm" \| "md" \| "lg"` | `"md"` | Badge icon size |
+| `position` | `"top-left" \| "top-right" \| "bottom-left" \| "bottom-right"` | `"bottom-right"` | Tag position in floating mode |
+| `size` | `"sm" \| "md" \| "lg"` | `"md"` | Tag size (18 / 22 / 28 px square) |
 | `variant` | `"floating" \| "inline"` | `"floating"` | Layout mode |
 | `popoverSide` | `"top" \| "bottom" \| "left" \| "right"` | `"bottom"` | Popover direction |
-| `onViewDetail` | `() => void` | — | Called when user clicks "View Full Provenance" |
+| `onViewDetail` | `() => void` | — | Called when user clicks "View full provenance" |
 | `loadingSlot` | `ReactNode` | — | Custom loading state |
 | `errorSlot` | `ReactNode` | — | Custom error state |
 | `className` | `string` | — | Additional CSS classes |

@@ -65,22 +65,52 @@ The provider creates an SDK instance that all child components use for data fetc
 
 ## CSS Design Tokens
 
-Every component reads its colors from CSS custom properties. Override them globally or per-scope:
+The library ships with a **light-first design system**. Dark mode is applied automatically when a `.dark` class is present on any ancestor element — typically `<html>` or `<body>` from your app's theme system.
+
+Override any token globally or per-scope:
 
 ```css
 :root {
-  --pk-node-resource: oklch(0.55 0.15 220);  /* resource node color */
-  --pk-node-action:   oklch(0.52 0.18 145);  /* action node color */
-  --pk-node-entity:   oklch(0.65 0.18 75);   /* entity node color */
-  --pk-role-human:    oklch(0.52 0.18 250);  /* human entity accent */
-  --pk-role-ai:       oklch(0.52 0.2  310);  /* AI entity accent */
-  --pk-role-org:      oklch(0.55 0.18 145);  /* org entity accent */
-  --pk-surface:       oklch(1 0 0);          /* card/popover background */
-  --pk-radius:        0.5rem;                /* border radius */
+  /* ── Node type colors ── */
+  --pk-node-resource: oklch(0.52 0.18 250);  /* blue  */
+  --pk-node-action:   oklch(0.50 0.18 145);  /* green */
+  --pk-node-entity:   oklch(0.65 0.18 75);   /* amber */
+
+  /* ── Entity role colors ── */
+  --pk-role-human:    oklch(0.52 0.18 250);  /* blue   */
+  --pk-role-ai:       oklch(0.52 0.2  310);  /* violet */
+  --pk-role-org:      oklch(0.50 0.18 145);  /* green  */
+
+  /* ── Badge (Pr squircle) ── */
+  --pk-badge-bg:          oklch(0.13 0.04 250 / 92%);  /* near-black */
+  --pk-badge-fg:          oklch(0.98 0 0);              /* white text */
+  --pk-badge-font-family: 'Red Hat Display', system-ui, sans-serif;
+
+  /* ── Graph canvas ── */
+  --pk-graph-bg:             oklch(0.96 0.008 250);  /* light blue-gray canvas */
+  --pk-graph-dot:            oklch(0.78 0.01 250);   /* dot grid */
+  --pk-graph-node-bg:        oklch(1 0 0);           /* white node cards */
+  --pk-graph-node-border:    oklch(0.88 0.01 250);
+  --pk-graph-node-text:      oklch(0.13 0 0);
+  --pk-graph-node-muted:     oklch(0.50 0 0);
+  --pk-graph-control-bg:     oklch(1 0 0 / 92%);     /* controls backdrop */
+  --pk-graph-control-border: oklch(0.88 0.01 250);
+  --pk-graph-control-text:   oklch(0.50 0 0);
+
+  /* ── Surfaces ── */
+  --pk-surface:        oklch(1 0 0);
+  --pk-surface-muted:  oklch(0.97 0.005 250);
+  --pk-surface-border: oklch(0.90 0.005 250);
+  --pk-foreground:     oklch(0.13 0 0);
+  --pk-radius:         0.75rem;
 }
 ```
 
-Or use the `theme` prop on `ProvenanceKitProvider`:
+<Note>
+  The `--pk-badge-*` tokens stay dark in both light and dark mode by design — the "Pr" tag is a provenance mark that needs to stand out on any content.
+</Note>
+
+Or use the `theme` prop on `ProvenanceKitProvider` for the most common overrides:
 
 ```tsx
 <ProvenanceKitProvider
@@ -88,13 +118,30 @@ Or use the `theme` prop on `ProvenanceKitProvider`:
   theme={{
     nodeResourceColor: "#6366f1",
     nodeActionColor:   "#22c55e",
-    badgeBg:           "rgba(0,0,0,0.85)",
-    radius:            "0.75rem",
+    badgeBg:           "rgba(0,0,0,0.9)",
+    radius:            "0.5rem",
   }}
 >
   {children}
 </ProvenanceKitProvider>
 ```
+
+### Dark mode
+
+Add the `.dark` class to your root `<html>` element (the standard Tailwind dark mode pattern):
+
+```tsx
+// With next-themes
+import { ThemeProvider } from "next-themes";
+
+<ThemeProvider attribute="class">
+  <ProvenanceKitProvider apiUrl="...">
+    {children}
+  </ProvenanceKitProvider>
+</ThemeProvider>
+```
+
+All components — cards, popovers, graph canvas, node cards, controls — will switch to dark surfaces automatically.
 
 ## Headless Mode
 
