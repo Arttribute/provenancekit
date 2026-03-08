@@ -1,63 +1,145 @@
 import React from "react";
-import { Zap, Bot, CheckCircle } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { Zap, Bot, Shield } from "lucide-react";
 import { Timestamp } from "../primitives/timestamp";
-import { VerificationIndicator } from "../primitives/verification-indicator";
 import { getAIToolSafe, getVerificationSafe } from "../../lib/extensions";
-import { formatActionType } from "../../lib/format";
 import type { Action } from "@provenancekit/eaa-types";
 
 interface TrackerActionItemProps {
   action: Action;
   isLatest?: boolean;
+  isLast?: boolean;
   className?: string;
 }
 
-export function TrackerActionItem({ action, isLatest, className }: TrackerActionItemProps) {
+function formatActionType(t: string): string {
+  return t.replace(/^ext:/, "").replace(/@[\d.]+$/, "").replace(/-/g, " ");
+}
+
+export function TrackerActionItem({ action, isLatest, isLast, className }: TrackerActionItemProps) {
   const aiTool = getAIToolSafe(action);
   const verification = getVerificationSafe(action);
+  const isVerified = verification?.status === "verified";
+
+  const dotColor = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
+  const dotBorder = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
 
   return (
-    <div className={cn("flex gap-3", className)}>
-      {/* Timeline line + dot */}
-      <div className="flex flex-col items-center">
+    <div
+      className={className}
+      style={{ display: "flex", gap: 12, paddingBottom: isLast ? 0 : 0 }}
+    >
+      {/* Timeline column */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 24, flexShrink: 0 }}>
+        {/* Dot */}
         <div
-          className={cn(
-            "size-6 rounded-full flex items-center justify-center shrink-0",
-            "border-2",
-            isLatest
-              ? "border-[var(--pk-node-action)] bg-[var(--pk-node-action-muted)]"
-              : "border-[var(--pk-surface-border)] bg-[var(--pk-surface)]"
-          )}
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            background: isLatest ? "rgba(34,197,94,0.12)" : "var(--pk-surface-muted, #f8fafc)",
+            border: `2px solid ${dotBorder}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            zIndex: 1,
+          }}
         >
           <Zap
             size={11}
-            strokeWidth={2}
-            className={isLatest ? "text-[var(--pk-node-action)]" : "text-[var(--pk-muted-foreground)]"}
+            strokeWidth={2.5}
+            style={{ color: isLatest ? "#22c55e" : "var(--pk-muted-foreground, #94a3b8)" }}
           />
         </div>
-        <div className="w-px flex-1 bg-[var(--pk-surface-border)] mt-1" />
+        {/* Line (hidden for last item) */}
+        {!isLast && (
+          <div
+            style={{
+              width: 1.5,
+              flex: 1,
+              background: "var(--pk-surface-border, #e2e8f0)",
+              marginTop: 2,
+              minHeight: 16,
+            }}
+          />
+        )}
       </div>
 
       {/* Content */}
-      <div className="flex-1 pb-4 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-sm font-medium text-[var(--pk-foreground)]">
+      <div style={{ flex: 1, paddingBottom: isLast ? 8 : 16, minWidth: 0 }}>
+        {/* Action type + badges */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 4 }}>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 600,
+              color: "var(--pk-foreground, #0f172a)",
+              textTransform: "capitalize",
+            }}
+          >
             {formatActionType(action.type)}
           </span>
-          {aiTool && (
-            <span className="inline-flex items-center gap-1 text-xs text-[var(--pk-role-ai)]">
-              <Bot size={10} strokeWidth={2} />
-              {aiTool.provider} {aiTool.model}
+
+          {isLatest && (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "1px 6px",
+                borderRadius: 999,
+                background: "rgba(34,197,94,0.12)",
+                color: "#16a34a",
+                border: "1px solid rgba(34,197,94,0.3)",
+              }}
+            >
+              Latest
             </span>
           )}
-          {verification && <VerificationIndicator status={verification.status} size="sm" />}
+
+          {aiTool && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                color: "#7c3aed",
+                background: "rgba(124,58,237,0.08)",
+                border: "1px solid rgba(124,58,237,0.2)",
+                borderRadius: 6,
+                padding: "1px 7px",
+              }}
+            >
+              <Bot size={9} strokeWidth={2} />
+              {aiTool.provider}{aiTool.model ? ` · ${aiTool.model}` : ""}
+            </span>
+          )}
+
+          {isVerified && (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                fontSize: 11,
+                color: "#059669",
+                background: "rgba(5,150,105,0.08)",
+                border: "1px solid rgba(5,150,105,0.2)",
+                borderRadius: 6,
+                padding: "1px 7px",
+              }}
+            >
+              <Shield size={9} strokeWidth={2} />
+              Verified
+            </span>
+          )}
         </div>
 
-        <div className="flex items-center gap-2 mt-0.5">
+        {/* Timestamp */}
+        <div style={{ fontSize: 11, color: "var(--pk-muted-foreground, #64748b)" }}>
           <Timestamp iso={action.timestamp} />
           {action.outputs.length > 0 && (
-            <span className="text-xs text-[var(--pk-muted-foreground)]">
+            <span style={{ marginLeft: 8 }}>
               → {action.outputs.length} output{action.outputs.length !== 1 ? "s" : ""}
             </span>
           )}

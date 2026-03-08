@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 const previews = [
-  { href: "/badge", label: "ProvenanceBadge", description: "'Pr' squircle tag with C2PA-style credentials popover — floating and inline variants" },
+  { href: "/badge", label: "ProvenanceBadge", description: "'Pr' squircle tag with provenance credentials popover — floating and inline variants" },
   { href: "/graph", label: "ProvenanceGraph", description: "Interactive provenance DAG — drag nodes, pan, zoom. Light and dark mode." },
   { href: "/tracker", label: "ProvenanceTracker", description: "Real-time session action feed with auto-polling" },
   { href: "/bundle", label: "ProvenanceBundleView", description: "Tabbed provenance record — Resources, Actions, Entities, Attribution" },

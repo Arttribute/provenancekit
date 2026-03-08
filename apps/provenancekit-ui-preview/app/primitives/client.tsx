@@ -89,7 +89,7 @@ export function PrimitivesPreviewClient() {
                   Alice Chen
                 </span>
               </div>
-              <ContributionBar bps={7000} />
+              <ContributionBar value={0.7} />
             </div>
             <div>
               <div className="flex justify-between mb-1">
@@ -100,7 +100,7 @@ export function PrimitivesPreviewClient() {
                   Poetry Service (AI)
                 </span>
               </div>
-              <ContributionBar bps={2000} />
+              <ContributionBar value={0.2} />
             </div>
             <div>
               <div className="flex justify-between mb-1">
@@ -111,7 +111,7 @@ export function PrimitivesPreviewClient() {
                   Source Dataset
                 </span>
               </div>
-              <ContributionBar bps={1000} />
+              <ContributionBar value={0.1} />
             </div>
           </div>
         </Section>

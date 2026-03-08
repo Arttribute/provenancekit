@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { cn } from "../../lib/utils";
 import { TrackerSessionHeader } from "./tracker-session-header";
 import { TrackerActionItem } from "./tracker-action-item";
 import { useSessionProvenance } from "../../hooks/use-session-provenance";
@@ -52,10 +51,17 @@ export function ProvenanceTracker({
 
   if (!session && loading) {
     return (
-      <div className={cn("animate-pulse space-y-2", className)}>
-        <div className="h-10 rounded-lg bg-[var(--pk-surface-muted)]" />
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-14 rounded-lg bg-[var(--pk-surface-muted)]" />
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }} className={className}>
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            style={{
+              height: i === 1 ? 48 : 56,
+              borderRadius: 12,
+              background: "var(--pk-surface-muted, #f8fafc)",
+              animation: "pulse 1.5s ease-in-out infinite",
+            }}
+          />
         ))}
       </div>
     );
@@ -63,7 +69,17 @@ export function ProvenanceTracker({
 
   if (!session && error) {
     return (
-      <div className={cn("rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600", className)}>
+      <div
+        className={className}
+        style={{
+          borderRadius: 12,
+          border: "1px solid rgba(220,38,38,0.3)",
+          background: "rgba(220,38,38,0.05)",
+          padding: "12px 14px",
+          fontSize: 13,
+          color: "#dc2626",
+        }}
+      >
         {error.message}
       </div>
     );
@@ -71,8 +87,18 @@ export function ProvenanceTracker({
 
   if (!session) {
     return (
-      <div className={cn("rounded-lg border border-[var(--pk-surface-border)] p-6 text-center", className)}>
-        <p className="text-sm text-[var(--pk-muted-foreground)]">No session data</p>
+      <div
+        className={className}
+        style={{
+          borderRadius: 12,
+          border: "1px solid var(--pk-surface-border, #e2e8f0)",
+          padding: "24px",
+          textAlign: "center",
+          fontSize: 14,
+          color: "var(--pk-muted-foreground, #64748b)",
+        }}
+      >
+        No session data
       </div>
     );
   }
@@ -81,22 +107,37 @@ export function ProvenanceTracker({
   const actions = [...session.actions].reverse().slice(0, maxActions);
 
   return (
-    <div className={cn("space-y-3", className)}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }} className={className}>
       <TrackerSessionHeader session={session} />
 
       {actions.length === 0 ? (
-        <div className="rounded-lg border border-[var(--pk-surface-border)] p-6 text-center">
-          <p className="text-sm text-[var(--pk-muted-foreground)]">
-            No actions recorded yet. Waiting…
-          </p>
+        <div
+          style={{
+            borderRadius: 12,
+            border: "1px solid var(--pk-surface-border, #e2e8f0)",
+            padding: "24px",
+            textAlign: "center",
+            fontSize: 14,
+            color: "var(--pk-muted-foreground, #64748b)",
+          }}
+        >
+          No actions recorded yet. Waiting…
         </div>
       ) : (
-        <div className="rounded-lg border border-[var(--pk-surface-border)] bg-[var(--pk-surface)] px-4 pt-4 pb-0">
+        <div
+          style={{
+            borderRadius: 12,
+            border: "1px solid var(--pk-surface-border, #e2e8f0)",
+            background: "var(--pk-surface, #fff)",
+            padding: "16px 16px 0",
+          }}
+        >
           {actions.map((action, i) => (
             <TrackerActionItem
               key={action.id ?? i}
               action={action}
               isLatest={i === 0}
+              isLast={i === actions.length - 1}
             />
           ))}
         </div>

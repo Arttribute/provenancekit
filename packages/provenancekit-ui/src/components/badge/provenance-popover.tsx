@@ -4,7 +4,6 @@ import React from "react";
 import * as Popover from "@radix-ui/react-popover";
 import { ExternalLink } from "lucide-react";
 import { Timestamp } from "../primitives/timestamp";
-import { CidDisplay } from "../primitives/cid-display";
 import {
   getLicenseSafe,
   getAIToolSafe,
@@ -12,6 +11,7 @@ import {
   getPrimaryCreator,
 } from "../../lib/extensions";
 import type { ProvenanceBundle } from "@provenancekit/sdk";
+import type { AIToolExtension } from "../../lib/extensions";
 
 interface ProvenancePopoverProps {
   bundle: ProvenanceBundle;
@@ -21,20 +21,68 @@ interface ProvenancePopoverProps {
   onViewDetail?: () => void;
 }
 
-// Matches C2PA "Content Credentials" row: bold label + inline value, separated by <hr>
+function formatProvider(provider: string): string {
+  const map: Record<string, string> = {
+    "anthropic": "Anthropic",
+    "openai": "OpenAI",
+    "google": "Google",
+    "black-forest-labs": "Black Forest Labs",
+    "mistral": "Mistral",
+    "meta": "Meta",
+    "cohere": "Cohere",
+    "stability-ai": "Stability AI",
+  };
+  return map[provider.toLowerCase()] ?? provider;
+}
+
+function getUniqueAITools(bundle: ProvenanceBundle): AIToolExtension[] {
+  const seen = new Set<string>();
+  const tools: AIToolExtension[] = [];
+  for (const action of bundle.actions) {
+    const tool = getAIToolSafe(action);
+    if (!tool) continue;
+    const key = `${tool.provider}:${tool.model ?? ""}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      tools.push(tool);
+    }
+  }
+  return tools;
+}
+
+function findLicense(bundle: ProvenanceBundle) {
+  // Search resources from the end — the final output typically carries the license
+  for (let i = bundle.resources.length - 1; i >= 0; i--) {
+    const lic = getLicenseSafe(bundle.resources[i]!);
+    if (lic) return lic;
+  }
+  return null;
+}
+
+function findVerification(bundle: ProvenanceBundle) {
+  for (let i = bundle.actions.length - 1; i >= 0; i--) {
+    const v = getVerificationSafe(bundle.actions[i]!);
+    if (v) return v;
+  }
+  return null;
+}
+
+// Credential row: small uppercase label above, value below
 function CredRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ padding: "10px 0" }}>
-      <p style={{ margin: 0, fontSize: 13, lineHeight: "1.5", color: "#111827" }}>
-        <strong style={{ fontWeight: 700 }}>{label}</strong>{" "}
-        <span style={{ color: "#374151" }}>{value}</span>
+    <div style={{ padding: "9px 0" }}>
+      <p style={{ margin: "0 0 2px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#9ca3af" }}>
+        {label}
       </p>
+      <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", lineHeight: 1.4 }}>
+        {value}
+      </div>
     </div>
   );
 }
 
 const Divider = () => (
-  <div style={{ height: 1, background: "#f3f4f6", margin: 0 }} />
+  <div style={{ height: 1, background: "#f3f4f6" }} />
 );
 
 export function ProvenancePopover({
@@ -45,18 +93,11 @@ export function ProvenancePopover({
   onViewDetail,
 }: ProvenancePopoverProps) {
   const creator = getPrimaryCreator(bundle.attributions, bundle.entities);
-  const primaryAction = bundle.actions[bundle.actions.length - 1];
-  const primaryResource = bundle.resources.find(
-    (r) => r.address?.ref === cid || !cid
-  ) ?? bundle.resources[0];
-
-  const license = primaryResource ? getLicenseSafe(primaryResource) : null;
-  const aiTool = primaryAction ? getAIToolSafe(primaryAction) : null;
-  const verification = primaryAction ? getVerificationSafe(primaryAction) : null;
-
-  const toolLabel = aiTool
-    ? `${aiTool.provider}${aiTool.model ? ` ${aiTool.model}` : ""}`
-    : null;
+  const aiTools = getUniqueAITools(bundle);
+  const license = findLicense(bundle);
+  const verification = findVerification(bundle);
+  const lastAction = bundle.actions[bundle.actions.length - 1];
+  const otherContributors = bundle.entities.filter((e) => e.id !== creator?.id);
 
   const verifiedLabel =
     verification?.status === "verified"
@@ -66,18 +107,50 @@ export function ProvenancePopover({
       : null;
 
   const rows: { label: string; value: React.ReactNode }[] = [];
-  if (primaryAction?.timestamp) {
-    rows.push({ label: "Date", value: <Timestamp iso={primaryAction.timestamp} /> });
+
+  if (lastAction?.timestamp) {
+    rows.push({ label: "Date", value: <Timestamp iso={lastAction.timestamp} /> });
   }
+
   if (creator) {
-    rows.push({ label: "Produced by", value: creator.name ?? creator.id });
+    const suffix = otherContributors.length > 0
+      ? ` + ${otherContributors.length} more`
+      : "";
+    rows.push({ label: "Produced by", value: `${creator.name ?? creator.id}${suffix}` });
   }
-  if (toolLabel) {
-    rows.push({ label: "App or tool used", value: toolLabel });
+
+  if (aiTools.length > 0) {
+    rows.push({
+      label: aiTools.length === 1 ? "AI tool used" : "AI tools used",
+      value: (
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          {aiTools.map((t, i) => (
+            <span key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 13 }}>
+              <span
+                style={{
+                  width: 6,
+                  height: 6,
+                  borderRadius: "50%",
+                  background: "#7c3aed",
+                  flexShrink: 0,
+                  display: "inline-block",
+                }}
+              />
+              <span style={{ fontWeight: 600 }}>{formatProvider(t.provider)}</span>
+              {t.model && (
+                <span style={{ color: "#6b7280", fontWeight: 400 }}>· {t.model}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      ),
+    });
   }
+
   if (license?.type) {
     rows.push({ label: "License", value: license.type });
   }
+
   if (verifiedLabel) {
     rows.push({ label: "Signed with", value: verifiedLabel });
   }
@@ -91,9 +164,9 @@ export function ProvenancePopover({
           align="end"
           sideOffset={10}
           style={{
-            width: 320,
+            width: 296,
             background: "#fff",
-            borderRadius: 16,
+            borderRadius: 14,
             boxShadow: "0 8px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)",
             border: "1px solid rgba(0,0,0,0.08)",
             zIndex: 9999,
@@ -101,26 +174,25 @@ export function ProvenancePopover({
             outline: "none",
           }}
         >
-          {/* Header — matches C2PA "Content Credentials" */}
-          <div style={{ padding: "16px 20px 14px" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
-              {/* Pr squircle — mini version in header */}
+          {/* Header */}
+          <div style={{ padding: "13px 16px 11px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
               <div
                 style={{
-                  width: 30,
-                  height: 30,
+                  width: 26,
+                  height: 26,
                   borderRadius: "28%",
-                  background: "oklch(0.12 0.04 250)",
+                  background: "#0f172a",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   flexShrink: 0,
-                  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
                 }}
               >
                 <span
                   style={{
-                    fontSize: 11,
+                    fontSize: 10,
                     fontWeight: 800,
                     lineHeight: 1,
                     letterSpacing: "-0.03em",
@@ -132,21 +204,19 @@ export function ProvenancePopover({
                 </span>
               </div>
               <div>
-                <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827", lineHeight: 1.2 }}>
-                  Provenance
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: "#111827", lineHeight: 1.2 }}>
+                  Content Provenance
                 </p>
-                {cid && (
-                  <div style={{ marginTop: 2 }}>
-                    <CidDisplay cid={cid} prefixLen={10} suffixLen={6} />
-                  </div>
-                )}
+                <p style={{ margin: "2px 0 0", fontSize: 11, color: "#9ca3af", lineHeight: 1 }}>
+                  {bundle.entities.length} contributor{bundle.entities.length !== 1 ? "s" : ""} · {bundle.actions.length} action{bundle.actions.length !== 1 ? "s" : ""}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Credential rows — C2PA style */}
+          {/* Credential rows */}
           {rows.length > 0 && (
-            <div style={{ padding: "0 20px", borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ padding: "0 16px", borderTop: "1px solid #f3f4f6" }}>
               {rows.map((row, i) => (
                 <React.Fragment key={row.label}>
                   <CredRow label={row.label} value={row.value} />
@@ -158,7 +228,7 @@ export function ProvenancePopover({
 
           {/* Footer CTA */}
           {onViewDetail && (
-            <div style={{ padding: "12px 20px 16px", borderTop: "1px solid #f3f4f6" }}>
+            <div style={{ padding: "10px 16px 14px", borderTop: "1px solid #f3f4f6" }}>
               <button
                 type="button"
                 onClick={onViewDetail}
@@ -168,9 +238,9 @@ export function ProvenancePopover({
                   alignItems: "center",
                   justifyContent: "center",
                   gap: 6,
-                  padding: "9px 12px",
-                  borderRadius: 10,
-                  background: "oklch(0.12 0.04 250)",
+                  padding: "8px 12px",
+                  borderRadius: 9,
+                  background: "#0f172a",
                   color: "#fff",
                   fontSize: 12,
                   fontWeight: 600,

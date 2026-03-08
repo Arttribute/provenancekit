@@ -344,10 +344,9 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}action_extensions ON ${t.action} USING G
       sql += `CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS ${t.embedding} (
-  id SERIAL PRIMARY KEY,
-  ref TEXT NOT NULL REFERENCES ${t.resource}(ref),
-  embedding vector(${dim}),
-  kind TEXT,
+  ref        TEXT PRIMARY KEY REFERENCES ${t.resource}(ref) ON DELETE CASCADE,
+  embedding  vector(${dim}) NOT NULL,
+  kind       TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -380,9 +379,9 @@ $$;\n\n`;
     // decrypt them client-side for local similarity search.
     if (vectors) {
       sql += `CREATE TABLE IF NOT EXISTS ${t.encryptedEmbedding} (
-  ref TEXT PRIMARY KEY REFERENCES ${t.resource}(ref),
-  blob TEXT NOT NULL,
-  kind TEXT,
+  ref        TEXT PRIMARY KEY REFERENCES ${t.resource}(ref) ON DELETE CASCADE,
+  blob       TEXT NOT NULL,
+  kind       TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

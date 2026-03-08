@@ -815,13 +815,28 @@ export async function createActivity(
     );
   }
 
-  // 10. Store embedding
+  // 10. Store embedding (non-fatal — similarity search is a secondary feature)
+  // If the vector dimension doesn't match the DB column (e.g. pk_embedding was created
+  // with vector(768) but CLIP ViT-Base/16 outputs 512-dim), the INSERT will fail.
+  // Run 003_fix_embedding_dimension.sql to repair the table, then redeploy.
+  // The provenance records (pk_resource, pk_action) are always written above.
   if (embedding && !encrypted) {
-    await embedder.store(cid, embedding);
+    try {
+      await embedder.store(cid, embedding);
+    } catch (err) {
+      console.error(
+        "[PK] embedder.store failed (non-fatal — run 003_fix_embedding_dimension.sql to fix):",
+        err instanceof Error ? err.message : err
+      );
+    }
   } else if (embedding && encrypted && encryptionKey) {
     // Encrypt the embedding vector so only the key holder can search.
     // The server stores an opaque blob — no semantic information leaks.
-    await embedder.storeEncrypted(cid, embedding, encryptionKey, kind);
+    try {
+      await embedder.storeEncrypted(cid, embedding, encryptionKey, kind);
+    } catch (err) {
+      console.error("[PK] embedder.storeEncrypted failed (non-fatal):", err instanceof Error ? err.message : err);
+    }
   }
 
   // 11. Create attribution
