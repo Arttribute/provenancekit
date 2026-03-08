@@ -92,9 +92,6 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
                 <ProvenanceGraph
                   cid={cid}
                   height={500}
-                  showControls
-                  showLegend
-                  draggable
                 />
               </div>
             </div>

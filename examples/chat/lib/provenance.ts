@@ -16,6 +16,36 @@ import { createHash } from "crypto";
 import { getPKClientAsync } from "./pk-client";
 import type { AIProvider, ModelInfo } from "@/types";
 
+/** True for transient network errors worth retrying (cold start, connection reset). */
+function isRetryable(err: unknown): boolean {
+  const msg = String(err instanceof Error ? (err.cause ?? err).toString() : err);
+  return (
+    msg.includes("ETIMEDOUT") ||
+    msg.includes("ECONNRESET") ||
+    msg.includes("ECONNREFUSED") ||
+    msg.includes("fetch failed") ||
+    msg.includes("502") ||
+    msg.includes("503") ||
+    msg.includes("504")
+  );
+}
+
+/** Retry `fn` up to `maxAttempts` times on transient errors with exponential backoff. */
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (!isRetryable(err) || attempt === maxAttempts) throw err;
+      // 1 s, 3 s — gives Cloud Run time to warm up between attempts
+      await new Promise((r) => setTimeout(r, 1000 * attempt));
+    }
+  }
+  throw lastErr;
+}
+
 export type SupportedProvider = AIProvider;
 
 export const KNOWN_MODELS: ModelInfo[] = [
@@ -70,51 +100,53 @@ export async function recordChatProvenance(opts: {
   if (!pk) return null;
 
   try {
-    const humanEntityId = await pk.entity({ role: "human", name: opts.userPrivyDid });
-    const agentEntityId = await pk.entity({
-      role: "ai",
-      name: `${opts.provider}/${opts.model}`,
-      aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
-    });
+    return await withRetry(async () => {
+      const humanEntityId = await pk.entity({ role: "human", name: opts.userPrivyDid });
+      const agentEntityId = await pk.entity({
+        role: "ai",
+        name: `${opts.provider}/${opts.model}`,
+        aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
+      });
 
-    const promptText = JSON.stringify(opts.prompt.map((m) => ({ role: m.role, content: m.content })));
-    const promptBlob = new Blob([promptText], { type: "application/json" });
-    const promptResult = await pk.file(promptBlob, {
-      entity: { id: humanEntityId, role: "human", name: opts.userPrivyDid },
-      action: { type: "provide" },
-      resourceType: "text",
-      ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
-    });
+      const promptText = JSON.stringify(opts.prompt.map((m) => ({ role: m.role, content: m.content })));
+      const promptBlob = new Blob([promptText], { type: "application/json" });
+      const promptResult = await pk.file(promptBlob, {
+        entity: { id: humanEntityId, role: "human", name: opts.userPrivyDid },
+        action: { type: "provide" },
+        resourceType: "text",
+        ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+      });
 
-    const responseBlob = new Blob([opts.response], { type: "text/plain" });
-    const responseResult = await pk.file(responseBlob, {
-      entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
-      action: {
-        type: "generate",
-        inputCids: [promptResult.cid],
-        extensions: {
-          "ext:ai@1.0.0": {
-            provider: opts.provider,
-            model: opts.model,
-            promptHash: hashPrompt(opts.prompt),
-            tokensUsed: opts.tokens,
+      const responseBlob = new Blob([opts.response], { type: "text/plain" });
+      const responseResult = await pk.file(responseBlob, {
+        entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
+        action: {
+          type: "generate",
+          inputCids: [promptResult.cid],
+          extensions: {
+            "ext:ai@1.0.0": {
+              provider: opts.provider,
+              model: opts.model,
+              promptHash: hashPrompt(opts.prompt),
+              tokensUsed: opts.tokens,
+            },
           },
         },
-      },
-      resourceType: "text",
-      ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+        resourceType: "text",
+        ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+      });
+
+      if (responseResult.onchain) {
+        console.log(`[PK] On-chain recorded: txHash=${responseResult.onchain.txHash} chain=${responseResult.onchain.chainName}`);
+      }
+
+      return {
+        cid: responseResult.cid,
+        actionId: responseResult.actionId,
+        promptCid: promptResult.cid,
+        onchain: responseResult.onchain,
+      };
     });
-
-    if (responseResult.onchain) {
-      console.log(`[PK] On-chain recorded: txHash=${responseResult.onchain.txHash} chain=${responseResult.onchain.chainName}`);
-    }
-
-    return {
-      cid: responseResult.cid,
-      actionId: responseResult.actionId,
-      promptCid: promptResult.cid,
-      onchain: responseResult.onchain,
-    };
   } catch (error) {
     console.warn("[PK] recordChatProvenance failed:", error);
     return null;
@@ -149,55 +181,56 @@ export async function recordImageProvenance(opts: {
   const pk = await getPKClientAsync();
   if (!pk) return null;
 
-  try {
-    const agentEntityId = await pk.entity({
-      role: "ai",
-      name: `${opts.provider}/${opts.model}`,
-      aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "autonomous" },
+  const promptHash = "sha256:" + createHash("sha256").update(opts.prompt).digest("hex");
+
+  // Determine the upload blob outside the retry so we only compute it once.
+  let uploadBlob: Blob;
+  if (opts.imageBlob && opts.imageBlob.size > 0) {
+    uploadBlob = opts.imageBlob;
+  } else {
+    console.warn("[PK] recordImageProvenance: no image blob, falling back to metadata JSON (no embeddings)");
+    const metadata = JSON.stringify({
+      type: "image_generation",
+      provider: opts.provider,
+      model: opts.model,
+      promptHash,
+      imageUrl: opts.imageUrl,
+      timestamp: new Date().toISOString(),
     });
+    uploadBlob = new Blob([metadata], { type: "application/json" });
+  }
 
-    const promptHash = "sha256:" + createHash("sha256").update(opts.prompt).digest("hex");
-
-    // Use real image binary when available (enables IPFS content addressing + embeddings).
-    // Fall back to metadata JSON if the binary wasn't captured in the tool execute.
-    let uploadBlob: Blob;
-    if (opts.imageBlob && opts.imageBlob.size > 0) {
-      uploadBlob = opts.imageBlob;
-    } else {
-      console.warn("[PK] recordImageProvenance: no image blob, falling back to metadata JSON (no embeddings)");
-      const metadata = JSON.stringify({
-        type: "image_generation",
-        provider: opts.provider,
-        model: opts.model,
-        promptHash,
-        imageUrl: opts.imageUrl,
-        timestamp: new Date().toISOString(),
+  try {
+    return await withRetry(async () => {
+      const agentEntityId = await pk.entity({
+        role: "ai",
+        name: `${opts.provider}/${opts.model}`,
+        aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "autonomous" },
       });
-      uploadBlob = new Blob([metadata], { type: "application/json" });
-    }
 
-    const result = await pk.file(uploadBlob, {
-      entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
-      action: {
-        type: "generate",
-        inputCids: opts.inputCids,
-        extensions: {
-          "ext:ai@1.0.0": {
-            provider: opts.provider,
-            model: opts.model,
-            promptHash,
+      const result = await pk.file(uploadBlob, {
+        entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
+        action: {
+          type: "generate",
+          inputCids: opts.inputCids,
+          extensions: {
+            "ext:ai@1.0.0": {
+              provider: opts.provider,
+              model: opts.model,
+              promptHash,
+            },
           },
         },
-      },
-      resourceType: "image",
-      ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+        resourceType: "image",
+        ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
+      });
+
+      if (result.onchain) {
+        console.log(`[PK] Image on-chain: txHash=${result.onchain.txHash} chain=${result.onchain.chainName}`);
+      }
+
+      return { cid: result.cid, actionId: result.actionId, onchain: result.onchain };
     });
-
-    if (result.onchain) {
-      console.log(`[PK] Image on-chain: txHash=${result.onchain.txHash} chain=${result.onchain.chainName}`);
-    }
-
-    return { cid: result.cid, actionId: result.actionId, onchain: result.onchain };
   } catch (error) {
     console.warn("[PK] recordImageProvenance failed:", error);
     return null;

@@ -411,8 +411,52 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
         // Unique violation
         throw new AlreadyExistsError("Record", operation);
       }
-      throw new QueryError(`Failed to ${operation}: ${result.error.message}`);
+      // Provide a clean message when Supabase returns an HTML error page
+      // (e.g. Cloudflare 502/503/504 during a transient outage)
+      const msg = result.error.message ?? "";
+      if (msg.startsWith("<!DOCTYPE") || msg.startsWith("<html")) {
+        throw new QueryError(`Failed to ${operation}: Supabase returned an HTML error page (transient 502/503)`);
+      }
+      throw new QueryError(`Failed to ${operation}: ${msg}`);
     }
+  }
+
+  /**
+   * Returns true when a QueryError is caused by a transient upstream failure
+   * (Supabase 502/503/504 or Cloudflare gateway errors) that is safe to retry.
+   */
+  private isTransientError(err: unknown): boolean {
+    if (!(err instanceof QueryError)) return false;
+    const msg = err.message ?? "";
+    return (
+      msg.includes("transient 502/503") ||
+      msg.includes("502") ||
+      msg.includes("503") ||
+      msg.includes("504") ||
+      msg.includes("ECONNRESET") ||
+      msg.includes("ETIMEDOUT") ||
+      msg.includes("network") ||
+      msg.includes("fetch failed")
+    );
+  }
+
+  /**
+   * Run `fn` with up to `maxAttempts` attempts, retrying on transient errors.
+   * Delays: 500 ms, 1500 ms (exponential + jitter).
+   */
+  private async withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn();
+      } catch (err) {
+        lastErr = err;
+        if (!this.isTransientError(err) || attempt === maxAttempts) throw err;
+        const delay = 500 * attempt + Math.random() * 200;
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
+    throw lastErr;
   }
 
   /*--------------------------------------------------------------
@@ -422,26 +466,28 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
   async upsertEntity(entity: Entity): Promise<Entity> {
     this.ensureInitialized();
 
-    // Check for publicKey immutability violation
-    const existing = await this.getEntity(entity.id);
-    if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
-      throw new QueryError(
-        `Cannot change publicKey for entity "${entity.id}": ` +
-        `public keys are immutable after first registration`
-      );
-    }
+    return this.withRetry(async () => {
+      // Check for publicKey immutability violation
+      const existing = await this.getEntity(entity.id);
+      if (existing?.publicKey && entity.publicKey && existing.publicKey !== entity.publicKey) {
+        throw new QueryError(
+          `Cannot change publicKey for entity "${entity.id}": ` +
+          `public keys are immutable after first registration`
+        );
+      }
 
-    const result = await this.client.from(this.t.entity).upsert({
-      id: entity.id,
-      role: entity.role,
-      name: entity.name ?? null,
-      public_key: existing?.publicKey ?? entity.publicKey ?? null,
-      metadata: { ...(existing?.metadata ?? {}), ...(entity.metadata ?? {}) },
-      extensions: { ...(existing?.extensions ?? {}), ...(entity.extensions ?? {}) },
+      const result = await this.client.from(this.t.entity).upsert({
+        id: entity.id,
+        role: entity.role,
+        name: entity.name ?? null,
+        public_key: existing?.publicKey ?? entity.publicKey ?? null,
+        metadata: { ...(existing?.metadata ?? {}), ...(entity.metadata ?? {}) },
+        extensions: { ...(existing?.extensions ?? {}), ...(entity.extensions ?? {}) },
+      });
+
+      this.handleError(result, "upsert entity");
+      return entity;
     });
-
-    this.handleError(result, "upsert entity");
-    return entity;
   }
 
   async updateEntity(
@@ -476,16 +522,18 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
   async getEntity(id: string): Promise<Entity | null> {
     this.ensureInitialized();
 
-    const result = await this.client
-      .from<EntityRow>(this.t.entity)
-      .select("*")
-      .eq("id", id)
-      .single();
+    return this.withRetry(async () => {
+      const result = await this.client
+        .from<EntityRow>(this.t.entity)
+        .select("*")
+        .eq("id", id)
+        .single();
 
-    if (result.error?.code === "PGRST116") return null;
-    this.handleError(result, "get entity");
+      if (result.error?.code === "PGRST116") return null;
+      this.handleError(result, "get entity");
 
-    return result.data ? this.rowToEntity(result.data) : null;
+      return result.data ? this.rowToEntity(result.data) : null;
+    });
   }
 
   async entityExists(id: string): Promise<boolean> {

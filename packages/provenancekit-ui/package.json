@@ -30,9 +30,6 @@
   "license": "MIT",
   "packageManager": "pnpm@10.12.4",
   "dependencies": {
-    "@provenancekit/eaa-types": "workspace:*",
-    "@provenancekit/extensions": "workspace:*",
-    "@provenancekit/sdk": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-popover": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.3",
@@ -44,6 +41,9 @@
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
+    "@provenancekit/eaa-types": "workspace:*",
+    "@provenancekit/extensions": "workspace:*",
+    "@provenancekit/sdk": "workspace:*",
     "@tailwindcss/postcss": "^4",
     "@types/react": "^19",
     "@types/react-dom": "^19",

@@ -30,4 +30,6 @@ yarn-error.log*
 
 # tsup or tsc build
 **/dist/
+# exception: commit built dist for provenancekit-ui so Vercel can use it via file: reference
+!packages/provenancekit-ui/dist/
 **/*.tsbuildinfo
