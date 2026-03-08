@@ -61,7 +61,7 @@ async function recordAndUpdateProvenance(opts: {
   text: string;
   tokens: number;
   sessionId: string | null;
-  imageToolResult: { name: string; result: unknown } | undefined;
+  imageToolResult: { name: string; result: unknown; blob?: Blob } | undefined;
   conversationFirstCid: string | undefined;
   conversationTotalMessages: number;
 }) {
@@ -128,6 +128,7 @@ async function recordAndUpdateProvenance(opts: {
       model: "dall-e-3",
       prompt: imageResult.prompt,
       imageUrl: imageResult.imageUrl,
+      imageBlob: imageToolResult.blob, // pre-downloaded binary for IPFS + embeddings
       inputCids: [pkResult.promptCid ?? pkResult.cid],
       sessionId,
     });
@@ -217,8 +218,11 @@ export async function POST(req: Request) {
 
   const aiModel = getAIProvider(provider, model);
 
-  // Track tool results during streaming for provenance recording
-  const toolResults: Array<{ name: string; result: unknown }> = [];
+  // Track tool results during streaming for provenance recording.
+  // `blob` holds the pre-downloaded image binary so we can upload it to IPFS
+  // for real vector embeddings. Downloaded immediately inside the tool execute
+  // while the DALL-E URL is guaranteed fresh.
+  const toolResults: Array<{ name: string; result: unknown; blob?: Blob }> = [];
 
   // Capture user message text
   const lastUserMsg = [...messages].reverse().find((m: { role: string }) => m.role === "user");
@@ -272,7 +276,21 @@ export async function POST(req: Request) {
             });
             const imageUrl = response.data?.[0]?.url ?? "";
             const revisedPrompt = response.data?.[0]?.revised_prompt ?? prompt;
-            toolResults.push({ name: "generate_image", result: { imageUrl, revisedPrompt, prompt } });
+
+            // Download the image binary while the URL is fresh (just returned by DALL-E).
+            // Storing it here avoids re-fetching later when the URL may have expired,
+            // and lets the provenance recorder upload the real image to IPFS for embeddings.
+            let imageBlob: Blob | undefined;
+            if (imageUrl) {
+              try {
+                const imgResp = await fetch(imageUrl);
+                imageBlob = await imgResp.blob();
+              } catch {
+                // Non-fatal: provenance recording will fall back to metadata JSON
+              }
+            }
+
+            toolResults.push({ name: "generate_image", result: { imageUrl, revisedPrompt, prompt }, blob: imageBlob });
             return { imageUrl, revisedPrompt, prompt };
           } catch (err) {
             return { error: String(err), imageUrl: "", revisedPrompt: prompt, prompt };

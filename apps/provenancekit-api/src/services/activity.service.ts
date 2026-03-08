@@ -802,7 +802,18 @@ export async function createActivity(
   // This is a materialized cache for fast queries; the immutable `created_by`
   // field on the resource record is always the original registrant regardless
   // of any future ownership transfers.
-  await dbStorage.initOwnershipState(cid, entityId);
+  //
+  // Non-fatal: if pk_ownership_state doesn't exist (e.g. migration not yet applied)
+  // the immutable records in pk_resource and pk_action remain the authoritative
+  // provenance — the cache can be rebuilt from the action chain at any time.
+  try {
+    await dbStorage.initOwnershipState(cid, entityId);
+  } catch (err) {
+    console.error(
+      "[PK] initOwnershipState failed (non-fatal — run 002_add_ownership.sql to fix):",
+      err instanceof Error ? err.message : err
+    );
+  }
 
   // 10. Store embedding
   if (embedding && !encrypted) {

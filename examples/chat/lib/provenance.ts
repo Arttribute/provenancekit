@@ -123,7 +123,17 @@ export async function recordChatProvenance(opts: {
 
 /**
  * Record provenance for a DALL-E generated image.
- * The image is recorded as a resource with ext:ai@1.0.0 citing the prompt CID as input.
+ *
+ * Two-path strategy:
+ *   1. If `imageBlob` is provided (pre-downloaded in the tool execute callback while
+ *      the DALL-E URL was fresh), upload the real image binary to IPFS. This enables
+ *      vector embeddings for content-based similarity search.
+ *   2. If `imageBlob` is absent (download failed), fall back to a small JSON metadata
+ *      blob. The provenance record is still permanent and auditable — only embeddings
+ *      are missing.
+ *
+ * The caller (generate_image tool execute) is responsible for downloading the image
+ * immediately after DALL-E returns it, before the ephemeral URL can expire (~60 min).
  */
 export async function recordImageProvenance(opts: {
   userPrivyDid: string;
@@ -131,11 +141,13 @@ export async function recordImageProvenance(opts: {
   model: string; // "dall-e-3"
   prompt: string;
   imageUrl: string;
+  /** Pre-downloaded image binary — enables real IPFS storage and vector embeddings */
+  imageBlob?: Blob;
   inputCids: string[]; // prompt CID(s) from the parent chat exchange
   sessionId: string | null;
 }): Promise<ProvenanceResult | null> {
   const pk = await getPKClientAsync();
-  if (!pk || !opts.imageUrl) return null;
+  if (!pk) return null;
 
   try {
     const agentEntityId = await pk.entity({
@@ -144,11 +156,27 @@ export async function recordImageProvenance(opts: {
       aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "autonomous" },
     });
 
-    // Fetch the image and upload as a PK resource
-    const imageResp = await fetch(opts.imageUrl);
-    const imageBlob = await imageResp.blob();
+    const promptHash = "sha256:" + createHash("sha256").update(opts.prompt).digest("hex");
 
-    const result = await pk.file(imageBlob, {
+    // Use real image binary when available (enables IPFS content addressing + embeddings).
+    // Fall back to metadata JSON if the binary wasn't captured in the tool execute.
+    let uploadBlob: Blob;
+    if (opts.imageBlob && opts.imageBlob.size > 0) {
+      uploadBlob = opts.imageBlob;
+    } else {
+      console.warn("[PK] recordImageProvenance: no image blob, falling back to metadata JSON (no embeddings)");
+      const metadata = JSON.stringify({
+        type: "image_generation",
+        provider: opts.provider,
+        model: opts.model,
+        promptHash,
+        imageUrl: opts.imageUrl,
+        timestamp: new Date().toISOString(),
+      });
+      uploadBlob = new Blob([metadata], { type: "application/json" });
+    }
+
+    const result = await pk.file(uploadBlob, {
       entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
       action: {
         type: "generate",
@@ -157,7 +185,7 @@ export async function recordImageProvenance(opts: {
           "ext:ai@1.0.0": {
             provider: opts.provider,
             model: opts.model,
-            promptHash: "sha256:" + createHash("sha256").update(opts.prompt).digest("hex"),
+            promptHash,
           },
         },
       },
