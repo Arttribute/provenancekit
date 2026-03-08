@@ -178,6 +178,51 @@ Or use the `theme` prop on `ProvenanceKitProvider` for common overrides without 
 </ProvenanceKitProvider>
 ```
 
+## Font — Red Hat Display
+
+The `"Pr"` squircle badge defaults to **Red Hat Display** (700/800 weight). Load it from Google Fonts once in your app's `<head>`:
+
+```html
+<link
+  href="https://fonts.googleapis.com/css2?family=Red+Hat+Display:wght@700;800&display=swap"
+  rel="stylesheet"
+/>
+```
+
+In **Next.js** use `next/font/google` and expose it as a CSS variable:
+
+```tsx
+// app/layout.tsx
+import { Red_Hat_Display } from "next/font/google";
+
+const redHatDisplay = Red_Hat_Display({
+  subsets: ["latin"],
+  weight: ["700", "800"],
+  variable: "--font-red-hat-display",
+  display: "swap",
+});
+
+export default function RootLayout({ children }) {
+  return (
+    <html lang="en">
+      <body className={redHatDisplay.variable}>
+        ...
+      </body>
+    </html>
+  );
+}
+```
+
+Then in your global CSS wire the variable into the badge token:
+
+```css
+:root {
+  --pk-badge-font-family: var(--font-red-hat-display, 'Red Hat Display', system-ui, sans-serif);
+}
+```
+
+Override with any font via `--pk-badge-font-family` if you prefer a different typeface.
+
 ## Available Hooks
 
 ```tsx
@@ -204,3 +249,38 @@ const { data: session } = useSessionProvenance("session-xyz", { pollInterval: 30
 // Compute contribution weights from a bundle
 const { data: distribution } = useDistribution("bafybei...");
 ```
+
+## Troubleshooting
+
+**Graph doesn't render / canvas is blank**
+
+You forgot `@import "@provenancekit/ui/styles.css"` in your global CSS. This import includes the ReactFlow base styles that the graph canvas requires.
+
+**"Pr" badge font looks wrong**
+
+The badge uses `--pk-badge-font-family`. Set it to your loaded font variable — see the [Font section](#font--red-hat-display) above.
+
+**Badge popover doesn't open**
+
+Make sure you are not wrapping the `<ProvenanceBadge>` in a container that intercepts click events (e.g. an `<a>` tag or a draggable layer). If you need to nest it inside a link, use `e.stopPropagation()` on the link's click handler.
+
+**TypeScript error: "Property 'x' does not exist on type 'IntrinsicAttributes'"**
+
+You are likely on a stale cached version of `@provenancekit/ui`. Run `npm install @provenancekit/ui@latest` to get the current types.
+
+**Server Component import error in Next.js**
+
+Components are `"use client"` internally. Re-export them from a client wrapper file:
+
+```tsx
+// components/ui/pk-ui.tsx
+"use client";
+export {
+  ProvenanceBadge,
+  ProvenanceBundleView,
+  ProvenanceGraph,
+  ProvenanceTracker,
+} from "@provenancekit/ui";
+```
+
+Then import from `components/ui/pk-ui` in Server Components.
