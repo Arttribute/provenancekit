@@ -18,16 +18,17 @@ export function EntityCard({ entity, className }: EntityCardProps) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--pk-node-entity-border)]",
-        "bg-[var(--pk-node-entity-muted)] p-3 space-y-2",
+        "rounded-xl p-4 space-y-3 transition-colors",
+        "bg-[var(--pk-surface)] border border-[var(--pk-surface-border)]",
+        "hover:border-[var(--pk-node-entity-border)]",
         className
       )}
     >
-      <div className="flex items-center gap-2.5">
-        <EntityAvatar role={entity.role ?? "human"} size="sm" />
+      <div className="flex items-center gap-3">
+        <EntityAvatar role={entity.role ?? "human"} size="md" />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-sm font-medium text-[var(--pk-foreground)] truncate">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-[var(--pk-foreground)] truncate">
               {entity.name ?? "Unnamed entity"}
             </span>
             {entity.role && <RoleBadge role={entity.role} />}
@@ -37,14 +38,13 @@ export function EntityCard({ entity, className }: EntityCardProps) {
       </div>
 
       {entity.publicKey && (
-        <div className="text-xs text-[var(--pk-muted-foreground)]">
-          <span className="font-medium">Public key:</span>{" "}
-          <span className="font-mono">{entity.publicKey.slice(0, 16)}…</span>
+        <div className="text-xs px-2.5 py-1.5 rounded-lg font-mono truncate bg-[var(--pk-surface-muted)] text-[var(--pk-muted-foreground)]">
+          {entity.publicKey.slice(0, 24)}…
         </div>
       )}
 
       {aiAgent && (
-        <div className="border-t border-[var(--pk-surface-border)] pt-2">
+        <div className="border-t border-[var(--pk-surface-border)] pt-3">
           <AIExtensionView extension={aiAgent} mode="agent" />
         </div>
       )}

@@ -24,7 +24,7 @@ const schema = z.object({
   // Advisory label — only meaningful when self-hosting provenancekit-api.
   // Does not change how the hosted api.provenancekit.com stores your provenance records.
   storageType: z
-    .enum(["memory", "postgres", "mongodb", "supabase", "ipfs", "custom"])
+    .enum(["memory", "postgres", "supabase", "ipfs", "custom"])
     .default("supabase"),
   // Per-project IPFS — actively used: the ProvenanceKit API routes your file uploads
   // to this provider/account instead of the platform defaults.

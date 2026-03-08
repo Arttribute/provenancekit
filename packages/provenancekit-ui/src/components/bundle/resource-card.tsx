@@ -21,15 +21,18 @@ export function ResourceCard({ resource, showExtensions = true, className }: Res
   return (
     <div
       className={cn(
-        "rounded-lg border border-[var(--pk-node-resource-border)]",
-        "bg-[var(--pk-node-resource-muted)] p-3 space-y-2",
+        "rounded-xl p-4 space-y-3 transition-colors",
+        "bg-[var(--pk-surface)] border border-[var(--pk-surface-border)]",
+        "hover:border-[var(--pk-node-resource-border)]",
         className
       )}
     >
       {/* Header */}
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Database size={13} strokeWidth={2} className="text-[var(--pk-node-resource)] shrink-0" />
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center justify-center w-7 h-7 rounded-lg bg-[var(--pk-node-resource-muted)] shrink-0">
+            <Database size={13} strokeWidth={2} className="text-[var(--pk-node-resource)]" />
+          </div>
           <span className="text-sm font-semibold text-[var(--pk-foreground)] capitalize truncate">
             {resource.type}
           </span>
@@ -42,32 +45,24 @@ export function ResourceCard({ resource, showExtensions = true, className }: Res
         <CidDisplay cid={resource.address.ref} prefixLen={12} suffixLen={6} />
       )}
 
-      {/* Metadata */}
+      {/* Metadata row */}
       <div className="flex items-center gap-3 text-xs text-[var(--pk-muted-foreground)]">
         <Timestamp iso={resource.createdAt} />
         {(resource.address as any)?.size && (
           <span>{formatBytes((resource.address as any).size)}</span>
         )}
-      </div>
-
-      {/* Locations */}
-      {(resource.locations?.length ?? 0) > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {resource.locations!.map((loc, i) => (
-            <div
-              key={i}
-              className="flex items-center gap-1 text-xs text-[var(--pk-muted-foreground)]"
-            >
+        {(resource.locations?.length ?? 0) > 0 &&
+          resource.locations!.slice(0, 2).map((loc, i) => (
+            <div key={i} className="flex items-center gap-1">
               <MapPin size={10} />
               <span>{loc.provider ?? (loc.uri ? new URL(loc.uri).hostname : loc.uri)}</span>
             </div>
           ))}
-        </div>
-      )}
+      </div>
 
       {/* License extension detail */}
       {showExtensions && license && (
-        <div className="border-t border-[var(--pk-surface-border)] pt-2">
+        <div className="border-t border-[var(--pk-surface-border)] pt-3">
           <LicenseExtensionView extension={license} />
         </div>
       )}

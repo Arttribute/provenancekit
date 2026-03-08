@@ -9,12 +9,12 @@ interface GraphEdgeProps {
 
 type EdgeType = "produces" | "consumes" | "tool" | "performedBy";
 
-// Hardcoded OKLCH colors for SVG (CSS vars don't inherit in SVG markers universally)
+// Colors match node accent colors for semantic clarity
 const EDGE_COLORS: Record<EdgeType, string> = {
-  produces: "oklch(0.52 0.18 250)",    // blue
-  consumes: "oklch(0.58 0.22 25)",     // red-orange
-  performedBy: "oklch(0.65 0.18 75)",  // amber
-  tool: "oklch(0.52 0.2 310)",         // violet
+  produces: "#3b82f6",   // blue — resource producing
+  consumes: "#ef4444",   // red — consuming input
+  performedBy: "#f59e0b", // amber — entity link
+  tool: "#a78bfa",        // violet — AI/tool link
 };
 
 const EDGE_LABELS: Record<EdgeType, string> = {
@@ -31,25 +31,25 @@ export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
 
   const edgeType = edge.type as EdgeType;
   const color = EDGE_COLORS[edgeType] ?? EDGE_COLORS.produces;
-  const markerId = `pk-arrow-${edgeType}`;
+  const markerId = `pk-arrow-${edgeType}-${edge.from.slice(0, 6)}-${edge.to.slice(0, 6)}`;
 
-  // Connection points: right-center of source → left-center of target
+  // Right-center → left-center connection
   const startX = from.position.x + from.width;
   const startY = from.position.y + from.height / 2;
   const endX = to.position.x;
   const endY = to.position.y + to.height / 2;
 
-  // Cubic Bezier control points
+  // Cubic bezier control points
   const dx = Math.abs(endX - startX);
-  const cpOffset = Math.max(60, dx * 0.4);
+  const cpOffset = Math.max(60, dx * 0.45);
   const cp1X = startX + cpOffset;
   const cp2X = endX - cpOffset;
 
   const pathD = `M ${startX} ${startY} C ${cp1X} ${startY}, ${cp2X} ${endY}, ${endX} ${endY}`;
 
-  // Midpoint for label
-  const midX = (startX + endX) / 2;
-  const midY = (startY + endY) / 2;
+  // Label at midpoint (parametric t=0.5 of cubic bezier)
+  const midX = (startX + 3 * cp1X + 3 * cp2X + endX) / 8;
+  const midY = (startY + 3 * startY + 3 * endY + endY) / 8;
 
   return (
     <g>
@@ -67,34 +67,35 @@ export function GraphEdge({ edge, nodes }: GraphEdgeProps) {
         </marker>
       </defs>
 
-      {/* Invisible wider path for hover target */}
+      {/* Wide invisible hit target */}
       <path d={pathD} stroke="transparent" strokeWidth={12} fill="none" />
 
-      {/* Visible path */}
+      {/* Visible bezier path */}
       <path
         d={pathD}
         stroke={color}
         strokeWidth={1.5}
         fill="none"
-        opacity={0.8}
+        opacity={0.7}
         markerEnd={`url(#${markerId})`}
       />
 
-      {/* Edge label at midpoint */}
+      {/* Source dot */}
+      <circle cx={startX} cy={startY} r={3.5} fill={color} opacity={0.8} />
+
+      {/* Label */}
       <text
         x={midX}
-        y={midY - 5}
+        y={midY - 6}
         textAnchor="middle"
         fontSize={9}
         fill={color}
-        opacity={0.75}
-        fontFamily="ui-monospace, monospace"
+        opacity={0.6}
+        fontFamily="ui-monospace, 'Cascadia Code', monospace"
+        letterSpacing="0.02em"
       >
         {EDGE_LABELS[edgeType] ?? edgeType}
       </text>
-
-      {/* Dot at source */}
-      <circle cx={startX} cy={startY} r={3} fill={color} opacity={0.6} />
     </g>
   );
 }

@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 const previews = [
-  { href: "/badge", label: "ProvenanceBadge", description: "Shield badge with popover — floating and inline variants" },
-  { href: "/graph", label: "ProvenanceGraph", description: "Interactive DAG graph of the provenance chain" },
+  { href: "/badge", label: "ProvenanceBadge", description: "'Pr' squircle tag with C2PA-style credentials popover — floating and inline variants" },
+  { href: "/graph", label: "ProvenanceGraph", description: "Interactive provenance DAG — drag nodes, pan, zoom. Light and dark mode." },
   { href: "/tracker", label: "ProvenanceTracker", description: "Real-time session action feed with auto-polling" },
-  { href: "/bundle", label: "ProvenanceBundleView", description: "Full provenance record with entities, actions, resources" },
+  { href: "/bundle", label: "ProvenanceBundleView", description: "Tabbed provenance record — Resources, Actions, Entities, Attribution" },
   { href: "/search", label: "ProvenanceSearch", description: "CID + file upload search with similarity results" },
   { href: "/primitives", label: "Primitives", description: "RoleBadge, EntityAvatar, ContributionBar, CidDisplay, LicenseChip" },
 ];

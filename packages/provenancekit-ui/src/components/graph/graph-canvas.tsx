@@ -45,7 +45,6 @@ export function GraphCanvas({
   onNodeClick,
   className,
 }: GraphCanvasProps) {
-  // Compute initial layout
   const initialLayoutNodes = useCallback(
     () => computeBFSLayout(apiNodes, apiEdges, DEFAULT_LAYOUT_CONFIG),
     [apiNodes, apiEdges]
@@ -60,7 +59,6 @@ export function GraphCanvas({
   const hasDragged = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Recompute layout when input changes
   useEffect(() => {
     setLayoutNodes(computeBFSLayout(apiNodes, apiEdges, DEFAULT_LAYOUT_CONFIG));
     setExpandedIds(new Set());
@@ -69,7 +67,6 @@ export function GraphCanvas({
 
   const bounds = computeCanvasBounds(layoutNodes, DEFAULT_LAYOUT_CONFIG);
 
-  // ── Zoom controls ──────────────────────────────────────────
   const zoomIn = () =>
     setTransform((t) => ({ ...t, scale: Math.min(SCALE_MAX, t.scale * SCALE_STEP) }));
   const zoomOut = () =>
@@ -79,7 +76,6 @@ export function GraphCanvas({
     setLayoutNodes(computeBFSLayout(apiNodes, apiEdges, DEFAULT_LAYOUT_CONFIG));
   };
 
-  // ── Node expand/collapse ───────────────────────────────────
   const handleToggleExpand = useCallback((id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
@@ -88,7 +84,6 @@ export function GraphCanvas({
     });
   }, []);
 
-  // ── Node drag ─────────────────────────────────────────────
   const handleNodeDragStart = useCallback(
     (id: string, e: React.MouseEvent) => {
       if (!draggable) return;
@@ -99,14 +94,12 @@ export function GraphCanvas({
     [draggable]
   );
 
-  // ── Canvas pan ────────────────────────────────────────────
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     if (e.target !== e.currentTarget && e.target !== containerRef.current) return;
     setIsPanning(true);
     lastMousePos.current = { x: e.clientX, y: e.clientY };
   }, []);
 
-  // ── Mouse move (shared for drag + pan) ────────────────────
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       const dx = e.clientX - lastMousePos.current.x;
@@ -137,7 +130,6 @@ export function GraphCanvas({
 
   const handleMouseUp = useCallback(
     (nodeId?: string) => {
-      // If we barely moved, treat as a click (expand)
       if (nodeId && draggingNodeId === nodeId && !hasDragged.current) {
         handleToggleExpand(nodeId);
         if (onNodeClick) {
@@ -152,7 +144,6 @@ export function GraphCanvas({
     [draggingNodeId, handleToggleExpand, onNodeClick, apiNodes]
   );
 
-  // ── Scroll to zoom ────────────────────────────────────────
   const handleWheel = useCallback((e: React.WheelEvent) => {
     e.preventDefault();
     const factor = e.deltaY > 0 ? 1 / SCALE_STEP : SCALE_STEP;
@@ -164,14 +155,29 @@ export function GraphCanvas({
 
   return (
     <div
-      className={cn(
-        "relative overflow-hidden rounded-lg border border-[var(--pk-surface-border)]",
-        "bg-[var(--pk-surface)]",
-        className
-      )}
-      style={{ height }}
+      className={cn("relative overflow-hidden rounded-xl", className)}
+      style={{
+        height,
+        backgroundColor: "var(--pk-graph-bg)",
+        border: "1px solid var(--pk-graph-control-border)",
+      }}
     >
-      {/* Viewport — captures pan/zoom events */}
+      {/* Dot-grid background */}
+      <svg
+        className="absolute inset-0 pointer-events-none"
+        width="100%"
+        height="100%"
+        style={{ opacity: 0.8 }}
+      >
+        <defs>
+          <pattern id="pk-dotgrid" width="28" height="28" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="1" fill="var(--pk-graph-dot)" />
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#pk-dotgrid)" />
+      </svg>
+
+      {/* Viewport */}
       <div
         ref={containerRef}
         className="absolute inset-0 cursor-grab active:cursor-grabbing overflow-hidden"
@@ -193,7 +199,7 @@ export function GraphCanvas({
             height: bounds.height,
           }}
         >
-          {/* SVG layer — edges */}
+          {/* SVG edges layer */}
           <svg
             className="absolute inset-0 pointer-events-none overflow-visible"
             width={bounds.width}
@@ -204,7 +210,7 @@ export function GraphCanvas({
             ))}
           </svg>
 
-          {/* HTML layer — nodes */}
+          {/* Node cards layer */}
           {layoutNodes.map((node) => (
             <GraphNode
               key={node.id}
@@ -218,31 +224,18 @@ export function GraphCanvas({
         </div>
       </div>
 
-      {/* Grid pattern background */}
-      <svg className="absolute inset-0 pointer-events-none opacity-30" width="100%" height="100%">
-        <defs>
-          <pattern id="pk-grid" width="20" height="20" patternUnits="userSpaceOnUse">
-            <path d="M 20 0 L 0 0 0 20" fill="none" stroke="currentColor" strokeWidth="0.5" className="text-[var(--pk-surface-border)]" />
-          </pattern>
-        </defs>
-        <rect width="100%" height="100%" fill="url(#pk-grid)" />
-      </svg>
-
-      {/* Controls overlay */}
       {showControls && (
-        <GraphControls
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onReset={resetView}
-        />
+        <GraphControls onZoomIn={zoomIn} onZoomOut={zoomOut} onReset={resetView} />
       )}
 
-      {/* Legend overlay */}
       {showLegend && <GraphLegend />}
 
-      {/* Hint */}
-      <div className="absolute bottom-3 right-3 z-10 text-xs text-[var(--pk-muted-foreground)] opacity-60 pointer-events-none">
-        Drag to pan · Scroll to zoom · Click node to expand
+      {/* Usage hint */}
+      <div
+        className="absolute bottom-3 right-3 z-10 text-[10px] pointer-events-none"
+        style={{ color: "var(--pk-graph-node-muted)", opacity: 0.6 }}
+      >
+        Drag to pan · Scroll to zoom · Click to expand
       </div>
     </div>
   );

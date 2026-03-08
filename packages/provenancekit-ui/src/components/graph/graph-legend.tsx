@@ -7,25 +7,25 @@ interface GraphLegendProps {
 }
 
 const items = [
-  { Icon: Database, label: "Resource", colorClass: "text-[var(--pk-node-resource)]" },
-  { Icon: Zap, label: "Action", colorClass: "text-[var(--pk-node-action)]" },
-  { Icon: User, label: "Entity", colorClass: "text-[var(--pk-node-entity)]" },
+  { Icon: Database, label: "Resource", color: "#3b82f6" },
+  { Icon: Zap,      label: "Action",   color: "#22c55e" },
+  { Icon: User,     label: "Entity",   color: "#f59e0b" },
 ];
 
 export function GraphLegend({ className }: GraphLegendProps) {
   return (
     <div
-      className={cn(
-        "absolute bottom-3 left-3 z-10 flex items-center gap-3 px-3 py-1.5",
-        "rounded-lg border border-[var(--pk-surface-border)]",
-        "bg-[var(--pk-surface)] shadow-sm",
-        className
-      )}
+      className={cn("absolute bottom-3 left-3 z-10 flex items-center gap-3 px-3 py-1.5 rounded-lg", className)}
+      style={{
+        backgroundColor: "var(--pk-graph-control-bg)",
+        border: "1px solid var(--pk-graph-control-border)",
+        backdropFilter: "blur(8px)",
+      }}
     >
-      {items.map(({ Icon, label, colorClass }) => (
-        <div key={label} className="flex items-center gap-1">
-          <Icon size={11} strokeWidth={2} className={colorClass} />
-          <span className="text-xs text-[var(--pk-muted-foreground)]">{label}</span>
+      {items.map(({ Icon, label, color }) => (
+        <div key={label} className="flex items-center gap-1.5">
+          <Icon size={11} strokeWidth={2} style={{ color }} />
+          <span className="text-xs" style={{ color: "var(--pk-graph-control-text)" }}>{label}</span>
         </div>
       ))}
     </div>

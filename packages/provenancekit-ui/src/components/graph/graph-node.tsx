@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from "react";
-import { Database, Zap, User, Bot, ChevronDown, ChevronUp, MapPin, Clock } from "lucide-react";
+import React from "react";
+import { Database, Zap, User, Bot, MapPin, Clock, ChevronDown, ChevronUp } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { formatDate, formatCid, formatActionType, formatBytes } from "../../lib/format";
 import type { LayoutNode } from "./layout";
@@ -14,48 +14,46 @@ interface GraphNodeProps {
   isDragging: boolean;
 }
 
+// Graph always renders on a dark canvas — hardcoded dark values intentionally
+// (same approach as reference ProvenanceGraphUI)
 const nodeConfig = {
   resource: {
     Icon: Database,
     label: "Resource",
-    bgClass: "bg-[var(--pk-node-resource-muted)] border-[var(--pk-node-resource-border)]",
-    iconClass: "text-[var(--pk-node-resource)]",
-    headerClass: "bg-[var(--pk-node-resource)]/10",
+    accentColor: "#3b82f6",    // blue-500
+    accentMuted: "rgba(59,130,246,0.12)",
+    borderColor: "rgba(59,130,246,0.35)",
   },
   action: {
     Icon: Zap,
     label: "Action",
-    bgClass: "bg-[var(--pk-node-action-muted)] border-[var(--pk-node-action-border)]",
-    iconClass: "text-[var(--pk-node-action)]",
-    headerClass: "bg-[var(--pk-node-action)]/10",
+    accentColor: "#22c55e",    // green-500
+    accentMuted: "rgba(34,197,94,0.12)",
+    borderColor: "rgba(34,197,94,0.35)",
   },
   entity: {
     Icon: User,
     label: "Entity",
-    bgClass: "bg-[var(--pk-node-entity-muted)] border-[var(--pk-node-entity-border)]",
-    iconClass: "text-[var(--pk-node-entity)]",
-    headerClass: "bg-[var(--pk-node-entity)]/10",
+    accentColor: "#f59e0b",    // amber-500
+    accentMuted: "rgba(245,158,11,0.12)",
+    borderColor: "rgba(245,158,11,0.35)",
   },
 } as const;
 
 function ResourceDetail({ data }: { data: Record<string, any> }) {
   const cid = data.cid ?? data.address?.ref;
   return (
-    <div className="text-xs space-y-1 text-[var(--pk-muted-foreground)]">
+    <div className="text-xs space-y-1" style={{ color: "var(--pk-graph-node-muted)" }}>
       {cid && (
-        <div className="font-mono truncate" title={cid}>
+        <div className="font-mono truncate" title={cid} style={{ color: "var(--pk-graph-node-muted)", opacity: 0.8 }}>
           {formatCid(cid, 10, 6)}
         </div>
       )}
       {data.type && <div className="capitalize">{data.type}</div>}
-      {data.size && (
-        <div className="flex items-center gap-1">
-          <span>{formatBytes(data.size)}</span>
-        </div>
-      )}
+      {data.size && <div>{formatBytes(data.size)}</div>}
       {data.locations?.[0]?.provider && (
         <div className="flex items-center gap-1">
-          <MapPin size={10} />
+          <MapPin size={9} />
           <span>{data.locations[0].provider}</span>
         </div>
       )}
@@ -65,17 +63,17 @@ function ResourceDetail({ data }: { data: Record<string, any> }) {
 
 function ActionDetail({ data }: { data: Record<string, any> }) {
   return (
-    <div className="text-xs space-y-1 text-[var(--pk-muted-foreground)]">
-      {data.type && <div className="capitalize">{formatActionType(data.type)}</div>}
+    <div className="text-xs space-y-1" style={{ color: "var(--pk-graph-node-muted)" }}>
+      {data.type && <div>{formatActionType(data.type)}</div>}
       {data.timestamp && (
         <div className="flex items-center gap-1">
-          <Clock size={10} />
+          <Clock size={9} />
           <span>{formatDate(data.timestamp)}</span>
         </div>
       )}
       {data["ext:ai@1.0.0"] && (
-        <div className="flex items-center gap-1 text-[var(--pk-role-ai)]">
-          <Bot size={10} />
+        <div className="flex items-center gap-1" style={{ color: "var(--pk-role-ai)" }}>
+          <Bot size={9} />
           <span>{data["ext:ai@1.0.0"].provider} {data["ext:ai@1.0.0"].model}</span>
         </div>
       )}
@@ -86,13 +84,13 @@ function ActionDetail({ data }: { data: Record<string, any> }) {
 function EntityDetail({ data }: { data: Record<string, any> }) {
   const isAI = data.role === "ai";
   return (
-    <div className="text-xs space-y-1 text-[var(--pk-muted-foreground)]">
+    <div className="text-xs space-y-1" style={{ color: "var(--pk-graph-node-muted)" }}>
       <div className="capitalize flex items-center gap-1">
-        {isAI && <Bot size={10} className="text-[var(--pk-role-ai)]" />}
+        {isAI && <Bot size={9} style={{ color: "var(--pk-role-ai)" }} />}
         {data.role}
       </div>
       {data.id && (
-        <div className="font-mono truncate" title={data.id}>
+        <div className="font-mono truncate" title={data.id} style={{ color: "var(--pk-graph-node-muted)", opacity: 0.8 }}>
           {formatCid(data.id, 8, 4)}
         </div>
       )}
@@ -107,7 +105,7 @@ export function GraphNode({
   onDragStart,
   isDragging,
 }: GraphNodeProps) {
-  const cfg = nodeConfig[node.type] ?? nodeConfig.resource;
+  const cfg = nodeConfig[node.type as keyof typeof nodeConfig] ?? nodeConfig.resource;
   const { Icon } = cfg;
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -116,7 +114,6 @@ export function GraphNode({
   };
 
   const handleClick = (e: React.MouseEvent) => {
-    // Only toggle expand if not dragging (click without significant movement)
     e.stopPropagation();
     onToggleExpand(node.id);
   };
@@ -124,66 +121,70 @@ export function GraphNode({
   return (
     <div
       className={cn(
-        "absolute select-none rounded-[var(--pk-radius)] border shadow-sm",
-        "transition-shadow duration-150",
-        cfg.bgClass,
-        "bg-[var(--pk-surface)]",
-        isDragging ? "shadow-xl ring-2 ring-[var(--pk-node-resource)]/50 z-50" : "hover:shadow-md",
-        "cursor-grab active:cursor-grabbing"
+        "absolute select-none rounded-xl border shadow-lg cursor-grab active:cursor-grabbing",
+        "transition-shadow duration-150"
       )}
       style={{
         left: node.position.x,
         top: node.position.y,
         width: node.width,
         zIndex: isDragging ? 1000 : 1,
+        backgroundColor: "var(--pk-graph-node-bg)",
+        borderColor: isDragging ? cfg.accentColor : cfg.borderColor,
+        boxShadow: isDragging
+          ? `0 0 0 2px ${cfg.accentColor}40, 0 8px 32px rgba(0,0,0,0.2)`
+          : "0 2px 8px rgba(0,0,0,0.08)",
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Node header */}
+      {/* Colored accent bar at top */}
       <div
-        className={cn(
-          "flex items-center justify-between px-3 py-2 rounded-t-[calc(var(--pk-radius)-1px)]",
-          cfg.headerClass
-        )}
+        className="h-[3px] rounded-t-xl"
+        style={{ backgroundColor: cfg.accentColor }}
+      />
+
+      {/* Header */}
+      <div
+        className="flex items-center justify-between px-3 py-2.5"
+        style={{ backgroundColor: cfg.accentMuted }}
         onClick={handleClick}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
-          <Icon size={13} strokeWidth={2} className={cn("shrink-0", cfg.iconClass)} />
-          <span className="text-xs font-semibold text-[var(--pk-foreground)] truncate">
+        <div className="flex items-center gap-2 min-w-0">
+          <Icon size={13} strokeWidth={2} style={{ color: cfg.accentColor, flexShrink: 0 }} />
+          <span
+            className="text-xs font-semibold truncate"
+            style={{ color: "var(--pk-graph-node-text)" }}
+          >
             {node.label || cfg.label}
           </span>
         </div>
         <button
           type="button"
-          className="shrink-0 text-[var(--pk-muted-foreground)] hover:text-[var(--pk-foreground)]"
-          aria-label={isExpanded ? "Collapse node" : "Expand node"}
+          className="shrink-0 ml-1"
+          style={{ color: "var(--pk-graph-node-muted)" }}
+          aria-label={isExpanded ? "Collapse" : "Expand"}
         >
           {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
         </button>
       </div>
 
-      {/* Collapsed summary */}
-      {!isExpanded && (
-        <div className="px-3 py-2" onClick={handleClick}>
-          {node.type === "resource" && <ResourceDetail data={node.data} />}
-          {node.type === "action" && <ActionDetail data={node.data} />}
-          {node.type === "entity" && <EntityDetail data={node.data} />}
-        </div>
-      )}
+      {/* Detail body */}
+      <div className="px-3 py-2.5" onClick={handleClick}>
+        {node.type === "resource" && <ResourceDetail data={node.data} />}
+        {node.type === "action" && <ActionDetail data={node.data} />}
+        {node.type === "entity" && <EntityDetail data={node.data} />}
 
-      {/* Expanded detail */}
-      {isExpanded && (
-        <div className="px-3 py-2 space-y-2" onClick={handleClick}>
-          {node.type === "resource" && <ResourceDetail data={node.data} />}
-          {node.type === "action" && <ActionDetail data={node.data} />}
-          {node.type === "entity" && <EntityDetail data={node.data} />}
-
-          {/* Raw extension data (simplified) */}
-          {Object.entries(node.data)
+        {/* Extension data (only when expanded) */}
+        {isExpanded &&
+          Object.entries(node.data)
             .filter(([k]) => k.startsWith("ext:"))
             .map(([k, v]) => (
-              <div key={k} className="border-t border-[var(--pk-surface-border)] pt-2">
-                <div className="text-xs font-mono text-[var(--pk-muted-foreground)] mb-1 truncate">
+              <div
+                key={k}
+                className="mt-2 pt-2"
+                style={{ borderTop: "1px solid var(--pk-graph-node-border)" }}
+              >
+                <div className="text-[10px] font-mono mb-1 truncate" style={{ color: "var(--pk-graph-node-muted)" }}>
                   {k}
                 </div>
                 {typeof v === "object" && v !== null && (
@@ -192,17 +193,18 @@ export function GraphNode({
                       .filter(([, val]) => val != null && typeof val !== "object")
                       .slice(0, 5)
                       .map(([field, val]) => (
-                        <div key={field} className="flex gap-1 text-[var(--pk-muted-foreground)]">
-                          <span className="font-medium min-w-0 truncate">{field}:</span>
-                          <span className="truncate">{String(val)}</span>
+                        <div key={field} className="flex gap-1" style={{ color: "var(--pk-graph-node-muted)" }}>
+                          <span className="font-medium truncate">{field}:</span>
+                          <span className="truncate" style={{ color: "var(--pk-graph-node-text)" }}>
+                            {String(val)}
+                          </span>
                         </div>
                       ))}
                   </div>
                 )}
               </div>
             ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -119,7 +119,11 @@ export interface IMessage {
   model?: string;
   usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
   finishReason?: string;
+  /** "recording" while async provenance write is in-flight; "recorded" on success; "failed" on error */
+  provenanceStatus?: "recording" | "recorded" | "failed";
   provenance?: { cid: string; actionId?: string; promptCid?: string; sessionId?: string };
+  /** Separate provenance record for a DALL-E generated image in this message */
+  imageProvenance?: { cid: string; actionId?: string; status: "recording" | "recorded" | "failed" };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -142,7 +146,9 @@ const MessageSchema = new Schema<IMessage>(
     model: String,
     usage: { promptTokens: Number, completionTokens: Number, totalTokens: Number },
     finishReason: String,
+    provenanceStatus: { type: String, enum: ["recording", "recorded", "failed"] },
     provenance: { cid: String, actionId: String, promptCid: String, sessionId: String },
+    imageProvenance: { cid: String, actionId: String, status: String },
   },
   { timestamps: true }
 );

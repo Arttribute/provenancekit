@@ -7,7 +7,9 @@
     "declaration": true,
     "declarationMap": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "typeRoots": ["../../node_modules/@types", "../../node_modules/.pnpm/node_modules/@types"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "dist"]
