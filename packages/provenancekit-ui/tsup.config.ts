@@ -7,7 +7,7 @@ export default defineConfig({
   },
   format: ["esm", "cjs"],
   dts: true,
-  external: ["react", "react-dom"],
+  external: ["react", "react-dom", "@xyflow/react"],
   clean: true,
   esbuildOptions(options) {
     options.jsx = "automatic";

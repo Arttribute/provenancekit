@@ -35,9 +35,6 @@ export function GraphPreviewClient() {
           nodes={mockNodes}
           edges={mockEdges}
           height={480}
-          showControls
-          showLegend
-          draggable
         />
       </div>
     </PreviewShell>

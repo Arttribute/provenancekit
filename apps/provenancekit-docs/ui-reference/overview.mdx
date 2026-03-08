@@ -19,16 +19,24 @@ yarn add @provenancekit/ui
 ```
 </CodeGroup>
 
+`@xyflow/react` (the interactive graph engine) is included as a dependency and installed automatically — no extra steps needed.
+
 ## Setup
 
 ### 1. Add the stylesheet
 
-Import the design tokens in your global CSS file:
+Import the design tokens and graph base styles once in your global CSS:
 
 ```css
 /* globals.css */
-@import "@provenancekit/ui/styles";
+@import "@provenancekit/ui/styles.css";
 ```
+
+This single import provides:
+- All `--pk-*` CSS custom properties (light **and** dark mode)
+- ReactFlow base styles for `<ProvenanceGraph>`
+
+No additional CSS configuration required.
 
 ### 2. Wrap your app with the provider
 
@@ -52,7 +60,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 ```
 
-The provider creates an SDK instance that all child components use for data fetching.
+That's it. Components auto-fetch provenance data and render correctly in light and dark mode with no further configuration.
 
 ### Provider props
 
@@ -63,54 +71,98 @@ The provider creates an SDK instance that all child components use for data fetc
 | `apiKey` | `string` | API key |
 | `theme` | `ProvenanceKitTheme` | CSS custom property overrides |
 
+## Next.js App Router
+
+Components are marked `"use client"` internally. Re-export from a client boundary so Server Components can import them without errors:
+
+```tsx
+// components/ui/pk-ui.tsx
+"use client";
+export {
+  ProvenanceBadge,
+  ProvenanceBundleView,
+  ProvenanceGraph,
+  ProvenanceTracker,
+} from "@provenancekit/ui";
+```
+
+Then import from `components/ui/pk-ui` in any Server Component.
+
+## Dark Mode
+
+Add the `.dark` class to your root `<html>` element. All components — cards, popovers, graph canvas, node cards — switch to dark surfaces automatically.
+
+```tsx
+// With next-themes
+import { ThemeProvider } from "next-themes";
+
+<ThemeProvider attribute="class">
+  <ProvenanceKitProvider apiUrl="...">
+    {children}
+  </ProvenanceKitProvider>
+</ThemeProvider>
+```
+
+## Headless Mode
+
+Every data-fetching component accepts data directly — no network requests needed. Useful for SSR, testing, and Storybook:
+
+```tsx
+// Pass nodes/edges directly — no auto-fetch
+<ProvenanceGraph nodes={myNodes} edges={myEdges} />
+
+// Pass a pre-fetched bundle
+<ProvenanceBadge bundle={myBundle}>…</ProvenanceBadge>
+
+// Pass a session object directly
+<ProvenanceTracker session={mySession} />
+```
+
 ## CSS Design Tokens
 
-The library ships with a **light-first design system**. Dark mode is applied automatically when a `.dark` class is present on any ancestor element — typically `<html>` or `<body>` from your app's theme system.
-
-Override any token globally or per-scope:
+All styling uses CSS custom properties. Override any token globally or per-scope. Light-mode defaults are in `:root`; dark-mode overrides apply under `.dark`.
 
 ```css
 :root {
   /* ── Node type colors ── */
-  --pk-node-resource: oklch(0.52 0.18 250);  /* blue  */
-  --pk-node-action:   oklch(0.50 0.18 145);  /* green */
-  --pk-node-entity:   oklch(0.65 0.18 75);   /* amber */
+  --pk-node-resource: #3b82f6;  /* blue  */
+  --pk-node-action:   #22c55e;  /* green */
+  --pk-node-entity:   #f59e0b;  /* amber */
 
   /* ── Entity role colors ── */
-  --pk-role-human:    oklch(0.52 0.18 250);  /* blue   */
-  --pk-role-ai:       oklch(0.52 0.2  310);  /* violet */
-  --pk-role-org:      oklch(0.50 0.18 145);  /* green  */
+  --pk-role-human: #3b82f6;  /* blue   */
+  --pk-role-ai:    #7c3aed;  /* violet */
+  --pk-role-org:   #22c55e;  /* green  */
 
   /* ── Badge (Pr squircle) ── */
-  --pk-badge-bg:          oklch(0.13 0.04 250 / 92%);  /* near-black */
-  --pk-badge-fg:          oklch(0.98 0 0);              /* white text */
+  --pk-badge-bg:          #0f172a;  /* always dark — stands out on any background */
+  --pk-badge-fg:          #f8fafc;
   --pk-badge-font-family: 'Red Hat Display', system-ui, sans-serif;
 
   /* ── Graph canvas ── */
-  --pk-graph-bg:             oklch(0.96 0.008 250);  /* light blue-gray canvas */
-  --pk-graph-dot:            oklch(0.78 0.01 250);   /* dot grid */
-  --pk-graph-node-bg:        oklch(1 0 0);           /* white node cards */
-  --pk-graph-node-border:    oklch(0.88 0.01 250);
-  --pk-graph-node-text:      oklch(0.13 0 0);
-  --pk-graph-node-muted:     oklch(0.50 0 0);
-  --pk-graph-control-bg:     oklch(1 0 0 / 92%);     /* controls backdrop */
-  --pk-graph-control-border: oklch(0.88 0.01 250);
-  --pk-graph-control-text:   oklch(0.50 0 0);
+  --pk-graph-bg:             #f1f5f9;
+  --pk-graph-dot:            #cbd5e1;
+  --pk-graph-node-bg:        #ffffff;
+  --pk-graph-node-text:      #0f172a;
+  --pk-graph-control-bg:     rgba(255,255,255,0.92);
+  --pk-graph-control-border: #e2e8f0;
 
   /* ── Surfaces ── */
-  --pk-surface:        oklch(1 0 0);
-  --pk-surface-muted:  oklch(0.97 0.005 250);
-  --pk-surface-border: oklch(0.90 0.005 250);
-  --pk-foreground:     oklch(0.13 0 0);
-  --pk-radius:         0.75rem;
+  --pk-surface:          #ffffff;
+  --pk-surface-muted:    #f8fafc;
+  --pk-surface-border:   #e2e8f0;
+  --pk-foreground:       #0f172a;
+  --pk-muted-foreground: #64748b;
+
+  --pk-radius: 0.75rem;
 }
 ```
 
 <Note>
-  The `--pk-badge-*` tokens stay dark in both light and dark mode by design — the "Pr" tag is a provenance mark that needs to stand out on any content.
+  `--pk-badge-bg` stays dark in both light and dark mode by design — the "Pr" tag is a permanent provenance mark that needs to stand out on any background.
 </Note>
 
-Or use the `theme` prop on `ProvenanceKitProvider` for the most common overrides:
+Or use the `theme` prop on `ProvenanceKitProvider` for common overrides without touching CSS:
 
 ```tsx
 <ProvenanceKitProvider
@@ -126,58 +178,7 @@ Or use the `theme` prop on `ProvenanceKitProvider` for the most common overrides
 </ProvenanceKitProvider>
 ```
 
-### Dark mode
-
-Add the `.dark` class to your root `<html>` element (the standard Tailwind dark mode pattern):
-
-```tsx
-// With next-themes
-import { ThemeProvider } from "next-themes";
-
-<ThemeProvider attribute="class">
-  <ProvenanceKitProvider apiUrl="...">
-    {children}
-  </ProvenanceKitProvider>
-</ThemeProvider>
-```
-
-All components — cards, popovers, graph canvas, node cards, controls — will switch to dark surfaces automatically.
-
-## Headless Mode
-
-Every data-fetching component supports passing data directly — no network requests needed. This is useful for SSR, Storybook, and testing:
-
-```tsx
-// Pass nodes/edges directly — no auto-fetch
-<ProvenanceGraph nodes={myNodes} edges={myEdges} />
-
-// Pass a pre-fetched bundle
-<ProvenanceBadge bundle={myBundle}>…</ProvenanceBadge>
-
-// Pass a session object directly
-<ProvenanceTracker session={mySession} />
-```
-
-## Next.js App Router pattern
-
-Components are marked `"use client"` internally. In Next.js, re-export from a client boundary so Server Components can import them:
-
-```tsx
-// components/ui/pk-ui.tsx
-"use client";
-export {
-  ProvenanceBadge,
-  ProvenanceBundleView,
-  ProvenanceGraph,
-  ProvenanceTracker,
-} from "@provenancekit/ui";
-```
-
-Then import from `components/ui/pk-ui` in any Server Component.
-
 ## Available Hooks
-
-All data-fetching is available as standalone hooks:
 
 ```tsx
 import {
