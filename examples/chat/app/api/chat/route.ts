@@ -376,9 +376,9 @@ export async function POST(req: Request) {
           })),
           usage: usage
             ? {
-                promptTokens: usage.promptTokens,
-                completionTokens: usage.completionTokens,
-                totalTokens: usage.totalTokens,
+                promptTokens: Number.isFinite(usage.promptTokens) ? usage.promptTokens : 0,
+                completionTokens: Number.isFinite(usage.completionTokens) ? usage.completionTokens : 0,
+                totalTokens: Number.isFinite(usage.totalTokens) ? usage.totalTokens : 0,
               }
             : undefined,
           finishReason,
@@ -405,7 +405,7 @@ export async function POST(req: Request) {
           model,
           messages,
           text,
-          tokens: usage?.totalTokens ?? 0,
+          tokens: Number.isFinite(usage?.totalTokens) ? usage!.totalTokens : 0,
           sessionId,
           imageToolResult,
           conversationFirstCid: conversation?.provenance?.firstCid,
