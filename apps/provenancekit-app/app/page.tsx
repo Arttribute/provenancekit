@@ -15,7 +15,9 @@ export default async function RootPage() {
       <header className="flex items-center justify-between px-6 py-4 border-b">
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary">
-            <span className="text-primary-foreground font-bold text-xs">PK</span>
+            <span className="text-primary-foreground font-bold text-xs">
+              PK
+            </span>
           </div>
           <span className="font-semibold text-sm">ProvenanceKit</span>
         </div>
@@ -29,13 +31,12 @@ export default async function RootPage() {
             Universal Provenance Framework
           </Badge>
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tight">
-            Provenance for{" "}
-            <span className="text-primary">Human-AI</span>{" "}
+            Provenance for <span className="text-primary">Human-AI</span>{" "}
             created works
           </h1>
           <p className="text-lg text-muted-foreground max-w-xl mx-auto">
             Track attribution, record actions, and verify creative lineage
-            across your entire AI-assisted workflow — on-chain or off.
+            across your entire AI-assisted workflow — onchain or off.
           </p>
         </div>
 
@@ -80,7 +81,9 @@ export default async function RootPage() {
             >
               {icon}
               <p className="text-sm font-semibold">{title}</p>
-              <p className="text-xs text-muted-foreground leading-relaxed">{body}</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {body}
+              </p>
             </div>
           ))}
         </div>
@@ -90,9 +93,28 @@ export default async function RootPage() {
       <footer className="border-t px-6 py-4 flex items-center justify-between text-xs text-muted-foreground">
         <span>© 2026 ProvenanceKit</span>
         <div className="flex gap-4">
-          <a href="https://docs.provenancekit.com" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">Docs</a>
-          <a href="https://github.com/provenancekit" target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">GitHub</a>
-          <a href="https://provenancekit.com/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+          <a
+            href="https://docs.provenancekit.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            Docs
+          </a>
+          <a
+            href="https://github.com/provenancekit"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:text-foreground transition-colors"
+          >
+            GitHub
+          </a>
+          <a
+            href="https://provenancekit.com/privacy"
+            className="hover:text-foreground transition-colors"
+          >
+            Privacy
+          </a>
         </div>
       </footer>
     </div>
