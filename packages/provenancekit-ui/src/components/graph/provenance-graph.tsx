@@ -2,9 +2,9 @@
 
 import React from "react";
 import { cn } from "../../lib/utils";
-import { GraphCanvas } from "./graph-canvas";
+import { GraphRFCanvas } from "./graph-rf-canvas";
 import { useProvenanceGraph } from "../../hooks/use-provenance-graph";
-import type { GraphNode, GraphEdge, ProvenanceGraph as ApiGraph } from "@provenancekit/sdk";
+import type { GraphNode, GraphEdge } from "@provenancekit/sdk";
 
 export interface ProvenanceGraphProps {
   /** Resource CID — auto-fetches graph if no nodes/edges provided */
@@ -13,12 +13,7 @@ export interface ProvenanceGraphProps {
   /** Headless mode — provide nodes and edges directly */
   nodes?: GraphNode[];
   edges?: GraphEdge[];
-  /** Layout direction */
-  layout?: "bfs-horizontal" | "bfs-vertical";
   height?: number | string;
-  showControls?: boolean;
-  showLegend?: boolean;
-  draggable?: boolean;
   onNodeClick?: (node: GraphNode) => void;
   loadingSlot?: React.ReactNode;
   errorSlot?: React.ReactNode;
@@ -28,12 +23,19 @@ export interface ProvenanceGraphProps {
 function LoadingSkeleton({ height }: { height: number | string }) {
   return (
     <div
-      className="rounded-lg border border-[var(--pk-surface-border)] bg-[var(--pk-surface)] animate-pulse"
-      style={{ height }}
+      className={cn("rounded-xl animate-pulse")}
+      style={{
+        height,
+        background: "var(--pk-surface-muted, #f8fafc)",
+        border: "1px solid var(--pk-surface-border, #e2e8f0)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
     >
-      <div className="flex items-center justify-center h-full">
-        <div className="text-sm text-[var(--pk-muted-foreground)]">Loading provenance graph…</div>
-      </div>
+      <span style={{ fontSize: 13, color: "var(--pk-muted-foreground, #64748b)" }}>
+        Loading provenance graph…
+      </span>
     </div>
   );
 }
@@ -41,10 +43,17 @@ function LoadingSkeleton({ height }: { height: number | string }) {
 function ErrorDisplay({ message, height }: { message: string; height: number | string }) {
   return (
     <div
-      className="rounded-lg border border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30 flex items-center justify-center"
-      style={{ height }}
+      style={{
+        height,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "rgba(239,68,68,0.05)",
+        border: "1px solid rgba(239,68,68,0.2)",
+        borderRadius: 12,
+      }}
     >
-      <div className="text-sm text-red-600 dark:text-red-400 px-4 text-center">{message}</div>
+      <span style={{ fontSize: 13, color: "#ef4444" }}>{message}</span>
     </div>
   );
 }
@@ -54,10 +63,7 @@ export function ProvenanceGraph({
   depth,
   nodes: nodesProp,
   edges: edgesProp,
-  height = 600,
-  showControls = true,
-  showLegend = true,
-  draggable = true,
+  height = 500,
   onNodeClick,
   loadingSlot,
   errorSlot,
@@ -74,43 +80,39 @@ export function ProvenanceGraph({
   const edges = headlessMode ? edgesProp! : (data?.edges ?? []);
 
   if (!headlessMode && loading && !data) {
-    return loadingSlot ? (
-      <>{loadingSlot}</>
-    ) : (
-      <LoadingSkeleton height={height} />
-    );
+    return loadingSlot ? <>{loadingSlot}</> : <LoadingSkeleton height={height} />;
   }
 
   if (!headlessMode && error && !data) {
-    return errorSlot ? (
-      <>{errorSlot}</>
-    ) : (
-      <ErrorDisplay message={error.message} height={height} />
-    );
+    return errorSlot ? <>{errorSlot}</> : <ErrorDisplay message={error.message} height={height} />;
   }
 
   if (nodes.length === 0) {
     return (
       <div
-        className={cn(
-          "rounded-lg border border-[var(--pk-surface-border)] bg-[var(--pk-surface)] flex items-center justify-center",
-          className
-        )}
-        style={{ height }}
+        className={className}
+        style={{
+          height,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "var(--pk-surface-muted, #f8fafc)",
+          border: "1px solid var(--pk-surface-border, #e2e8f0)",
+          borderRadius: 12,
+        }}
       >
-        <div className="text-sm text-[var(--pk-muted-foreground)]">No provenance data available</div>
+        <span style={{ fontSize: 13, color: "var(--pk-muted-foreground, #64748b)" }}>
+          No provenance data available
+        </span>
       </div>
     );
   }
 
   return (
-    <GraphCanvas
+    <GraphRFCanvas
       nodes={nodes}
       edges={edges}
       height={height}
-      showControls={showControls}
-      showLegend={showLegend}
-      draggable={draggable}
       onNodeClick={onNodeClick}
       className={className}
     />

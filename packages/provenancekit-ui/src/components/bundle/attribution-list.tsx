@@ -1,8 +1,9 @@
+"use client";
+
 import React from "react";
-import { cn } from "../../lib/utils";
+import { ContributionBar } from "../primitives/contribution-bar";
 import { EntityAvatar } from "../primitives/entity-avatar";
 import { RoleBadge } from "../primitives/role-badge";
-import { ContributionBar } from "../primitives/contribution-bar";
 import { getContribSafe } from "../../lib/extensions";
 import type { Attribution, Entity } from "@provenancekit/eaa-types";
 
@@ -10,49 +11,72 @@ interface AttributionListProps {
   attributions: Attribution[];
   entities: Entity[];
   showContribution?: boolean;
-  className?: string;
+}
+
+function computeWeights(attrs: Attribution[]): Map<string, number> {
+  const map = new Map<string, number>();
+  // Try to get contrib extension weights; fall back to equal weight
+  const weights = attrs.map((a) => {
+    const contrib = getContribSafe(a);
+    if (contrib) {
+      return contrib.basis === "percentage" ? contrib.weight : contrib.weight / 100;
+    }
+    return 1;
+  });
+  const total = weights.reduce((s, w) => s + w, 0);
+  attrs.forEach((a, i) => {
+    const id = a.entityId as string;
+    const existing = map.get(id) ?? 0;
+    map.set(id, existing + weights[i]! / total);
+  });
+  return map;
 }
 
 export function AttributionList({
   attributions,
   entities,
-  showContribution = true,
-  className,
+  showContribution,
 }: AttributionListProps) {
-  if (attributions.length === 0) return null;
+  const weights = showContribution ? computeWeights(attributions) : new Map<string, number>();
+
+  const uniqueEntityIds = Array.from(new Set(attributions.map((a) => a.entityId as string)));
 
   return (
-    <div className={cn("space-y-1", className)}>
-      {attributions.map((attr, i) => {
-        const entity = entities.find((e) => e.id === attr.entityId);
-        const contrib = getContribSafe(attr);
-        const bps = contrib
-          ? contrib.basis === "percentage"
-            ? Math.round(contrib.weight * 100)
-            : contrib.weight
-          : null;
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      {uniqueEntityIds.map((entityId) => {
+        const entity = entities.find((e) => e.id === entityId);
+        if (!entity) return null;
+        const pct = weights.get(entityId) ?? 0;
+        // ContributionBar expects bps (basis points: 0-10000)
+        const bps = Math.round(pct * 10000);
 
         return (
           <div
-            key={i}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-[var(--pk-surface)] border border-[var(--pk-surface-border)] hover:border-[var(--pk-node-resource-border)] transition-colors"
+            key={entityId}
+            style={{
+              background: "#fff",
+              border: "1px solid #e2e8f0",
+              borderRadius: 12,
+              padding: "14px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              transition: "box-shadow 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "0 2px 12px rgba(0,0,0,0.06)"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.boxShadow = "none"; }}
           >
-            <EntityAvatar role={entity?.role ?? "human"} size="sm" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-sm font-medium text-[var(--pk-foreground)] truncate">
-                  {entity?.name ?? (attr.entityId ? attr.entityId.slice(0, 12) + "…" : "Unknown")}
-                </span>
-                {attr.role && <RoleBadge role={attr.role} />}
+            <EntityAvatar role={entity.role ?? "human"} size="md" />
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 2 }}>
+                {entity.name ?? String(entityId).slice(0, 16) + "…"}
               </div>
-              {attr.note && (
-                <p className="text-xs text-[var(--pk-muted-foreground)] mt-0.5 italic">
-                  {attr.note}
-                </p>
-              )}
+              <RoleBadge role={entity.role ?? "human"} />
             </div>
-            {showContribution && bps !== null && (
-              <div className="shrink-0 w-32">
+
+            {showContribution && pct > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 100 }}>
                 <ContributionBar bps={bps} />
               </div>
             )}

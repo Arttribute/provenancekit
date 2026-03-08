@@ -1,96 +1,108 @@
-@import "tailwindcss";
+/*
+ * @provenancekit/ui — Design Tokens & Base Styles
+ *
+ * Import this once in your app's global CSS:
+ *   @import "@provenancekit/ui/styles.css";
+ *
+ * All --pk-* variables have sensible defaults. Override any token in :root to customise.
+ * Dark mode: add the `.dark` class to <html> or any ancestor element.
+ */
+
+/* ReactFlow base styles — included so consumers get the graph out of the box */
+@import "@xyflow/react/dist/style.css";
 
 @layer base {
   :root {
     /* ── Node type colors ── */
-    --pk-node-resource: oklch(0.52 0.18 250);
-    --pk-node-resource-muted: oklch(0.52 0.18 250 / 10%);
-    --pk-node-resource-border: oklch(0.52 0.18 250 / 35%);
+    --pk-node-resource:        #3b82f6;   /* blue-500  */
+    --pk-node-resource-muted:  rgba(59,130,246,0.10);
+    --pk-node-resource-border: rgba(59,130,246,0.25);
 
-    --pk-node-action: oklch(0.50 0.18 145);
-    --pk-node-action-muted: oklch(0.50 0.18 145 / 10%);
-    --pk-node-action-border: oklch(0.50 0.18 145 / 35%);
+    --pk-node-action:        #22c55e;    /* green-500 */
+    --pk-node-action-muted:  rgba(34,197,94,0.10);
+    --pk-node-action-border: rgba(34,197,94,0.25);
 
-    --pk-node-entity: oklch(0.65 0.18 75);
-    --pk-node-entity-muted: oklch(0.65 0.18 75 / 10%);
-    --pk-node-entity-border: oklch(0.65 0.18 75 / 35%);
+    --pk-node-entity:        #f59e0b;    /* amber-500 */
+    --pk-node-entity-muted:  rgba(245,158,11,0.10);
+    --pk-node-entity-border: rgba(245,158,11,0.25);
 
     /* ── Entity role colors ── */
-    --pk-role-human: oklch(0.52 0.18 250);
-    --pk-role-ai: oklch(0.52 0.2 310);
-    --pk-role-org: oklch(0.50 0.18 145);
+    --pk-role-human: #3b82f6;   /* blue   */
+    --pk-role-ai:    #7c3aed;   /* violet */
+    --pk-role-org:   #22c55e;   /* green  */
 
-    /* ── Verification status colors ── */
-    --pk-verified: oklch(0.50 0.18 145);
-    --pk-partial: oklch(0.65 0.18 75);
-    --pk-unverified: oklch(0.55 0 0);
-    --pk-failed: oklch(0.58 0.22 25);
+    /* ── Verification status ── */
+    --pk-verified:   #059669;
+    --pk-partial:    #d97706;
+    --pk-unverified: #6b7280;
+    --pk-failed:     #dc2626;
+
+    /* ── Edge colors ── */
+    --pk-edge-produces:    #3b82f6;
+    --pk-edge-consumes:    #ef4444;
+    --pk-edge-performedby: #f59e0b;
+    --pk-edge-tool:        #a855f7;
 
     /* ── Badge (Pr squircle) ── */
-    /* Dark by design — stands out as a mark on any content regardless of app theme */
-    --pk-badge-bg: oklch(0.13 0.04 250 / 92%);
-    --pk-badge-fg: oklch(0.98 0 0);
-    --pk-badge-border: oklch(1 0 0 / 18%);
-    /* Font for the "Pr" mark — Red Hat Display preferred; override to use your app's font */
+    /* Always dark — stands out on any background regardless of app theme */
+    --pk-badge-bg:          #0f172a;
+    --pk-badge-fg:          #f8fafc;
     --pk-badge-font-family: 'Red Hat Display', system-ui, sans-serif;
 
-    /* ── Surfaces (light mode default) ── */
-    --pk-surface: oklch(1 0 0);
-    --pk-surface-muted: oklch(0.97 0.005 250);
-    --pk-surface-border: oklch(0.90 0.005 250);
-    --pk-foreground: oklch(0.13 0 0);
-    --pk-muted-foreground: oklch(0.50 0 0);
+    /* ── Surfaces (light mode) ── */
+    --pk-surface:        #ffffff;
+    --pk-surface-muted:  #f8fafc;
+    --pk-surface-border: #e2e8f0;
+    --pk-foreground:     #0f172a;
+    --pk-muted-foreground: #64748b;
 
-    /* ── Radius ── */
+    /* ── Border radius ── */
     --pk-radius: 0.75rem;
 
-    /* ── Graph canvas — light mode ── */
-    --pk-graph-bg: oklch(0.96 0.008 250);
-    --pk-graph-dot: oklch(0.78 0.01 250);
-    --pk-graph-node-bg: oklch(1 0 0);
-    --pk-graph-node-border: oklch(0.88 0.01 250);
-    --pk-graph-node-text: oklch(0.13 0 0);
-    --pk-graph-node-muted: oklch(0.50 0 0);
-    --pk-graph-control-bg: oklch(1 0 0 / 92%);
-    --pk-graph-control-border: oklch(0.88 0.01 250);
-    --pk-graph-control-text: oklch(0.50 0 0);
-
-    /* ── Layout spacing ── */
-    --pk-node-gap-h: 320px;
-    --pk-node-gap-v: 140px;
-    --pk-node-width: 220px;
+    /* ── Graph canvas (light mode) ── */
+    --pk-graph-bg:             #f1f5f9;
+    --pk-graph-dot:            #cbd5e1;
+    --pk-graph-node-bg:        #ffffff;
+    --pk-graph-node-border:    #e2e8f0;
+    --pk-graph-node-text:      #0f172a;
+    --pk-graph-node-muted:     #64748b;
+    --pk-graph-control-bg:     rgba(255,255,255,0.92);
+    --pk-graph-control-border: #e2e8f0;
+    --pk-graph-control-text:   #64748b;
   }
 
+  /* ── Dark mode ── */
   .dark {
-    /* ── Node type colors (dark) ── */
-    --pk-node-resource: oklch(0.60 0.20 250);
-    --pk-node-resource-muted: oklch(0.60 0.20 250 / 15%);
-    --pk-node-resource-border: oklch(0.60 0.20 250 / 30%);
+    --pk-node-resource:        #60a5fa;
+    --pk-node-resource-muted:  rgba(96,165,250,0.12);
+    --pk-node-resource-border: rgba(96,165,250,0.25);
 
-    --pk-node-action: oklch(0.58 0.20 145);
-    --pk-node-action-muted: oklch(0.58 0.20 145 / 15%);
-    --pk-node-action-border: oklch(0.58 0.20 145 / 30%);
+    --pk-node-action:        #4ade80;
+    --pk-node-action-muted:  rgba(74,222,128,0.12);
+    --pk-node-action-border: rgba(74,222,128,0.25);
 
-    --pk-node-entity: oklch(0.68 0.20 75);
-    --pk-node-entity-muted: oklch(0.68 0.20 75 / 15%);
-    --pk-node-entity-border: oklch(0.68 0.20 75 / 30%);
+    --pk-node-entity:        #fbbf24;
+    --pk-node-entity-muted:  rgba(251,191,36,0.12);
+    --pk-node-entity-border: rgba(251,191,36,0.25);
 
-    /* ── Surfaces (dark) ── */
-    --pk-surface: oklch(0.18 0.01 250);
-    --pk-surface-muted: oklch(0.24 0.01 250);
-    --pk-surface-border: oklch(1 0 0 / 9%);
-    --pk-foreground: oklch(0.97 0 0);
-    --pk-muted-foreground: oklch(0.65 0 0);
+    --pk-role-human: #60a5fa;
+    --pk-role-ai:    #a78bfa;
+    --pk-role-org:   #4ade80;
 
-    /* ── Graph canvas — dark mode ── */
-    --pk-graph-bg: oklch(0.09 0.015 260);
-    --pk-graph-dot: oklch(1 0 0 / 20%);
-    --pk-graph-node-bg: oklch(0.17 0.015 260);
-    --pk-graph-node-border: oklch(1 0 0 / 9%);
-    --pk-graph-node-text: oklch(0.97 0 0);
-    --pk-graph-node-muted: oklch(0.60 0 0);
-    --pk-graph-control-bg: oklch(0.17 0.015 260 / 92%);
-    --pk-graph-control-border: oklch(1 0 0 / 9%);
-    --pk-graph-control-text: oklch(0.60 0 0);
+    --pk-surface:          #0f172a;
+    --pk-surface-muted:    #1e293b;
+    --pk-surface-border:   rgba(255,255,255,0.08);
+    --pk-foreground:       #f8fafc;
+    --pk-muted-foreground: #94a3b8;
+
+    --pk-graph-bg:             #0a0f1e;
+    --pk-graph-dot:            rgba(255,255,255,0.12);
+    --pk-graph-node-bg:        #1e293b;
+    --pk-graph-node-border:    rgba(255,255,255,0.08);
+    --pk-graph-node-text:      #f8fafc;
+    --pk-graph-node-muted:     #94a3b8;
+    --pk-graph-control-bg:     rgba(30,41,59,0.92);
+    --pk-graph-control-border: rgba(255,255,255,0.08);
+    --pk-graph-control-text:   #94a3b8;
   }
 }

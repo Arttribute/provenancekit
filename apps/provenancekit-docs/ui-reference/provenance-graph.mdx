@@ -1,9 +1,9 @@
 ---
 title: "ProvenanceGraph"
-description: "An interactive directed acyclic graph (DAG) showing the full provenance chain."
+description: "An interactive directed acyclic graph (DAG) powered by React Flow, showing the full provenance chain."
 ---
 
-> Renders entities, actions, and resources as draggable nodes in a DAG. Supports auto-fetch from a CID or headless mode with custom nodes and edges.
+> Renders entities, actions, and resources as interactive nodes in a DAG built on **React Flow**. Supports auto-fetch from a CID or headless mode with custom data. Includes zoom, pan, and fit-view controls out of the box.
 
 <Tabs>
   <Tab title="Preview">
@@ -20,15 +20,15 @@ description: "An interactive directed acyclic graph (DAG) showing the full prove
     import { ProvenanceGraph } from "@provenancekit/ui";
 
     // Auto-fetch from CID
-    <ProvenanceGraph cid="bafybei..." depth={5} height={600} />
+    <ProvenanceGraph cid="bafybei..." depth={5} height={500} />
 
     // Headless mode — pass nodes and edges directly
     <ProvenanceGraph
       nodes={[
         { id: "entity:alice", type: "entity", label: "Alice", data: { role: "human" } },
-        { id: "resource:prompt", type: "resource", label: "prompt.txt", data: { resourceType: "text" } },
-        { id: "action:create", type: "action", label: "create", data: {} },
-        { id: "resource:poem", type: "resource", label: "poem.txt", data: { resourceType: "text" } },
+        { id: "resource:prompt", type: "resource", label: "prompt.txt", data: { type: "text/plain" } },
+        { id: "action:create", type: "action", label: "Generate", data: { type: "ext:ai@1.0.0", timestamp: "2025-01-01T12:00:00Z" } },
+        { id: "resource:poem", type: "resource", label: "poem.txt", data: { type: "text/plain" } },
       ]}
       edges={[
         { from: "entity:alice", to: "resource:prompt", type: "produces" },
@@ -42,6 +42,16 @@ description: "An interactive directed acyclic graph (DAG) showing the full prove
   </Tab>
 </Tabs>
 
+## Prerequisites
+
+The stylesheet import in your global CSS is required for the graph to render correctly:
+
+```css
+@import "@provenancekit/ui/styles.css";
+```
+
+This includes the React Flow base styles. Without it the graph canvas will not display properly.
+
 ## Props
 
 | Prop | Type | Default | Description |
@@ -50,20 +60,43 @@ description: "An interactive directed acyclic graph (DAG) showing the full prove
 | `depth` | `number` | `10` | Graph traversal depth |
 | `nodes` | `GraphNode[]` | — | Headless mode — provide nodes directly |
 | `edges` | `GraphEdge[]` | — | Headless mode — provide edges directly |
-| `layout` | `"bfs-horizontal" \| "bfs-vertical"` | `"bfs-horizontal"` | Layout algorithm |
-| `height` | `number \| string` | `600` | Canvas height |
-| `showControls` | `boolean` | `true` | Show zoom/pan/fit controls |
-| `showLegend` | `boolean` | `true` | Show node type legend |
-| `draggable` | `boolean` | `true` | Allow dragging nodes |
+| `height` | `number \| string` | `500` | Canvas height |
 | `onNodeClick` | `(node: GraphNode) => void` | — | Node click handler |
 | `loadingSlot` | `ReactNode` | — | Custom loading state |
 | `errorSlot` | `ReactNode` | — | Custom error state |
-| `className` | `string` | — | Additional CSS classes |
+| `className` | `string` | — | Additional CSS class on the container |
 
 ## Node types
 
-| Type | Color | Description |
-|------|-------|-------------|
-| `"entity"` | Amber | Human, AI, or organization |
-| `"action"` | Green | Record of an event (create, transform, verify) |
-| `"resource"` | Blue | File or data artifact with a CID |
+Each node type has a distinct color accent — blue for resources, green for actions, amber for entities:
+
+| Type | Accent | Icon | Description |
+|------|--------|------|-------------|
+| `"resource"` | Blue | Database | File or data artifact with a CID |
+| `"action"` | Green | Zap | Event (create, transform, verify) — shows AI tool badge if `ext:ai@1.0.0` present |
+| `"entity"` | Amber | User / Bot | Human, AI, or organisation |
+
+## Edge types
+
+| Type | Color | Animated |
+|------|-------|----------|
+| `"produces"` | Blue | Yes |
+| `"consumes"` | Red | No |
+| `"performedBy"` | Amber | No |
+| `"tool"` | Violet | No |
+
+## Customising the canvas
+
+Override CSS variables in `:root` (or `.dark`) to change the graph appearance:
+
+```css
+:root {
+  --pk-graph-bg:             #f1f5f9;  /* canvas background */
+  --pk-graph-dot:            #cbd5e1;  /* dot-grid colour */
+  --pk-graph-node-bg:        #ffffff;  /* node card background */
+  --pk-graph-node-text:      #0f172a;  /* node primary text */
+  --pk-graph-node-muted:     #64748b;  /* node secondary text */
+  --pk-graph-control-bg:     rgba(255,255,255,0.92);
+  --pk-graph-control-border: #e2e8f0;
+}
+```

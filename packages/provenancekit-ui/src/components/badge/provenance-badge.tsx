@@ -11,19 +11,13 @@ export type BadgeSize = "sm" | "md" | "lg";
 export type BadgeVariant = "floating" | "inline";
 
 export interface ProvenanceBadgeProps {
-  /** Resource CID — auto-fetches bundle if no bundle prop provided */
   cid?: string;
-  /** Pre-fetched bundle — bypasses auto-fetch */
   bundle?: ProvenanceBundle;
-  /** Content to wrap (image, video, text, etc.) */
   children?: React.ReactNode;
-  /** Position of the floating badge indicator */
   position?: BadgePosition;
   size?: BadgeSize;
   variant?: BadgeVariant;
-  /** Popover direction */
   popoverSide?: "top" | "bottom" | "left" | "right";
-  /** Called when user clicks "View Full Provenance" in the popover */
   onViewDetail?: () => void;
   loadingSlot?: React.ReactNode;
   errorSlot?: React.ReactNode;
@@ -37,42 +31,48 @@ const positionClasses: Record<BadgePosition, string> = {
   "bottom-right": "bottom-2 right-2",
 };
 
-// Squircle "Pr" badge — the ProvenanceKit mark
-// border-radius 28% gives a squircle (rounded square) shape, similar to C2PA "cr" badge
-const sizeConfig: Record<BadgeSize, { wh: string; text: string }> = {
-  sm: { wh: "w-[18px] h-[18px]", text: "text-[8px]" },
-  md: { wh: "w-[22px] h-[22px]", text: "text-[10px]" },
-  lg: { wh: "w-[28px] h-[28px]", text: "text-[12px]" },
+// Larger, more prominent sizing — md is a clearly visible 30px mark
+const sizeConfig: Record<BadgeSize, { size: number; fontSize: number; fontWeight: number }> = {
+  sm: { size: 24, fontSize: 9, fontWeight: 800 },
+  md: { size: 32, fontSize: 12, fontWeight: 800 },
+  lg: { size: 44, fontSize: 16, fontWeight: 800 },
 };
 
-function PrSquircle({
-  size,
-  className,
-}: {
-  size: BadgeSize;
-  className?: string;
-}) {
+function PrSquircle({ size }: { size: BadgeSize }) {
   const cfg = sizeConfig[size];
   return (
     <div
-      className={cn(
-        "flex items-center justify-center cursor-pointer select-none shrink-0",
-        "bg-[var(--pk-badge-bg)] text-[var(--pk-badge-fg)]",
-        "border border-[var(--pk-badge-border)]",
-        "hover:opacity-90 active:scale-95 transition-all duration-100",
-        "shadow-sm",
-        cfg.wh,
-        className
-      )}
-      style={{ borderRadius: "28%" }}
+      style={{
+        width: cfg.size,
+        height: cfg.size,
+        borderRadius: "28%",
+        background: "var(--pk-badge-bg, oklch(0.12 0.04 250))",
+        color: "var(--pk-badge-fg, #fff)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        userSelect: "none",
+        flexShrink: 0,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(255,255,255,0.15)",
+        transition: "opacity 0.15s, transform 0.1s",
+      }}
       title="View provenance"
       aria-label="View provenance information"
       role="button"
       tabIndex={0}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
     >
       <span
-        className={cn("font-bold tracking-tight leading-none select-none", cfg.text)}
-        style={{ fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)" }}
+        style={{
+          fontSize: cfg.fontSize,
+          fontWeight: cfg.fontWeight,
+          lineHeight: 1,
+          letterSpacing: "-0.03em",
+          fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)",
+          color: "inherit",
+        }}
       >
         Pr
       </span>
@@ -101,17 +101,19 @@ function ProvenanceBadgeInner({
   const bundle = bundleProp ?? fetchedBundle;
 
   if (loading && !bundle) {
+    const cfg = sizeConfig[size];
     return (
       <div className={cn("relative inline-block", className)}>
         {children}
         {loadingSlot ?? (
           <div
-            className={cn(
-              "absolute animate-pulse bg-[var(--pk-surface-muted)] border border-[var(--pk-surface-border)]",
-              sizeConfig[size].wh,
-              positionClasses[position]
-            )}
-            style={{ borderRadius: "28%" }}
+            className={cn("absolute animate-pulse", positionClasses[position])}
+            style={{
+              width: cfg.size,
+              height: cfg.size,
+              borderRadius: "28%",
+              background: "rgba(0,0,0,0.15)",
+            }}
           />
         )}
       </div>
@@ -137,12 +139,7 @@ function ProvenanceBadgeInner({
     return (
       <div className={cn("inline-flex items-center gap-2", className)}>
         {children}
-        <ProvenancePopover
-          bundle={bundle}
-          cid={cid}
-          side={popoverSide}
-          onViewDetail={onViewDetail}
-        >
+        <ProvenancePopover bundle={bundle} cid={cid} side={popoverSide} onViewDetail={onViewDetail}>
           {badge}
         </ProvenancePopover>
       </div>
@@ -153,12 +150,7 @@ function ProvenanceBadgeInner({
     <div className={cn("relative inline-block", className)}>
       {children}
       <div className={cn("absolute z-10", positionClasses[position])}>
-        <ProvenancePopover
-          bundle={bundle}
-          cid={cid}
-          side={popoverSide}
-          onViewDetail={onViewDetail}
-        >
+        <ProvenancePopover bundle={bundle} cid={cid} side={popoverSide} onViewDetail={onViewDetail}>
           {badge}
         </ProvenancePopover>
       </div>

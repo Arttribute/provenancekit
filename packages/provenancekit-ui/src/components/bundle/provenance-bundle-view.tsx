@@ -39,21 +39,43 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors",
-        active
-          ? "bg-[var(--pk-foreground)] text-[var(--pk-surface)]"
-          : "text-[var(--pk-muted-foreground)] hover:text-[var(--pk-foreground)] hover:bg-[var(--pk-surface-muted)]"
-      )}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "6px 12px",
+        borderRadius: 8,
+        fontSize: 12,
+        fontWeight: 600,
+        border: "none",
+        cursor: "pointer",
+        background: active ? "#111827" : "transparent",
+        color: active ? "#fff" : "#64748b",
+        transition: "background 0.15s, color 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = "#f1f5f9";
+          (e.currentTarget as HTMLElement).style.color = "#111827";
+        }
+      }}
+      onMouseLeave={(e) => {
+        if (!active) {
+          (e.currentTarget as HTMLElement).style.background = "transparent";
+          (e.currentTarget as HTMLElement).style.color = "#64748b";
+        }
+      }}
     >
       {label}
       <span
-        className={cn(
-          "text-[10px] font-semibold px-1.5 py-0.5 rounded-full leading-none",
-          active
-            ? "bg-[var(--pk-surface)]/20 text-[var(--pk-surface)]"
-            : "bg-[var(--pk-surface-muted)] text-[var(--pk-muted-foreground)]"
-        )}
+        style={{
+          fontSize: 10,
+          fontWeight: 700,
+          padding: "1px 6px",
+          borderRadius: 99,
+          background: active ? "rgba(255,255,255,0.2)" : "#f1f5f9",
+          color: active ? "#fff" : "#94a3b8",
+        }}
       >
         {count}
       </span>
@@ -70,13 +92,13 @@ function BundleContent({
   showGraph,
   graphHeight,
 }: Omit<ProvenanceBundleViewProps, "cid"> & { bundle: ProvenanceBundle }) {
-  const tabs: { id: Tab; label: string; count: number; enabled: boolean }[] = (
+  const tabs = (
     [
-      { id: "resources"   as Tab, label: "Resources",   count: bundle.resources.length,    enabled: !!showResources && bundle.resources.length > 0 },
-      { id: "actions"     as Tab, label: "Actions",     count: bundle.actions.length,      enabled: !!showActions && bundle.actions.length > 0 },
-      { id: "entities"    as Tab, label: "Entities",    count: bundle.entities.length,     enabled: !!showEntities && bundle.entities.length > 0 },
+      { id: "resources" as Tab, label: "Resources", count: bundle.resources.length, enabled: !!showResources && bundle.resources.length > 0 },
+      { id: "actions" as Tab, label: "Actions", count: bundle.actions.length, enabled: !!showActions && bundle.actions.length > 0 },
+      { id: "entities" as Tab, label: "Entities", count: bundle.entities.length, enabled: !!showEntities && bundle.entities.length > 0 },
       { id: "attribution" as Tab, label: "Attribution", count: bundle.attributions.length, enabled: !!showAttributions && bundle.attributions.length > 0 },
-      { id: "graph"       as Tab, label: "Graph",       count: bundle.resources.length + bundle.actions.length + bundle.entities.length, enabled: !!showGraph },
+      { id: "graph" as Tab, label: "Graph", count: bundle.resources.length + bundle.actions.length + bundle.entities.length, enabled: !!showGraph },
     ] as { id: Tab; label: string; count: number; enabled: boolean }[]
   ).filter((t) => t.enabled);
 
@@ -87,13 +109,18 @@ function BundleContent({
   const resolvedTab = tabs.find((t) => t.id === activeTab) ? activeTab : (tabs[0]?.id ?? "resources");
 
   return (
-    <div className="space-y-4">
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {tabs.length > 1 && (
         <div
-          className="flex items-center gap-1 p-1 rounded-xl flex-wrap"
           style={{
-            backgroundColor: "var(--pk-surface-muted)",
-            border: "1px solid var(--pk-surface-border)",
+            display: "flex",
+            alignItems: "center",
+            gap: 2,
+            padding: 4,
+            borderRadius: 12,
+            background: "#f8fafc",
+            border: "1px solid #e2e8f0",
+            flexWrap: "wrap",
           }}
         >
           {tabs.map((tab) => (
@@ -110,21 +137,21 @@ function BundleContent({
 
       <div>
         {resolvedTab === "resources" && (
-          <div className="space-y-2">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {bundle.resources.map((resource, i) => (
               <ResourceCard key={resource.address?.ref ?? i} resource={resource} />
             ))}
           </div>
         )}
         {resolvedTab === "actions" && (
-          <div className="space-y-2">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {bundle.actions.map((action, i) => (
               <ActionCard key={action.id ?? i} action={action} />
             ))}
           </div>
         )}
         {resolvedTab === "entities" && (
-          <div className="space-y-2">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {bundle.entities.map((entity, i) => (
               <EntityCard key={entity.id ?? i} entity={entity} />
             ))}
@@ -138,7 +165,7 @@ function BundleContent({
           />
         )}
         {resolvedTab === "graph" && (
-          <ProvenanceGraph nodes={[]} edges={[]} height={graphHeight ?? 420} />
+          <ProvenanceGraph nodes={[]} edges={[]} height={graphHeight ?? 500} />
         )}
       </div>
     </div>
@@ -166,9 +193,15 @@ export function ProvenanceBundleView({
   if (loading && !bundle) {
     return (
       <div className={cn("animate-pulse space-y-3", className)}>
-        <div className="h-10 rounded-xl bg-[var(--pk-surface-muted)]" />
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 rounded-xl bg-[var(--pk-surface-muted)]" />
+          <div
+            key={i}
+            style={{
+              height: 72,
+              borderRadius: 12,
+              background: "#f1f5f9",
+            }}
+          />
         ))}
       </div>
     );
@@ -179,7 +212,7 @@ export function ProvenanceBundleView({
       <div
         className={cn("rounded-xl p-4 text-sm", className)}
         style={{
-          backgroundColor: "rgba(239,68,68,0.06)",
+          background: "rgba(239,68,68,0.05)",
           border: "1px solid rgba(239,68,68,0.2)",
           color: "#ef4444",
         }}

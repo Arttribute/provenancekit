@@ -2,8 +2,7 @@
 
 import React from "react";
 import * as Popover from "@radix-ui/react-popover";
-import { ExternalLink, Bot, Calendar, User, Shield, Tag } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { ExternalLink } from "lucide-react";
 import { Timestamp } from "../primitives/timestamp";
 import { CidDisplay } from "../primitives/cid-display";
 import {
@@ -22,30 +21,21 @@ interface ProvenancePopoverProps {
   onViewDetail?: () => void;
 }
 
-// A single labeled row in the credentials card — matches C2PA's "Date / Produced by / App used" layout
-function CredentialRow({
-  icon: Icon,
-  label,
-  value,
-  valueClassName,
-}: {
-  icon: React.ElementType;
-  label: string;
-  value: React.ReactNode;
-  valueClassName?: string;
-}) {
+// Matches C2PA "Content Credentials" row: bold label + inline value, separated by <hr>
+function CredRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex items-start gap-3 py-2.5 border-b border-[var(--pk-surface-border)] last:border-0">
-      <div className="flex items-center gap-2 w-[108px] shrink-0">
-        <Icon size={12} strokeWidth={2} className="text-[var(--pk-muted-foreground)] shrink-0" />
-        <span className="text-xs font-semibold text-[var(--pk-foreground)]">{label}</span>
-      </div>
-      <div className={cn("text-xs text-[var(--pk-muted-foreground)] min-w-0 flex-1", valueClassName)}>
-        {value}
-      </div>
+    <div style={{ padding: "10px 0" }}>
+      <p style={{ margin: 0, fontSize: 13, lineHeight: "1.5", color: "#111827" }}>
+        <strong style={{ fontWeight: 700 }}>{label}</strong>{" "}
+        <span style={{ color: "#374151" }}>{value}</span>
+      </p>
     </div>
   );
 }
+
+const Divider = () => (
+  <div style={{ height: 1, background: "#f3f4f6", margin: 0 }} />
+);
 
 export function ProvenancePopover({
   bundle,
@@ -64,18 +54,33 @@ export function ProvenancePopover({
   const aiTool = primaryAction ? getAIToolSafe(primaryAction) : null;
   const verification = primaryAction ? getVerificationSafe(primaryAction) : null;
 
-  // Determine what "app or tool used" is
   const toolLabel = aiTool
     ? `${aiTool.provider}${aiTool.model ? ` ${aiTool.model}` : ""}`
     : null;
 
-  // Verification label
   const verifiedLabel =
     verification?.status === "verified"
-      ? verification.policyUsed ?? "Verified"
+      ? (verification.policyUsed ?? "Verified")
       : verification?.status === "partial"
       ? "Partially verified"
       : null;
+
+  const rows: { label: string; value: React.ReactNode }[] = [];
+  if (primaryAction?.timestamp) {
+    rows.push({ label: "Date", value: <Timestamp iso={primaryAction.timestamp} /> });
+  }
+  if (creator) {
+    rows.push({ label: "Produced by", value: creator.name ?? creator.id });
+  }
+  if (toolLabel) {
+    rows.push({ label: "App or tool used", value: toolLabel });
+  }
+  if (license?.type) {
+    rows.push({ label: "License", value: license.type });
+  }
+  if (verifiedLabel) {
+    rows.push({ label: "Signed with", value: verifiedLabel });
+  }
 
   return (
     <Popover.Root>
@@ -85,102 +90,94 @@ export function ProvenancePopover({
           side={side}
           align="end"
           sideOffset={10}
-          className={cn(
-            "z-50 w-[300px] rounded-2xl shadow-2xl outline-none overflow-hidden",
-            "bg-[var(--pk-surface)] border border-[var(--pk-surface-border)]",
-            "data-[state=open]:animate-in data-[state=closed]:animate-out",
-            "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-            "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-            "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
-            "data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2"
-          )}
+          style={{
+            width: 320,
+            background: "#fff",
+            borderRadius: 16,
+            boxShadow: "0 8px 40px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)",
+            border: "1px solid rgba(0,0,0,0.08)",
+            zIndex: 9999,
+            overflow: "hidden",
+            outline: "none",
+          }}
         >
-          {/* Header — matches C2PA "Content Credentials" header with logo */}
-          <div className="px-4 pt-4 pb-3 flex items-center gap-2.5">
-            {/* "Pr" logo mark — same squircle as the badge */}
-            <div
-              className="flex items-center justify-center shrink-0 bg-[var(--pk-badge-bg)] text-[var(--pk-badge-fg)] border border-[var(--pk-badge-border)] w-[26px] h-[26px]"
-              style={{ borderRadius: "28%" }}
-            >
-              <span
-                className="text-[11px] font-bold leading-none select-none"
-                style={{ fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)" }}
-              >Pr</span>
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-[var(--pk-foreground)] leading-tight">
-                Provenance
-              </p>
-              {cid && (
-                <div className="mt-0.5">
-                  <CidDisplay cid={cid} prefixLen={8} suffixLen={5} />
-                </div>
-              )}
+          {/* Header — matches C2PA "Content Credentials" */}
+          <div style={{ padding: "16px 20px 14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              {/* Pr squircle — mini version in header */}
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: "28%",
+                  background: "oklch(0.12 0.04 250)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.2)",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    lineHeight: 1,
+                    letterSpacing: "-0.03em",
+                    color: "#fff",
+                    fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)",
+                  }}
+                >
+                  Pr
+                </span>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "#111827", lineHeight: 1.2 }}>
+                  Provenance
+                </p>
+                {cid && (
+                  <div style={{ marginTop: 2 }}>
+                    <CidDisplay cid={cid} prefixLen={10} suffixLen={6} />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Credential rows */}
-          <div className="px-4 border-t border-[var(--pk-surface-border)]">
-            {/* Date */}
-            {primaryAction?.timestamp && (
-              <CredentialRow
-                icon={Calendar}
-                label="Date"
-                value={<Timestamp iso={primaryAction.timestamp} />}
-              />
-            )}
-
-            {/* Produced by */}
-            {creator && (
-              <CredentialRow
-                icon={User}
-                label="Produced by"
-                value={
-                  <span className="truncate block">{creator.name ?? creator.id}</span>
-                }
-              />
-            )}
-
-            {/* App or tool used */}
-            {toolLabel && (
-              <CredentialRow
-                icon={Bot}
-                label="App or tool used"
-                value={<span className="truncate block">{toolLabel}</span>}
-              />
-            )}
-
-            {/* License */}
-            {license?.type && (
-              <CredentialRow
-                icon={Tag}
-                label="License"
-                value={<span className="font-mono">{license.type}</span>}
-              />
-            )}
-
-            {/* Signed with / verified */}
-            {verifiedLabel && (
-              <CredentialRow
-                icon={Shield}
-                label="Signed with"
-                value={<span>{verifiedLabel}</span>}
-                valueClassName="text-[var(--pk-verified)]"
-              />
-            )}
-          </div>
+          {/* Credential rows — C2PA style */}
+          {rows.length > 0 && (
+            <div style={{ padding: "0 20px", borderTop: "1px solid #f3f4f6" }}>
+              {rows.map((row, i) => (
+                <React.Fragment key={row.label}>
+                  <CredRow label={row.label} value={row.value} />
+                  {i < rows.length - 1 && <Divider />}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
 
           {/* Footer CTA */}
           {onViewDetail && (
-            <div className="px-4 pt-3 pb-4">
+            <div style={{ padding: "12px 20px 16px", borderTop: "1px solid #f3f4f6" }}>
               <button
                 type="button"
                 onClick={onViewDetail}
-                className={cn(
-                  "w-full flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold",
-                  "bg-[var(--pk-badge-bg)] text-[var(--pk-badge-fg)]",
-                  "hover:opacity-90 transition-opacity"
-                )}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  padding: "9px 12px",
+                  borderRadius: 10,
+                  background: "oklch(0.12 0.04 250)",
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: "none",
+                  cursor: "pointer",
+                  letterSpacing: "0.01em",
+                }}
               >
                 View full provenance
                 <ExternalLink size={11} strokeWidth={2.5} />
