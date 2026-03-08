@@ -45,7 +45,7 @@
 
     --pk-badge-bg:          #0f172a;
     --pk-badge-fg:          #f8fafc;
-    --pk-badge-font-family: 'Red Hat Display', system-ui, sans-serif;
+    --pk-badge-font-family: var(--font-red-hat-display, 'Red Hat Display', system-ui, sans-serif);
 
     --pk-surface:          #ffffff;
     --pk-surface-muted:    #f8fafc;

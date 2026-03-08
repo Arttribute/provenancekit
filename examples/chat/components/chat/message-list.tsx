@@ -61,18 +61,12 @@ export function MessageList({
   const hasDbMessages = dbMessages.length > 0;
 
   // Find in-flight messages from the current exchange that haven't been saved to DB yet.
-  // These are the messages the user just sent + the streaming assistant response.
-  // We identify them by checking if the last stream message is newer than the last DB message.
-  // Strategy: find the index of the most recent user message in streamMessages that
-  // doesn't have a matching message in dbMessages (matched by _id).
-  const dbIds = new Set(dbMessages.map((m) => m._id));
-  // Walk stream messages from the end to find the first one not yet in DB
-  let inFlightStartIdx = streamMessages.length;
-  for (let i = streamMessages.length - 1; i >= 0; i--) {
-    if (dbIds.has(streamMessages[i].id)) break;
-    inFlightStartIdx = i;
-  }
-  const inFlightMessages = streamMessages.slice(inFlightStartIdx);
+  // We can't match by ID (Vercel AI SDK IDs ≠ MongoDB _ids), so we use count instead:
+  // if streamMessages has more messages than dbMessages, the extras are still in-flight.
+  // We keep showing them until the DB refetch catches up, preventing a flash of missing messages.
+  const inFlightCount = Math.max(0, streamMessages.length - dbMessages.length);
+  const inFlightMessages =
+    inFlightCount > 0 ? streamMessages.slice(streamMessages.length - inFlightCount) : [];
 
   return (
     <div className="flex-1 overflow-y-auto">

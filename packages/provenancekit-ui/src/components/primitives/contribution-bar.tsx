@@ -1,44 +1,50 @@
 import React from "react";
-import { cn } from "../../lib/utils";
-import { formatBps } from "../../lib/format";
 
 interface ContributionBarProps {
-  /** Basis points value: 0–10000 (0% to 100%) */
-  bps: number;
-  label?: string;
-  showLabel?: boolean;
+  /** 0–1 decimal (e.g. 0.7 = 70%) */
+  value: number;
   className?: string;
 }
 
-export function ContributionBar({
-  bps,
-  label,
-  showLabel = true,
-  className,
-}: ContributionBarProps) {
-  const percent = Math.min(100, Math.max(0, bps / 100));
-  const displayLabel = label ?? formatBps(bps);
-
+export function ContributionBar({ value, className }: ContributionBarProps) {
+  const pct = Math.min(100, Math.max(0, value * 100));
   return (
-    <div className={cn("flex items-center gap-2", className)}>
+    <div className={className} style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div
-        className="flex-1 h-1.5 rounded-full bg-[var(--pk-surface-muted)] overflow-hidden"
+        style={{
+          flex: 1,
+          height: 6,
+          borderRadius: 999,
+          background: "var(--pk-surface-border, #e2e8f0)",
+          overflow: "hidden",
+        }}
         role="progressbar"
-        aria-valuenow={bps}
+        aria-valuenow={pct}
         aria-valuemin={0}
-        aria-valuemax={10000}
-        aria-label={`Contribution: ${displayLabel}`}
+        aria-valuemax={100}
       >
         <div
-          className="h-full rounded-full bg-[var(--pk-node-resource)] transition-all duration-300"
-          style={{ width: `${percent}%` }}
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            borderRadius: 999,
+            background: "var(--pk-node-resource, #3b82f6)",
+            transition: "width 0.4s ease",
+          }}
         />
       </div>
-      {showLabel && (
-        <span className="text-xs tabular-nums text-[var(--pk-muted-foreground)] w-10 text-right shrink-0">
-          {displayLabel}
-        </span>
-      )}
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color: "var(--pk-foreground, #0f172a)",
+          minWidth: 36,
+          textAlign: "right",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {pct.toFixed(0)}%
+      </span>
     </div>
   );
 }

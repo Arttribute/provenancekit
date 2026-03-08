@@ -24,61 +24,79 @@ export interface ProvenanceBadgeProps {
   className?: string;
 }
 
-const positionClasses: Record<BadgePosition, string> = {
-  "top-left": "top-2 left-2",
-  "top-right": "top-2 right-2",
-  "bottom-left": "bottom-2 left-2",
-  "bottom-right": "bottom-2 right-2",
+const positionStyles: Record<BadgePosition, React.CSSProperties> = {
+  "top-left":     { top: 10, left: 10 },
+  "top-right":    { top: 10, right: 10 },
+  "bottom-left":  { bottom: 10, left: 10 },
+  "bottom-right": { bottom: 10, right: 10 },
 };
 
-// Larger, more prominent sizing — md is a clearly visible 30px mark
-const sizeConfig: Record<BadgeSize, { size: number; fontSize: number; fontWeight: number }> = {
-  sm: { size: 24, fontSize: 9, fontWeight: 800 },
-  md: { size: 32, fontSize: 12, fontWeight: 800 },
-  lg: { size: 44, fontSize: 16, fontWeight: 800 },
+const sizeConfig: Record<BadgeSize, { size: number; fontSize: number }> = {
+  sm: { size: 24, fontSize: 9 },
+  md: { size: 32, fontSize: 12 },
+  lg: { size: 44, fontSize: 16 },
 };
 
-function PrSquircle({ size }: { size: BadgeSize }) {
+/**
+ * PrSquircle uses React.forwardRef so Radix UI Popover.Trigger (asChild) can
+ * properly inject onClick and other event handlers onto the underlying <div>.
+ */
+const PrSquircle = React.forwardRef<
+  HTMLDivElement,
+  { size: BadgeSize } & React.HTMLAttributes<HTMLDivElement>
+>(function PrSquircle({ size, style, onMouseEnter, onMouseLeave, ...divProps }, ref) {
   const cfg = sizeConfig[size];
   return (
     <div
+      ref={ref}
+      role="button"
+      tabIndex={0}
+      title="View provenance"
+      aria-label="View provenance information"
+      {...divProps}
       style={{
         width: cfg.size,
         height: cfg.size,
         borderRadius: "28%",
-        background: "var(--pk-badge-bg, oklch(0.12 0.04 250))",
-        color: "var(--pk-badge-fg, #fff)",
+        background: "var(--pk-badge-bg, #0f172a)",
+        color: "var(--pk-badge-fg, #f8fafc)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         cursor: "pointer",
         userSelect: "none",
         flexShrink: 0,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(255,255,255,0.15)",
-        transition: "opacity 0.15s, transform 0.1s",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.3), 0 0 0 1.5px rgba(255,255,255,0.12)",
+        transition: "opacity 0.15s",
+        outline: "none",
+        ...style,
       }}
-      title="View provenance"
-      aria-label="View provenance information"
-      role="button"
-      tabIndex={0}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = "0.85"; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = "1"; }}
+      onMouseEnter={(e) => {
+        (e.currentTarget as HTMLElement).style.opacity = "0.82";
+        onMouseEnter?.(e);
+      }}
+      onMouseLeave={(e) => {
+        (e.currentTarget as HTMLElement).style.opacity = "1";
+        onMouseLeave?.(e);
+      }}
     >
       <span
         style={{
           fontSize: cfg.fontSize,
-          fontWeight: cfg.fontWeight,
+          fontWeight: 800,
           lineHeight: 1,
           letterSpacing: "-0.03em",
-          fontFamily: "var(--pk-badge-font-family, 'Red Hat Display', system-ui, sans-serif)",
+          fontFamily: "var(--pk-badge-font-family, var(--font-red-hat-display, 'Red Hat Display', system-ui, sans-serif))",
           color: "inherit",
+          pointerEvents: "none",
+          userSelect: "none",
         }}
       >
         Pr
       </span>
     </div>
   );
-}
+});
 
 function ProvenanceBadgeInner({
   cid,
@@ -99,20 +117,29 @@ function ProvenanceBadgeInner({
   );
 
   const bundle = bundleProp ?? fetchedBundle;
+  const containerStyle: React.CSSProperties = {
+    position: "relative",
+    display: "inline-block",
+    lineHeight: 0,
+    verticalAlign: "top",
+  };
 
   if (loading && !bundle) {
     const cfg = sizeConfig[size];
     return (
-      <div className={cn("relative inline-block", className)}>
+      <div className={className} style={containerStyle}>
         {children}
         {loadingSlot ?? (
           <div
-            className={cn("absolute animate-pulse", positionClasses[position])}
+            className="animate-pulse"
             style={{
+              position: "absolute",
+              zIndex: 10,
               width: cfg.size,
               height: cfg.size,
               borderRadius: "28%",
-              background: "rgba(0,0,0,0.15)",
+              background: "rgba(0,0,0,0.18)",
+              ...positionStyles[position],
             }}
           />
         )}
@@ -122,7 +149,7 @@ function ProvenanceBadgeInner({
 
   if (error && !bundle) {
     return (
-      <div className={cn("relative inline-block", className)}>
+      <div className={className} style={containerStyle}>
         {children}
         {errorSlot}
       </div>
@@ -130,28 +157,30 @@ function ProvenanceBadgeInner({
   }
 
   if (!bundle) {
-    return <div className={cn("relative inline-block", className)}>{children}</div>;
-  }
-
-  const badge = <PrSquircle size={size} />;
-
-  if (variant === "inline") {
     return (
-      <div className={cn("inline-flex items-center gap-2", className)}>
+      <div className={className} style={containerStyle}>
         {children}
-        <ProvenancePopover bundle={bundle} cid={cid} side={popoverSide} onViewDetail={onViewDetail}>
-          {badge}
-        </ProvenancePopover>
       </div>
     );
   }
 
-  return (
-    <div className={cn("relative inline-block", className)}>
-      {children}
-      <div className={cn("absolute z-10", positionClasses[position])}>
+  if (variant === "inline") {
+    return (
+      <span className={cn("inline-flex items-center gap-2", className)}>
+        {children}
         <ProvenancePopover bundle={bundle} cid={cid} side={popoverSide} onViewDetail={onViewDetail}>
-          {badge}
+          <PrSquircle size={size} />
+        </ProvenancePopover>
+      </span>
+    );
+  }
+
+  return (
+    <div className={className} style={containerStyle}>
+      {children}
+      <div style={{ position: "absolute", zIndex: 10, ...positionStyles[position] }}>
+        <ProvenancePopover bundle={bundle} cid={cid} side={popoverSide} onViewDetail={onViewDetail}>
+          <PrSquircle size={size} />
         </ProvenancePopover>
       </div>
     </div>

@@ -47,8 +47,6 @@ export function AttributionList({
         const entity = entities.find((e) => e.id === entityId);
         if (!entity) return null;
         const pct = weights.get(entityId) ?? 0;
-        // ContributionBar expects bps (basis points: 0-10000)
-        const bps = Math.round(pct * 10000);
 
         return (
           <div
@@ -77,7 +75,7 @@ export function AttributionList({
 
             {showContribution && pct > 0 && (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 100 }}>
-                <ContributionBar bps={bps} />
+                <ContributionBar value={pct} />
               </div>
             )}
           </div>
