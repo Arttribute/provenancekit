@@ -1,0 +1,5 @@
+{
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm run build",
+  "ignoreCommand": "bash ../../scripts/vercel-ignore.sh"
+}
