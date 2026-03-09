@@ -2,3 +2,8 @@
 #sidebar {
   border-right: 1px solid #e5e7eb;
 }
+
+/* Tab bar bottom border */
+#navbar {
+  border-bottom: 1px solid #e5e7eb;
+}
