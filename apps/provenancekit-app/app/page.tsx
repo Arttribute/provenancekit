@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
 import { LandingNav } from "@/components/landing/landing-nav";
@@ -5,12 +6,82 @@ import { LandingCTAButton } from "@/components/auth/landing-cta-button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+const baseUrl = "https://provenancekit.com";
+
+export const metadata: Metadata = {
+  title:
+    "ProvenanceKit — Open Source Content Provenance Toolkit for Human-AI Works",
+  description:
+    "Open-source toolkit for Human-AI content provenance. Record, verify, and communicate how content was created — onchain anchoring, C2PA support, and programmable attribution.",
+  alternates: { canonical: baseUrl },
+};
+
+const jsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": `${baseUrl}/#website`,
+      url: baseUrl,
+      name: "ProvenanceKit",
+      description:
+        "Open source content provenance toolkit for Human-AI works. Onchain anchoring, C2PA, programmable attribution.",
+      potentialAction: {
+        "@type": "SearchAction",
+        target: {
+          "@type": "EntryPoint",
+          urlTemplate:
+            "https://docs.provenancekit.com/search?q={search_term_string}",
+        },
+        "query-input": "required name=search_term_string",
+      },
+    },
+    {
+      "@type": "SoftwareApplication",
+      "@id": `${baseUrl}/#software`,
+      name: "ProvenanceKit",
+      url: baseUrl,
+      applicationCategory: "DeveloperApplication",
+      operatingSystem: "Node.js",
+      offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+      description:
+        "Open-source toolkit for recording and verifying how Human-AI content was created. Onchain anchoring, C2PA support, privacy extensions, and programmable attribution.",
+      keywords:
+        "content provenance, AI provenance, Human-AI, content attribution, onchain, C2PA, EAA",
+      author: {
+        "@type": "Organization",
+        name: "ProvenanceKit",
+        url: baseUrl,
+      },
+      sameAs: [
+        "https://github.com/Arttribute/provenancekit",
+        "https://docs.provenancekit.com",
+      ],
+    },
+    {
+      "@type": "Organization",
+      "@id": `${baseUrl}/#organization`,
+      name: "ProvenanceKit",
+      url: baseUrl,
+      logo: { "@type": "ImageObject", url: `${baseUrl}/og-image.png` },
+      sameAs: [
+        "https://github.com/Arttribute/provenancekit",
+        "https://docs.provenancekit.com",
+      ],
+    },
+  ],
+};
+
 export default async function RootPage() {
   const user = await getServerUser();
   if (user) redirect("/dashboard");
 
   return (
     <div className="min-h-screen bg-white text-slate-900 antialiased">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* ─── Scroll-aware nav (landing only) ───────────────────────── */}
       <LandingNav />
 
