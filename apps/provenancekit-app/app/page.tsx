@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingCTAButton } from "@/components/auth/landing-cta-button";
-import { ArrowRight, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
 export default async function RootPage() {
@@ -37,13 +37,13 @@ export default async function RootPage() {
               <h1 className="text-[clamp(2.2rem,5.5vw,4.5rem)] font-bold leading-[0.92] tracking-tight mb-7 text-slate-900">
                 The complete
                 <br />
-                record of how it was
+                record of <br /> how it was
                 <br />
                 <span className="text-blue-600">made.</span>
               </h1>
               <p className="text-base text-slate-500 max-w-[420px] leading-relaxed mb-10">
                 ProvenanceKit records the full lineage of Human-AI created
-                works. Every contributor, every tool, every transformation.
+                works. Every creator, every tool, every transformation.
                 Verifiable, onchain.
               </p>
               <div className="flex flex-wrap gap-3">
@@ -67,12 +67,12 @@ export default async function RootPage() {
       </section>
 
       {/* ─── Anchor bar ────────────────────────────────────────────── */}
-      <section className="bg-slate-900 border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12 py-5 grid grid-cols-3 divide-x divide-slate-800">
+      <section className="bg-blue-600 border-b border-blue-700">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 py-5 grid grid-cols-3 divide-x divide-blue-500/50">
           {[
             {
               label: "Open standard",
-              sub: "EAA — Entity · Action · Attribution",
+              sub: "EAA · Entity · Action · Attribution",
             },
             {
               label: "Onchain by default",
@@ -85,86 +85,54 @@ export default async function RootPage() {
           ].map(({ label, sub }) => (
             <div key={label} className="px-6 first:pl-0 last:pr-0">
               <p className="text-sm font-semibold text-white">{label}</p>
-              <p className="text-xs text-slate-500 mt-0.5">{sub}</p>
+              <p className="text-xs text-blue-200 mt-0.5">{sub}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ─── The food label moment ──────────────────────────────────── */}
-      <section className="py-28 lg:py-40 px-6 lg:px-12 bg-white">
-        <div className="max-w-6xl mx-auto">
+      <section className="relative py-28 lg:py-40 px-6 lg:px-12 bg-white overflow-hidden">
+        {/* Grid — same language as hero */}
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgb(59 130 246) 1px, transparent 1px), linear-gradient(90deg, rgb(59 130 246) 1px, transparent 1px)",
+            backgroundSize: "72px 72px",
+          }}
+        />
+        {/* Soft blue glow */}
+        <div className="absolute top-0 left-1/3 w-[800px] h-[400px] bg-blue-50/70 rounded-full blur-[140px] pointer-events-none" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[300px] bg-indigo-50/40 rounded-full blur-[100px] pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[3fr_2fr] gap-12 lg:gap-20 items-center">
           <h2
-            className="text-[clamp(2.2rem,5.5vw,5rem)] font-bold leading-[0.92] tracking-tight"
+            className="text-[clamp(2.4rem,5vw,5.5rem)] font-bold leading-[0.92] tracking-tight whitespace-nowrap"
             style={{ color: "#d1d5db" }}
           >
-            Food comes
+            Trust is built
             <br />
-            with a label.
+            on knowing
             <br />
             <span className="text-slate-900">
-              Digital content
+              where something
               <br />
-              should too.
+              comes from.
             </span>
           </h2>
-          <div className="mt-12 max-w-2xl">
-            <p className="text-base text-slate-500 leading-relaxed">
-              Digital content passes through multiple AI tools, human edits, and
-              iterations across sessions and platforms. Without a record,
-              attribution is guesswork, licensing is unenforceable, and
-              responsibility cannot be assigned. Emerging rules around AI
-              disclosure and content transparency are making provenance a
-              requirement. ProvenanceKit is the infrastructure for Human-AI
-              works.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── It all starts with the record ─────────────────────────── */}
-      <section className="py-28 lg:py-36 px-6 lg:px-12 bg-slate-50 border-t border-slate-100">
-        <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
-          <div>
-            <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
-              The core artifact
-            </p>
-            <h2 className="text-[clamp(1.8rem,4vw,3.2rem)] font-bold leading-[0.93] tracking-tight mb-6">
-              It all starts
-              <br />
-              with the record.
-            </h2>
-            <p className="text-slate-500 text-base leading-relaxed mb-8">
-              The ProvenanceKit record is a provenance label for any Human-AI
-              created work. It documents who made it, which tools were used,
-              when each step happened, and under what terms. Portable,
-              embeddable, and independently verifiable.
-            </p>
-            <ul className="space-y-3">
-              {[
-                "Who: human authors, organisations, AI models",
-                "How: every step, tool, and transformation",
-                "When: block-level onchain timestamp",
-                "Terms: license and permission data",
-              ].map((item) => (
-                <li
-                  key={item}
-                  className="flex items-start gap-3 text-sm text-slate-700"
-                >
-                  <Check className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex justify-center">
-            <ProvenanceRecordCard />
-          </div>
+          <p className="text-base text-slate-500 leading-relaxed">
+            Digital content passes through multiple AI tools, human edits, and
+            iterations across sessions and platforms. Without a record,
+            attribution is guesswork, licensing is unenforceable, and
+            responsibility cannot be assigned. Emerging rules around AI
+            disclosure and content transparency are making provenance a
+            requirement. ProvenanceKit is the infrastructure for Human-AI works.
+          </p>
         </div>
       </section>
 
       {/* ─── Full creation lineage ──────────────────────────────────── */}
-      <section className="py-28 lg:py-36 px-6 lg:px-12 bg-white border-t border-slate-100">
+      <section className="py-28 lg:py-36 px-6 lg:px-12 bg-white border-t border-blue-100/50">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
           <WorkflowDiagram />
           <div>
@@ -224,61 +192,95 @@ export default async function RootPage() {
         </div>
       </section>
 
-      {/* ─── Onchain ────────────────────────────────────────────────── */}
-      <section className="py-28 lg:py-40 px-6 lg:px-12 bg-[#080d18] text-white border-t border-slate-800">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-16 lg:gap-24 items-center">
-            <div>
-              <p className="text-[11px] font-mono text-blue-400 tracking-[0.18em] uppercase mb-8">
+      {/* ─── Onchain — two vibrant full-bleed blocks ────────────────── */}
+      <section className="border-t border-blue-100/60 overflow-hidden">
+        <div className="grid lg:grid-cols-2">
+          {/* Block 1: Blue — onchain proof */}
+          <div className="relative bg-gradient-to-br from-blue-600 to-blue-800 px-12 py-20 lg:px-16 lg:py-24 flex flex-col min-h-[460px]">
+            <div
+              className="absolute inset-0 opacity-[0.07]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgb(255 255 255) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255) 1px, transparent 1px)",
+                backgroundSize: "48px 48px",
+              }}
+            />
+            <div className="relative flex flex-col flex-1">
+              <p className="text-[11px] font-mono text-blue-300 tracking-[0.18em] uppercase mb-10">
                 Onchain provenance
               </p>
               <h2
-                className="text-[clamp(2.2rem,5vw,4.5rem)] font-bold leading-[0.92] tracking-tight mb-8"
-                style={{ color: "#334155" }}
+                className="text-[clamp(2rem,4vw,3.8rem)] font-bold leading-[0.92] tracking-tight mb-auto"
+                style={{ color: "rgba(255,255,255,0.3)" }}
               >
-                Not just
+                Every step,
                 <br />
-                a record.
+                anchored
                 <br />
-                <span className="text-white">Proof.</span>
+                <span className="text-white">onchain.</span>
               </h2>
-              <p className="text-slate-300 text-base leading-relaxed">
-                Every creation step is anchored onchain. Immutable,
-                independently timestamped, and verifiable by anyone without
-                trusting a server or a central authority.
+              <p className="text-blue-100 text-base leading-relaxed mt-10 max-w-sm">
+                Every creation step is independently anchored. Immutable,
+                timestamped to the block, and verifiable by anyone. No server or
+                central authority required.
               </p>
             </div>
-            <OnchainVisual />
           </div>
-        </div>
-      </section>
 
-      {/* ─── Editorial break ────────────────────────────────────────── */}
-      <section className="py-28 lg:py-40 px-6 lg:px-12 bg-slate-50 border-t border-slate-100">
-        <div className="max-w-6xl mx-auto">
-          <h2
-            className="text-[clamp(2.2rem,5.5vw,5rem)] font-bold leading-[0.92] tracking-tight"
-            style={{ color: "#d1d5db" }}
-          >
-            Provenance is not a<br />
-            static document.
-            <br />
-            <span className="text-slate-900">
-              It is an active layer
-              <br />
-              of rights and rewards.
-            </span>
-          </h2>
-          <div className="mt-12">
-            <LandingCTAButton />
+          {/* Block 2: Yellow — active rights and revenue */}
+          <div className="relative bg-gradient-to-br from-yellow-200 to-yellow-300 px-12 py-20 lg:px-16 lg:py-24 flex flex-col min-h-[460px]">
+            <div
+              className="absolute inset-0 opacity-[0.06]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgb(0 0 0) 1px, transparent 1px), linear-gradient(90deg, rgb(0 0 0) 1px, transparent 1px)",
+                backgroundSize: "48px 48px",
+              }}
+            />
+            <div className="relative flex flex-col flex-1">
+              <p className="text-[11px] font-mono text-yellow-700 tracking-[0.18em] uppercase mb-10">
+                Programmable rights
+              </p>
+              <h2
+                className="text-[clamp(2rem,4vw,3.8rem)] font-bold leading-[0.92] tracking-tight"
+                style={{ color: "rgba(0,0,0,0.18)" }}
+              >
+                Provenance is
+                <br />
+                not a static
+                <br />
+                <span className="text-slate-900">document.</span>
+              </h2>
+              <p className="text-yellow-950 text-base leading-relaxed mt-10 max-w-sm">
+                It is an active layer of rights and rewards. Licensing enforces
+                itself. Attribution routes automatically. Revenue reaches every
+                contributor.
+              </p>
+              <div className="mt-auto pt-10">
+                <LandingCTAButton />
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
       {/* ─── Programmable ───────────────────────────────────────────── */}
-      <section className="py-28 lg:py-40 px-6 lg:px-12 bg-white border-t border-slate-100">
-        <div className="max-w-7xl mx-auto">
+      <section className="relative py-28 lg:py-40 px-6 lg:px-12 bg-white overflow-hidden border-t border-blue-100/50">
+        {/* Grid — same language as hero */}
+        <div
+          className="absolute inset-0 opacity-[0.05]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgb(59 130 246) 1px, transparent 1px), linear-gradient(90deg, rgb(59 130 246) 1px, transparent 1px)",
+            backgroundSize: "72px 72px",
+          }}
+        />
+        <div className="absolute top-0 right-0 w-[600px] h-[400px] bg-blue-50/60 rounded-full blur-[130px] pointer-events-none" />
+        <div className="relative max-w-7xl mx-auto">
           <div className="max-w-2xl mb-16">
+            <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
+              Programmable provenance
+            </p>
             <h2 className="text-[clamp(2.2rem,5vw,4rem)] font-bold leading-[0.92] tracking-tight">
               Provenance that
               <br />
@@ -292,72 +294,58 @@ export default async function RootPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               {
-                gradient: "from-blue-600 to-blue-700",
+                gradient: "from-blue-500 to-blue-700",
                 number: "01",
                 title: "Permissioning",
                 headline: "Provenance becomes the credential.",
-                desc: "Gate access to content, APIs, and derivative works based on verified contribution history. Rights enforcement flows from the same record that documents creation.",
-                items: [
-                  "AI training opt-in and opt-out",
-                  "License-aware derivative gating",
-                  "Contribution-based access control",
-                ],
+                desc: "Gate access based on verified contribution history. License enforcement flows from the same record that documents creation.",
               },
               {
-                gradient: "from-violet-600 to-violet-700",
+                gradient: "from-violet-500 to-violet-700",
                 number: "02",
                 title: "Attribution",
                 headline: "Credit follows contribution.",
-                desc: "Assign credit to every participant in a creation chain: human authors, AI tool providers, dataset owners. Contribution weights are verifiable and permanent.",
-                items: [
-                  "Multi-step workflow attribution",
-                  "AI model and tool credit tracking",
-                  "Human contribution weighting",
-                ],
+                desc: "Every participant gets credit: authors, AI tools, dataset owners. Contribution weights are permanent and onchain.",
               },
               {
-                gradient: "from-emerald-600 to-emerald-700",
+                gradient: "from-emerald-500 to-emerald-700",
                 number: "03",
-                title: "Revenue Distribution",
-                headline: "Royalties without administrators.",
-                desc: "Route revenue to contributors in proportion to their verified contribution, calculated and distributed onchain via programmable splits. No intermediary.",
-                items: [
-                  "Onchain splits via 0xSplits",
-                  "Remix royalty chain enforcement",
-                  "Automatic distribution",
-                ],
+                title: "Revenue",
+                headline: "Revenue follows contribution.",
+                desc: "Earnings route to contributors proportional to their verified contribution. Tracked and distributed automatically.",
               },
-            ].map(({ gradient, number, title, headline, desc, items }) => (
+            ].map(({ gradient, number, title, headline, desc }) => (
               <div
                 key={title}
-                className="rounded-2xl overflow-hidden border border-slate-200 hover:border-slate-300 hover:shadow-xl hover:-translate-y-1 transition-all duration-200 flex flex-col"
+                className="rounded-2xl overflow-hidden border border-slate-200/60 flex flex-col group"
               >
-                <div className={`bg-gradient-to-br ${gradient} p-7 pb-6`}>
-                  <span className="text-[10px] font-mono text-white/50 tracking-[0.2em]">
-                    {number}
-                  </span>
-                  <h3 className="text-xl font-bold text-white mt-2 mb-1.5">
-                    {title}
-                  </h3>
-                  <p className="text-sm text-white/75 font-medium leading-snug">
-                    {headline}
-                  </p>
+                <div
+                  className={`relative bg-gradient-to-br ${gradient} p-8 overflow-hidden`}
+                >
+                  <div
+                    className="absolute inset-0 opacity-[0.1]"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(rgb(255 255 255) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255) 1px, transparent 1px)",
+                      backgroundSize: "32px 32px",
+                    }}
+                  />
+                  <div className="relative transition-transform duration-300 origin-bottom-left group-hover:scale-[1.06]">
+                    <span className="text-[10px] font-mono text-white/40 tracking-[0.2em]">
+                      {number}
+                    </span>
+                    <h3 className="text-2xl font-bold text-white mt-2 mb-2 leading-tight">
+                      {title}
+                    </h3>
+                    <p className="text-sm text-white/80 font-medium leading-snug">
+                      {headline}
+                    </p>
+                  </div>
                 </div>
                 <div className="p-7 flex flex-col flex-1 bg-white">
-                  <p className="text-sm text-slate-500 leading-relaxed mb-7">
+                  <p className="text-sm text-slate-500 leading-relaxed">
                     {desc}
                   </p>
-                  <ul className="space-y-2.5 mt-auto">
-                    {items.map((item) => (
-                      <li
-                        key={item}
-                        className="flex items-start gap-2.5 text-sm text-slate-600"
-                      >
-                        <Check className="h-4 w-4 text-slate-300 flex-shrink-0 mt-0.5" />
-                        {item}
-                      </li>
-                    ))}
-                  </ul>
                 </div>
               </div>
             ))}
@@ -366,7 +354,7 @@ export default async function RootPage() {
       </section>
 
       {/* ─── Developer section ──────────────────────────────────────── */}
-      <section className="py-28 lg:py-36 px-6 lg:px-12 bg-white border-t border-slate-100">
+      <section className="py-28 lg:py-36 px-6 lg:px-12 bg-blue-50/40 border-t border-blue-100/60">
         <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-20 items-center">
           <div>
             <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
@@ -401,9 +389,12 @@ export default async function RootPage() {
       </section>
 
       {/* ─── Use cases ──────────────────────────────────────────────── */}
-      <section className="py-28 px-6 lg:px-12 bg-slate-50 border-t border-slate-100">
+      <section className="py-28 px-6 lg:px-12 bg-white border-t border-blue-100/50">
         <div className="max-w-7xl mx-auto">
           <div className="max-w-xl mb-14">
+            <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
+              Built for every workflow
+            </p>
             <h2 className="text-[clamp(1.7rem,3.8vw,2.9rem)] font-bold leading-[0.95] tracking-tight">
               Everywhere humans
               <br />
@@ -415,23 +406,27 @@ export default async function RootPage() {
               {
                 title: "AI platforms",
                 desc: "A verifiable record of every generation step, embedded in your product.",
+                accent: "border-t-blue-500",
               },
               {
                 title: "Content platforms",
-                desc: "Remix chains and derivative works tracked. Licensing enforced automatically.",
+                desc: "Every piece of content carries a verifiable label. Remix chains tracked with full attribution.",
+                accent: "border-t-violet-500",
               },
               {
                 title: "Enterprise AI",
-                desc: "Audit trails for AI-generated outputs that satisfy EU AI Act and copyright requirements.",
+                desc: "Audit trails for AI-generated outputs. Verifiable, and built to support compliance.",
+                accent: "border-t-emerald-500",
               },
               {
                 title: "Creative tools",
                 desc: "A tamper-proof credential creators own, proving their contribution to any Human-AI work.",
+                accent: "border-t-amber-500",
               },
-            ].map(({ title, desc }) => (
+            ].map(({ title, desc, accent }) => (
               <div
                 key={title}
-                className="p-7 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 hover:shadow-sm transition-all"
+                className={`p-7 rounded-2xl bg-white border border-slate-200 border-t-2 ${accent} hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200`}
               >
                 <h3 className="text-base font-bold mb-2.5 text-slate-900">
                   {title}
@@ -445,7 +440,16 @@ export default async function RootPage() {
 
       {/* ─── Final CTA ──────────────────────────────────────────────── */}
       <section className="py-32 px-6 lg:px-12 bg-[#080d18] text-white relative overflow-hidden border-t border-slate-800">
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[450px] bg-blue-600/8 rounded-full blur-[180px] pointer-events-none" />
+        {/* Grid */}
+        <div
+          className="absolute inset-0 opacity-[0.06]"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgb(59 130 246) 1px, transparent 1px), linear-gradient(90deg, rgb(59 130 246) 1px, transparent 1px)",
+            backgroundSize: "72px 72px",
+          }}
+        />
+        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[900px] h-[450px] bg-blue-600/12 rounded-full blur-[160px] pointer-events-none" />
         <div className="relative max-w-3xl mx-auto text-center">
           <h2 className="text-[clamp(2.2rem,5.5vw,5rem)] font-bold leading-[0.90] tracking-tight mb-6">
             Start recording
@@ -453,11 +457,10 @@ export default async function RootPage() {
             provenance today.
           </h2>
           <p className="text-slate-400 text-base mb-12 max-w-lg mx-auto leading-relaxed">
-            Open source and production-ready. Create your first project in
-            minutes.
+            Open source. Create your first project in minutes.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <LandingCTAButton />
+            <LandingCTAButton variant="outline-light" />
             <Link
               href="https://docs.provenancekit.com"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-lg border border-white/15 text-sm text-slate-200 hover:bg-white/10 transition-colors"
@@ -575,53 +578,6 @@ function ProvenanceCardHero() {
   );
 }
 
-/* ─── Standalone provenance record card ─────────────────────────── */
-
-function ProvenanceRecordCard() {
-  return (
-    <div className="w-full max-w-[360px] rounded-2xl overflow-hidden border border-slate-200 shadow-lg">
-      <div className="bg-slate-900 px-6 py-5 flex items-center gap-3">
-        <div className="h-9 w-9 rounded-[28%] bg-white/10 border border-white/20 flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-[11px] font-bold">Pr</span>
-        </div>
-        <div>
-          <p className="text-sm font-bold text-white">ProvenanceKit</p>
-          <p className="text-xs text-slate-400 font-mono">essay-draft-v3.md</p>
-        </div>
-      </div>
-
-      <div className="bg-white px-6 py-3">
-        {[
-          { label: "Date", value: "March 8, 2026" },
-          { label: "Produced by", value: "Jordan Kim" },
-          { label: "App or tool used", value: "ProvenanceKit Studio" },
-          { label: "AI models", value: "Claude 3.5, GPT-4o" },
-          { label: "License", value: "CC BY-SA 4.0" },
-          { label: "Signed with", value: "EVM · 0x3d91…c07f" },
-        ].map(({ label, value }) => (
-          <div key={label} className="flex items-center justify-between py-2">
-            <span className="text-xs text-slate-400">{label}</span>
-            <span
-              className={`text-xs font-medium ${
-                label === "Signed with"
-                  ? "text-emerald-600 font-mono"
-                  : "text-slate-800"
-              }`}
-            >
-              {value}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-slate-50 border-t border-slate-100 px-6 py-3.5 flex items-center justify-between">
-        <span className="text-xs text-slate-400">Verified · Tamper-proof</span>
-        <span className="text-xs font-mono text-blue-600">View on chain</span>
-      </div>
-    </div>
-  );
-}
-
 /* ─── Workflow diagram ──────────────────────────────────────────── */
 
 function WorkflowDiagram() {
@@ -659,7 +615,7 @@ function WorkflowDiagram() {
   ];
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-sm">
+    <div className="bg-white border border-blue-100 rounded-2xl p-8 shadow-sm shadow-blue-50">
       <p className="text-[10px] font-mono text-slate-400 tracking-widest uppercase mb-6">
         Creation workflow
       </p>
@@ -698,72 +654,12 @@ function WorkflowDiagram() {
   );
 }
 
-/* ─── Onchain visual ────────────────────────────────────────────── */
-
-function OnchainVisual() {
-  const blocks = [
-    {
-      hash: "0x8f2e…4a1c",
-      label: "Final output anchored",
-      time: "21:42 UTC",
-      step: 4,
-    },
-    {
-      hash: "0x3d91…c07f",
-      label: "DALL-E 3 illustration",
-      time: "21:40 UTC",
-      step: 3,
-    },
-    {
-      hash: "0xa742…f830",
-      label: "Human edit recorded",
-      time: "21:38 UTC",
-      step: 2,
-    },
-    {
-      hash: "0x1fe0…9d22",
-      label: "GPT-4o generation",
-      time: "21:35 UTC",
-      step: 1,
-    },
-  ];
-
-  return (
-    <div className="space-y-3">
-      <p className="text-[10px] font-mono text-slate-600 tracking-[0.18em] uppercase mb-4">
-        Onchain record
-      </p>
-      {blocks.map((block, i) => (
-        <div
-          key={block.hash}
-          className="rounded-xl border border-slate-700/60 bg-slate-900 p-4 flex items-center gap-4"
-          style={{ opacity: 1 - i * 0.1 }}
-        >
-          <div className="flex-shrink-0 h-9 w-9 rounded-lg bg-blue-600/15 border border-blue-500/20 flex items-center justify-center">
-            <span className="text-blue-400 text-xs font-mono font-bold">
-              #{block.step}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-white">{block.label}</p>
-            <p className="text-xs text-slate-500 font-mono">{block.hash}</p>
-          </div>
-          <div className="text-right flex-shrink-0">
-            <p className="text-xs text-slate-500 font-mono">{block.time}</p>
-            <p className="text-xs text-emerald-400 mt-0.5">confirmed</p>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 /* ─── Code block ────────────────────────────────────────────────── */
 
 function CodeBlock() {
   return (
-    <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-sm">
-      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-slate-200 bg-slate-50">
+    <div className="rounded-2xl overflow-hidden border border-blue-100 shadow-sm shadow-blue-50">
+      <div className="flex items-center gap-1.5 px-4 py-3 border-b border-blue-100 bg-blue-50/50">
         <span className="h-3 w-3 rounded-full bg-red-400/70" />
         <span className="h-3 w-3 rounded-full bg-yellow-400/70" />
         <span className="h-3 w-3 rounded-full bg-green-400/70" />
