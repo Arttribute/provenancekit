@@ -34,17 +34,20 @@ export default async function RootPage() {
           <div className="grid lg:grid-cols-[1fr_480px] gap-12 lg:gap-16 items-end">
             {/* Left: copy */}
             <div className="pt-12 pb-24 lg:pb-28">
+              <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
+                Content provenance
+              </p>
               <h1 className="text-[clamp(2.2rem,5.5vw,4.5rem)] font-bold leading-[0.92] tracking-tight mb-7 text-slate-900">
-                The complete
+                Verifiable
                 <br />
-                record of <br /> how it was
+                records of <br /> how it was
                 <br />
                 <span className="text-blue-600">made.</span>
               </h1>
               <p className="text-base text-slate-500 max-w-[420px] leading-relaxed mb-10">
-                ProvenanceKit records the full lineage of Human-AI created
-                works. Every creator, every tool, every transformation.
-                Verifiable, onchain.
+                A toolkit for creators and platforms to record and communicate
+                how content was created, building transparency and trust with
+                audiences.
               </p>
               <div className="flex flex-wrap gap-3">
                 <LandingCTAButton />

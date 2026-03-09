@@ -20,7 +20,7 @@ export const metadata: Metadata = {
     template: "%s | ProvenanceKit",
   },
   description:
-    "The complete record of how it was made. Universal provenance for Human-AI created works — every contributor, every tool, every transformation. Verifiable, onchain.",
+    "Verifiable records of how it was made. A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
   keywords: [
     "provenance",
     "AI provenance",
@@ -35,18 +35,18 @@ export const metadata: Metadata = {
     type: "website",
     url: baseUrl,
     siteName: "ProvenanceKit",
-    title: "ProvenanceKit — The complete record of how it was made.",
+    title: "ProvenanceKit — Verifiable records of how it was made.",
     description:
-      "Universal provenance for Human-AI created works. Every contributor, every tool, every transformation. Verifiable, onchain.",
+      "A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
     locale: "en_US",
   },
   twitter: {
     card: "summary_large_image",
     site: "@provenancekit",
     creator: "@provenancekit",
-    title: "ProvenanceKit — The complete record of how it was made.",
+    title: "ProvenanceKit — Verifiable records of how it was made.",
     description:
-      "Universal provenance for Human-AI created works. Every contributor, every tool, every transformation. Verifiable, onchain.",
+      "A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
   },
   robots: {
     index: true,

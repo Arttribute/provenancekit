@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "ProvenanceKit — The complete record of how it was made.";
+export const alt = "ProvenanceKit — Verifiable records of how it was made.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -116,21 +116,21 @@ export default function Image() {
                 color: "rgba(255,255,255,0.22)",
               }}
             >
-              The complete record
+              Verifiable records of
               <br />
-              <span style={{ color: "white" }}>of how it was made.</span>
+              <span style={{ color: "white" }}>how it was made.</span>
             </div>
             <div
               style={{
-                fontSize: "22px",
+                fontSize: "20px",
                 color: "rgba(255,255,255,0.45)",
                 fontWeight: "400",
-                lineHeight: "1.5",
+                lineHeight: "1.6",
                 maxWidth: "620px",
               }}
             >
-              Universal provenance for Human-AI created works.
-              Every contributor, every tool, every transformation.
+              A toolkit for creators and platforms to record and communicate
+              how content was created, building transparency and trust with audiences.
             </div>
           </div>
 
