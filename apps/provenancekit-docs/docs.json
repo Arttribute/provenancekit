@@ -1,23 +1,21 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "quill",
+  "theme": "luma",
   "name": "ProvenanceKit",
   "colors": {
     "primary": "#18181b",
     "light": "#71717a",
     "dark": "#09090b"
   },
-  "modeToggle": {
+  "appearance": {
     "default": "light"
   },
-  "font": {
-    "headings": {
-      "family": "Fragment Mono",
-      "weight": "400"
+  "fonts": {
+    "heading": {
+      "family": "Fragment Mono"
     },
     "body": {
-      "family": "Fragment Mono",
-      "weight": "400"
+      "family": "Fragment Mono"
     }
   },
   "favicon": "/favicon.svg",
