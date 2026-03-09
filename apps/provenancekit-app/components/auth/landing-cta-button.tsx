@@ -1,8 +1,8 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
 import Link from "next/link";
 
 const DASHBOARD_OPEN = process.env.NEXT_PUBLIC_DASHBOARD_OPEN === "true";
@@ -11,8 +11,21 @@ export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "out
   const { ready, authenticated, login, getAccessToken, user } = usePrivy();
   const router = useRouter();
 
+  // Track the previous value of `authenticated` to detect a fresh login.
+  // null = Privy not ready yet; false = was unauthenticated; true = was authenticated.
+  // A transition false → true means the user just logged in on this page → redirect.
+  // null → true means they were already signed in when the page loaded → no redirect.
+  const prevAuthRef = useRef<boolean | null>(null);
+
   useEffect(() => {
-    if (!DASHBOARD_OPEN || !ready || !authenticated || !user) return;
+    if (!ready) return;
+
+    const wasAuthenticated = prevAuthRef.current;
+    prevAuthRef.current = authenticated;
+
+    if (!authenticated || !user) return;
+
+    const justLoggedIn = wasAuthenticated === false;
 
     async function establishSession() {
       try {
@@ -40,7 +53,9 @@ export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "out
           }),
         });
 
-        router.replace("/dashboard");
+        if (justLoggedIn) {
+          router.replace("/dashboard");
+        }
       } catch {
         // silently continue
       }
@@ -49,7 +64,29 @@ export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "out
     establishSession();
   }, [ready, authenticated, user, getAccessToken, router]);
 
-  // When dashboard is not yet open, always show "Learn more" — no auth interaction
+  // Signed in → always show "Go to dashboard" regardless of DASHBOARD_OPEN
+  if (ready && authenticated) {
+    if (variant === "outline-light") {
+      return (
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/20 text-sm font-medium text-slate-200 hover:bg-white/10 transition-colors"
+        >
+          Go to dashboard
+        </Link>
+      );
+    }
+    return (
+      <Link
+        href="/dashboard"
+        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
+      >
+        Go to dashboard
+      </Link>
+    );
+  }
+
+  // Not signed in + dashboard not open → "Learn more" (no auth interaction)
   if (!DASHBOARD_OPEN) {
     if (variant === "outline-light") {
       return (
@@ -71,30 +108,8 @@ export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "out
     );
   }
 
-  // Dashboard is open — auth-aware rendering
+  // Not signed in + dashboard open → "Get started"
   if (!ready) return null;
-
-  if (authenticated) {
-    // Session is being established; show "Go to dashboard" as a link
-    if (variant === "outline-light") {
-      return (
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-white/20 text-sm font-medium text-slate-200 hover:bg-white/10 transition-colors"
-        >
-          Go to dashboard
-        </Link>
-      );
-    }
-    return (
-      <Link
-        href="/dashboard"
-        className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-slate-900 hover:bg-slate-700 text-sm font-semibold text-white transition-colors"
-      >
-        Go to dashboard
-      </Link>
-    );
-  }
 
   if (variant === "outline-light") {
     return (

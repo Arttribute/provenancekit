@@ -3,9 +3,28 @@
   "theme": "mint",
   "name": "ProvenanceKit",
   "colors": {
-    "primary": "#7C3AED",
-    "light": "#A78BFA",
-    "dark": "#5B21B6"
+    "primary": "#2563EB",
+    "light": "#60A5FA",
+    "dark": "#1D4ED8"
+  },
+  "appearance": {
+    "default": "light"
+  },
+  "styling": {
+    "codeblocks": {
+      "theme": {
+        "light": "github-dark",
+        "dark": "github-dark"
+      }
+    }
+  },
+  "fonts": {
+    "heading": {
+      "family": "Space Grotesk"
+    },
+    "body": {
+      "family": "Inter"
+    }
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -122,7 +141,7 @@
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/provenancekit/provenancekit",
+          "href": "https://github.com/Arttribute/provenancekit",
           "icon": "github"
         },
         {
@@ -141,7 +160,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/provenancekit/provenancekit"
+        "href": "https://github.com/Arttribute/provenancekit"
       }
     ],
     "primary": {
@@ -165,7 +184,7 @@
   "footer": {
     "socials": {
       "x": "https://x.com/provenancekit",
-      "github": "https://github.com/provenancekit/provenancekit"
+      "github": "https://github.com/Arttribute/provenancekit"
     }
   }
 }

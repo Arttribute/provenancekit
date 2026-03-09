@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/ui/query-provider";
 import "./globals.css";
-import { Fragment_Mono } from "next/font/google";
+import { Space_Grotesk } from "next/font/google";
 
-const fragmentMono = Fragment_Mono({
+const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["400"],
-  variable: "--font-fragment-mono",
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-space-grotesk",
   display: "swap",
 });
 
@@ -85,7 +85,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={fragmentMono.variable}>
+    <html lang="en" suppressHydrationWarning className={spaceGrotesk.variable}>
       <body>
         <PrivyProvider>
           <QueryProvider>{children}</QueryProvider>
