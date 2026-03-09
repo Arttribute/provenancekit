@@ -1,11 +1,11 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "luma",
+  "theme": "mint",
   "name": "ProvenanceKit",
   "colors": {
-    "primary": "#18181b",
-    "light": "#71717a",
-    "dark": "#09090b"
+    "primary": "#2563EB",
+    "light": "#60A5FA",
+    "dark": "#1D4ED8"
   },
   "appearance": {
     "default": "light"
@@ -15,7 +15,7 @@
       "family": "Fragment Mono"
     },
     "body": {
-      "family": "Fragment Mono"
+      "family": "Inter"
     }
   },
   "favicon": "/favicon.svg",
@@ -133,7 +133,7 @@
       "anchors": [
         {
           "anchor": "GitHub",
-          "href": "https://github.com/provenancekit/provenancekit",
+          "href": "https://github.com/Arttribute/provenancekit",
           "icon": "github"
         },
         {
@@ -152,7 +152,7 @@
     "links": [
       {
         "label": "GitHub",
-        "href": "https://github.com/provenancekit/provenancekit"
+        "href": "https://github.com/Arttribute/provenancekit"
       }
     ],
     "primary": {
@@ -176,7 +176,7 @@
   "footer": {
     "socials": {
       "x": "https://x.com/provenancekit",
-      "github": "https://github.com/provenancekit/provenancekit"
+      "github": "https://github.com/Arttribute/provenancekit"
     }
   }
 }
