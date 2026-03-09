@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { getServerUser } from "@/lib/auth";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { LandingCTAButton } from "@/components/auth/landing-cta-button";
 import { ArrowRight } from "lucide-react";
@@ -72,14 +70,7 @@ const jsonLd = {
   ],
 };
 
-const DASHBOARD_OPEN = process.env.NEXT_PUBLIC_DASHBOARD_OPEN === "true";
-
 export default async function RootPage() {
-  if (DASHBOARD_OPEN) {
-    const user = await getServerUser();
-    if (user) redirect("/dashboard");
-  }
-
   return (
     <div className="min-h-screen bg-white text-slate-900 antialiased">
       <script
