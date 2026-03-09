@@ -10,9 +10,12 @@
   "appearance": {
     "default": "light"
   },
+  "styling": {
+    "codeblocks": "dark"
+  },
   "fonts": {
     "heading": {
-      "family": "Fragment Mono"
+      "family": "Space Grotesk"
     },
     "body": {
       "family": "Inter"

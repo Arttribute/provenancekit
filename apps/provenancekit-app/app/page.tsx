@@ -112,7 +112,7 @@ export default async function RootPage() {
               <p className="text-[11px] font-mono text-blue-600 tracking-[0.18em] uppercase mb-6">
                 Content provenance
               </p>
-              <h1 className="text-[clamp(2.2rem,5.5vw,4.5rem)] font-bold leading-[0.92] tracking-tight mb-7 text-slate-900">
+              <h1 className="text-[clamp(2.5rem,5.5vw,4.5rem)] font-bold leading-[0.92] tracking-tight mb-7 text-slate-900">
                 Verifiable
                 <br />
                 records of <br /> how it was
@@ -183,7 +183,7 @@ export default async function RootPage() {
         {/* Soft blue glow */}
         <div className="absolute top-0 left-1/3 w-[800px] h-[400px] bg-blue-50/70 rounded-full blur-[140px] pointer-events-none" />
         <div className="absolute bottom-0 right-0 w-[500px] h-[300px] bg-indigo-50/40 rounded-full blur-[100px] pointer-events-none" />
-        <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[3fr_2fr] gap-12 lg:gap-20 items-center">
+        <div className="relative max-w-7xl mx-auto grid lg:grid-cols-[5fr_4fr] gap-12 lg:gap-16 items-center">
           <h2
             className="text-[clamp(2.4rem,5vw,5.5rem)] font-bold leading-[0.92] tracking-tight whitespace-nowrap"
             style={{ color: "#d1d5db" }}
@@ -198,13 +198,18 @@ export default async function RootPage() {
               comes from.
             </span>
           </h2>
-          <p className="text-base text-slate-500 leading-relaxed">
-            Digital content passes through multiple AI tools, human edits, and
-            iterations across sessions and platforms. Without a record,
-            attribution is guesswork, licensing is unenforceable, and
-            responsibility cannot be assigned. Emerging rules around AI
-            disclosure and content transparency are making provenance a
-            requirement. ProvenanceKit is the infrastructure for Human-AI works.
+          <p className="text-lg text-slate-500 leading-relaxed">
+            Digital content is created through many steps. Human input, software
+            tools, and sometimes AI models shape the final result across drafts,
+            edits, and remixes.
+            <br />
+            <br />
+            Without a record of that process, it becomes difficult to see how
+            something was made, who contributed, and where responsibility lies.
+            <br />
+            <br />
+            ProvenanceKit records the chain of creation so content can be
+            understood, verified, and trusted.
           </p>
         </div>
       </section>
@@ -233,7 +238,7 @@ export default async function RootPage() {
             <div className="grid grid-cols-2 gap-4">
               {[
                 {
-                  dot: "bg-blue-500",
+                  dot: "bg-sky-400",
                   label: "Entities",
                   desc: "Authors, AI models, orgs",
                 },
@@ -243,12 +248,12 @@ export default async function RootPage() {
                   desc: "Generation, editing, remixing",
                 },
                 {
-                  dot: "bg-amber-500",
+                  dot: "bg-yellow-400",
                   label: "Resources",
                   desc: "Every input and output",
                 },
                 {
-                  dot: "bg-emerald-500",
+                  dot: "bg-emerald-400",
                   label: "Attribution",
                   desc: "Contribution linked to output",
                 },
@@ -365,8 +370,8 @@ export default async function RootPage() {
               does something.
             </h2>
             <p className="mt-6 text-base text-slate-500 leading-relaxed">
-              Onchain records are programmable. Provenance becomes the engine
-              for rights, attribution, and revenue automatically.
+              Onchain records are programmable. Provenance becomes the layer
+              that governs rights, attribution, and revenue.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6">
@@ -444,8 +449,8 @@ export default async function RootPage() {
               to anything.
             </h2>
             <p className="text-slate-500 text-base leading-relaxed mb-8">
-              One SDK. Any Node.js or TypeScript backend. Pluggable storage,
-              privacy extensions, and chain adapters. Deploy on your terms.
+              A simple SDK for Node.js and TypeScript. <br />
+              Record creation steps with onchain provenance.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
@@ -535,7 +540,7 @@ export default async function RootPage() {
             provenance today.
           </h2>
           <p className="text-slate-400 text-base mb-12 max-w-lg mx-auto leading-relaxed">
-            Open source. Create your first project in minutes.
+            Add verifiable provenance to your AI or content workflow.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <LandingCTAButton variant="outline-light" />
@@ -550,10 +555,10 @@ export default async function RootPage() {
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────────────── */}
-      <footer className="border-t border-slate-800 bg-[#080d18] px-6 lg:px-12 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
+      <footer className="bg-[#080d18] px-6 lg:px-12 py-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-600">
         <div className="flex items-center gap-2">
           <div className="flex h-5 w-5 items-center justify-center rounded bg-slate-700">
-            <span className="text-white font-bold text-[8px]">PK</span>
+            <span className="text-white font-bold text-[8px]">Pr</span>
           </div>
           <span>© 2026 ProvenanceKit</span>
         </div>
@@ -567,7 +572,7 @@ export default async function RootPage() {
             Docs
           </a>
           <a
-            href="https://github.com/provenancekit"
+            href="https://github.com/Arttribute/provenancekit"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-slate-300 transition-colors"
@@ -663,45 +668,63 @@ function WorkflowDiagram() {
     {
       label: "Human prompt",
       sub: "Initial creative brief",
-      dot: "bg-blue-500",
+      dot: "bg-sky-400",
+      glow: "shadow-sky-200",
+      border: "border-sky-200",
     },
     {
       label: "GPT-4o generation",
       sub: "Action · ext:ai@1.0.0",
       dot: "bg-violet-500",
+      glow: "shadow-violet-200",
+      border: "border-violet-200",
     },
     {
       label: "Draft v1",
       sub: "Resource · content hash recorded",
-      dot: "bg-amber-500",
+      dot: "bg-yellow-400",
+      glow: "shadow-yellow-200",
+      border: "border-yellow-200",
     },
     {
       label: "Human edit and refinement",
       sub: "Action · contribution weighted",
       dot: "bg-violet-500",
+      glow: "shadow-violet-200",
+      border: "border-violet-200",
     },
     {
       label: "DALL-E 3 illustration",
       sub: "Action · ext:ai@1.0.0",
       dot: "bg-violet-500",
+      glow: "shadow-violet-200",
+      border: "border-violet-200",
     },
     {
       label: "Final output",
       sub: "Resource · anchored onchain",
-      dot: "bg-emerald-500",
+      dot: "bg-emerald-400",
+      glow: "shadow-emerald-200",
+      border: "border-emerald-200",
     },
   ];
 
   return (
-    <div className="bg-white border border-blue-100 rounded-2xl p-8 shadow-sm shadow-blue-50">
-      <p className="text-[10px] font-mono text-slate-400 tracking-widest uppercase mb-6">
+    <div className="relative bg-white border border-slate-200 rounded-2xl p-8 shadow-xl shadow-slate-200/60 overflow-hidden">
+      {/* Soft ambient glows */}
+      <div className="absolute top-4 left-4 w-32 h-32 bg-sky-100/50 rounded-full blur-[60px] pointer-events-none" />
+      <div className="absolute bottom-8 right-4 w-40 h-40 bg-violet-100/30 rounded-full blur-[70px] pointer-events-none" />
+      <div className="absolute bottom-4 left-1/2 w-28 h-28 bg-emerald-100/30 rounded-full blur-[50px] pointer-events-none" />
+      <p className="relative text-[10px] font-mono text-slate-400 tracking-widest uppercase mb-6">
         Creation workflow
       </p>
-      <div className="flex flex-col">
+      <div className="relative flex flex-col">
         {steps.map((step, i) => (
           <div key={step.label}>
             <div className="flex items-center gap-4">
-              <div className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center bg-slate-50 border border-slate-200">
+              <div
+                className={`flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center border ${step.border}`}
+              >
                 <div className={`h-2.5 w-2.5 rounded-full ${step.dot}`} />
               </div>
               <div>
@@ -717,9 +740,9 @@ function WorkflowDiagram() {
           </div>
         ))}
       </div>
-      <div className="mt-6 pt-5 border-t border-slate-100 flex items-center gap-3">
+      <div className="relative mt-6 pt-5 border-t border-slate-100 flex items-center gap-3">
         <div className="h-6 w-6 rounded-md bg-slate-900 flex items-center justify-center flex-shrink-0">
-          <span className="text-white text-[8px] font-bold">PK</span>
+          <span className="text-white text-[8px] font-bold">Pr</span>
         </div>
         <p className="text-xs text-slate-500">
           Full chain anchored onchain{" "}
