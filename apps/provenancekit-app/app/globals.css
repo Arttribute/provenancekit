@@ -113,5 +113,7 @@
 body {
   background-color: var(--background);
   color: var(--foreground);
-  font-family: var(--font-red-hat-display), system-ui, sans-serif;
+  font-family: var(--font-fragment-mono), monospace;
+  letter-spacing: -0.03em;
+  line-height: 1.45;
 }

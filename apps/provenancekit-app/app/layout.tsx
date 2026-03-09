@@ -2,21 +2,56 @@ import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/ui/query-provider";
 import "./globals.css";
-import { Red_Hat_Display } from "next/font/google";
+import { Fragment_Mono } from "next/font/google";
 
-const redHatDisplay = Red_Hat_Display({
+const fragmentMono = Fragment_Mono({
   subsets: ["latin"],
-  variable: "--font-red-hat-display",
+  weight: ["400"],
+  variable: "--font-fragment-mono",
   display: "swap",
 });
 
+const baseUrl = "https://provenancekit.com";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(baseUrl),
   title: {
     default: "ProvenanceKit",
     template: "%s | ProvenanceKit",
   },
   description:
-    "Universal provenance management for Human-AI created works. Track, verify, and monetize attribution at scale.",
+    "Verifiable records of how it was made. A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
+  keywords: [
+    "provenance",
+    "AI provenance",
+    "content attribution",
+    "Human-AI",
+    "content labeling",
+    "onchain attribution",
+    "C2PA",
+    "EAA",
+  ],
+  openGraph: {
+    type: "website",
+    url: baseUrl,
+    siteName: "ProvenanceKit",
+    title: "ProvenanceKit — Verifiable records of how it was made.",
+    description:
+      "A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: "@provenancekit",
+    creator: "@provenancekit",
+    title: "ProvenanceKit — Verifiable records of how it was made.",
+    description:
+      "A toolkit for creators and platforms to record and communicate how content was created, building transparency and trust with audiences.",
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({
@@ -25,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={redHatDisplay.variable}>
+    <html lang="en" suppressHydrationWarning className={fragmentMono.variable}>
       <body>
         <PrivyProvider>
           <QueryProvider>{children}</QueryProvider>
