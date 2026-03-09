@@ -11,7 +11,12 @@
     "default": "light"
   },
   "styling": {
-    "codeblocks": "dark"
+    "codeblocks": {
+      "theme": {
+        "light": "github-dark",
+        "dark": "github-dark"
+      }
+    }
   },
   "fonts": {
     "heading": {

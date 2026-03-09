@@ -1,18 +1,31 @@
 "use client";
 
 import { usePrivy } from "@privy-io/react-auth";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 const DASHBOARD_OPEN = process.env.NEXT_PUBLIC_DASHBOARD_OPEN === "true";
 
 export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "outline-light" }) {
   const { ready, authenticated, login, getAccessToken, user } = usePrivy();
+  const router = useRouter();
 
-  // Establish session whenever authenticated, so the cookie is ready before
-  // the user clicks "Go to dashboard". No auto-redirect — user stays on landing.
+  // Track the previous value of `authenticated` to detect a fresh login.
+  // null = Privy not ready yet; false = was unauthenticated; true = was authenticated.
+  // A transition false → true means the user just logged in on this page → redirect.
+  // null → true means they were already signed in when the page loaded → no redirect.
+  const prevAuthRef = useRef<boolean | null>(null);
+
   useEffect(() => {
-    if (!ready || !authenticated || !user) return;
+    if (!ready) return;
+
+    const wasAuthenticated = prevAuthRef.current;
+    prevAuthRef.current = authenticated;
+
+    if (!authenticated || !user) return;
+
+    const justLoggedIn = wasAuthenticated === false;
 
     async function establishSession() {
       try {
@@ -39,13 +52,17 @@ export function LandingCTAButton({ variant = "dark" }: { variant?: "dark" | "out
             name: user?.google?.name ?? user?.github?.name ?? undefined,
           }),
         });
+
+        if (justLoggedIn) {
+          router.replace("/dashboard");
+        }
       } catch {
         // silently continue
       }
     }
 
     establishSession();
-  }, [ready, authenticated, user, getAccessToken]);
+  }, [ready, authenticated, user, getAccessToken, router]);
 
   // Signed in → always show "Go to dashboard" regardless of DASHBOARD_OPEN
   if (ready && authenticated) {
