@@ -17,11 +17,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
     default:
-      "ProvenanceKit — Open Source Content Provenance toolkit for Human-AI Works",
+      "ProvenanceKit — Content Provenance toolkit for Human-AI Creations",
     template: "%s | ProvenanceKit",
   },
   description:
-    "Open-source toolkit for Human-AI content provenance. Record, verify, and communicate how content was created — onchain anchoring, C2PA support, and programmable attribution.",
+    "Standard toolkit for Human-AI content provenance. Record, verify, and communicate how content was created — onchain anchoring, C2PA support, and programmable attribution.",
   keywords: [
     "content provenance",
     "AI provenance",
@@ -43,8 +43,7 @@ export const metadata: Metadata = {
     type: "website",
     url: baseUrl,
     siteName: "ProvenanceKit",
-    title:
-      "ProvenanceKit — Open Source Content Provenance Toolkit for Human-AI Works",
+    title: "ProvenanceKit —  Content Provenance Toolkit for Human-AI creations",
     description:
       "Record, verify, and communicate how Human-AI content was created. Onchain anchoring, C2PA support, privacy extensions, and programmable attribution — open source.",
     locale: "en_US",

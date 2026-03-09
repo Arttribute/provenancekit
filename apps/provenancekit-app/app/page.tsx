@@ -72,9 +72,13 @@ const jsonLd = {
   ],
 };
 
+const DASHBOARD_OPEN = process.env.NEXT_PUBLIC_DASHBOARD_OPEN === "true";
+
 export default async function RootPage() {
-  const user = await getServerUser();
-  if (user) redirect("/dashboard");
+  if (DASHBOARD_OPEN) {
+    const user = await getServerUser();
+    if (user) redirect("/dashboard");
+  }
 
   return (
     <div className="min-h-screen bg-white text-slate-900 antialiased">
@@ -141,7 +145,7 @@ export default async function RootPage() {
       </section>
 
       {/* ─── Anchor bar ────────────────────────────────────────────── */}
-      <section className="bg-blue-600 border-b border-blue-700">
+      <section id="learn-more" className="bg-blue-600 border-b border-blue-700">
         <div className="max-w-7xl mx-auto px-6 lg:px-12 py-5 grid grid-cols-3 divide-x divide-blue-500/50">
           {[
             {
