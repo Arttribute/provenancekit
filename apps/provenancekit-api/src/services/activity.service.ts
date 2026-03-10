@@ -621,7 +621,7 @@ export async function createActivity(
     console.error("[PK] embedder.vector failed (non-fatal — similarity search skipped):", err instanceof Error ? err.message : err);
   }
 
-  if (!encrypted) {
+  if (!encrypted && embedding) {
     // Server-side duplicate detection only applies to non-encrypted resources.
     // Cross-key dedup is fundamentally incompatible with encryption — the server
     // cannot compare vectors it cannot read. Same-key dedup is handled client-side
