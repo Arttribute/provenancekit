@@ -1,5 +1,5 @@
 {
-  "installCommand": "npm install -g pnpm@9.15.9 && cd ../.. && pnpm install --no-frozen-lockfile",
-  "buildCommand": "pnpm run build",
+  "installCommand": "npm install",
+  "buildCommand": "npm run build",
   "ignoreCommand": "bash ../../scripts/vercel-ignore.sh"
 }
