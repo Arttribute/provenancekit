@@ -9436,7 +9436,7 @@ var Api = class {
   key;
   f;
   constructor(opts) {
-    this.base = (opts.baseUrl ?? "https://arttribute-provenancekit-api-prod-848878149972.europe-west1.run.app").replace(/\/$/, "");
+    this.base = (opts.baseUrl ?? "https://api.provenancekit.com").replace(/\/$/, "");
     this.key = opts.apiKey;
     this.f = opts.fetchFn ?? fetch;
   }
@@ -9700,7 +9700,8 @@ var ProvenanceKit = class {
    * Returns actions, resources, entities, and attributions
    * that were created with the given sessionId.
    *
-   * Automatically scoped by projectId if set on the client.
+   * Scoped by projectId: uses the value set on this client instance,
+   * or the project embedded in the API key when using dashboard-issued keys.
    */
   sessionProvenance(sessionId) {
     const qs = this.projectId ? `?projectId=${encodeURIComponent(this.projectId)}` : "";
@@ -11145,6 +11146,27 @@ function GraphRFCanvasInner({
   );
 }
 function GraphRFCanvas(props) {
+  const [mounted, setMounted] = (0, import_react11.useState)(false);
+  (0, import_react11.useEffect)(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) {
+    return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
+      "div",
+      {
+        style: {
+          height: props.height ?? 500,
+          borderRadius: 12,
+          background: "var(--pk-graph-bg, #f8fafc)",
+          border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        },
+        children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)("span", { style: { fontSize: 13, color: "var(--pk-muted-foreground, #64748b)" }, children: "Loading graph\u2026" })
+      }
+    );
+  }
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(import_react12.ReactFlowProvider, { children: /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(GraphRFCanvasInner, { ...props }) });
 }
 

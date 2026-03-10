@@ -24,6 +24,7 @@ function isRetryable(err: unknown): boolean {
     msg.includes("ECONNRESET") ||
     msg.includes("ECONNREFUSED") ||
     msg.includes("fetch failed") ||
+    msg.includes("500") || // PK API cold start (e.g. model loading)
     msg.includes("502") ||
     msg.includes("503") ||
     msg.includes("504")
@@ -31,7 +32,7 @@ function isRetryable(err: unknown): boolean {
 }
 
 /** Retry `fn` up to `maxAttempts` times on transient errors with exponential backoff. */
-async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 4): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -39,8 +40,8 @@ async function withRetry<T>(fn: () => Promise<T>, maxAttempts = 3): Promise<T> {
     } catch (err) {
       lastErr = err;
       if (!isRetryable(err) || attempt === maxAttempts) throw err;
-      // 1 s, 3 s — gives Cloud Run time to warm up between attempts
-      await new Promise((r) => setTimeout(r, 1000 * attempt));
+      // 1s, 2s, 4s — exponential backoff gives Cloud Run time to warm up
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt - 1)));
     }
   }
   throw lastErr;
@@ -123,13 +124,11 @@ export async function recordChatProvenance(opts: {
         action: {
           type: "generate",
           inputCids: [promptResult.cid],
-          extensions: {
-            "ext:ai@1.0.0": {
-              provider: opts.provider,
-              model: opts.model,
-              promptHash: hashPrompt(opts.prompt),
-              tokensUsed: opts.tokens,
-            },
+          aiTool: {
+            provider: opts.provider,
+            model: opts.model,
+            promptHash: hashPrompt(opts.prompt),
+            tokensUsed: opts.tokens,
           },
         },
         resourceType: "text",
@@ -213,12 +212,10 @@ export async function recordImageProvenance(opts: {
         action: {
           type: "generate",
           inputCids: opts.inputCids,
-          extensions: {
-            "ext:ai@1.0.0": {
-              provider: opts.provider,
-              model: opts.model,
-              promptHash,
-            },
+          aiTool: {
+            provider: opts.provider,
+            model: opts.model,
+            promptHash,
           },
         },
         resourceType: "image",

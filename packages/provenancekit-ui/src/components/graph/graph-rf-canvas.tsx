@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -149,6 +149,29 @@ function GraphRFCanvasInner({
 }
 
 export function GraphRFCanvas(props: GraphRFCanvasProps) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted) {
+    return (
+      <div
+        style={{
+          height: props.height ?? 500,
+          borderRadius: 12,
+          background: "var(--pk-graph-bg, #f8fafc)",
+          border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <span style={{ fontSize: 13, color: "var(--pk-muted-foreground, #64748b)" }}>
+          Loading graph…
+        </span>
+      </div>
+    );
+  }
+
   return (
     <ReactFlowProvider>
       <GraphRFCanvasInner {...props} />

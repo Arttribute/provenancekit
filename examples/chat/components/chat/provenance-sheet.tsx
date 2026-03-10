@@ -11,13 +11,19 @@ import type { Conversation } from "@/types";
 
 // ── Types matching the ProvenanceKit SDK ─────────────────────────────────────
 
+interface ContentRef {
+  ref: string;
+  scheme: string;
+  size?: number;
+}
+
 interface SessionAction {
   id?: string;
   type: string;
   timestamp?: string;
   performedBy?: string;
-  inputs?: string[];
-  outputs?: string[];
+  inputs?: ContentRef[];
+  outputs?: ContentRef[];
   extensions?: Record<string, unknown>;
 }
 
@@ -56,15 +62,17 @@ function ActionItem({
 }) {
   const [open, setOpen] = useState(isLatest);
 
-  const aiExt = action.extensions?.["ext:ai@1.0.0"] as
-    | { provider?: string; model?: string; tokensUsed?: number }
+  // withAITool() stores data as { tool: { provider, model, ... } }
+  const aiExtRaw = action.extensions?.["ext:ai@1.0.0"] as
+    | { tool?: { provider?: string; model?: string; tokensUsed?: number } }
     | undefined;
+  const aiExt = aiExtRaw?.tool;
   const onchainExt = action.extensions?.["ext:onchain@1.0.0"] as
     | { txHash?: string; chainId?: number; chainName?: string; contractAddress?: string }
     | undefined;
 
   const outputResources = (action.outputs ?? [])
-    .map((cid) => resources.find((r) => r.address?.ref === cid))
+    .map((inp) => resources.find((r) => r.address?.ref === inp.ref))
     .filter(Boolean) as SessionResource[];
 
   const isAIGenerate = action.type === "generate" || !!aiExt;
@@ -162,14 +170,14 @@ function ActionItem({
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                 Inputs
               </p>
-              {action.inputs.slice(0, 3).map((cid) => (
-                <div key={cid} className="flex items-center gap-1">
+              {action.inputs.slice(0, 3).map((inp) => (
+                <div key={inp.ref} className="flex items-center gap-1">
                   <code className="text-[10px] font-mono truncate text-muted-foreground flex-1">
-                    {cid.slice(0, 28)}…
+                    {inp.ref.slice(0, 28)}…
                   </code>
                   <button
                     type="button"
-                    onClick={() => onViewProvenance(cid)}
+                    onClick={() => onViewProvenance(inp.ref)}
                     className="shrink-0 text-primary hover:text-primary/80"
                   >
                     <ExternalLink className="h-2.5 w-2.5" />
@@ -185,14 +193,14 @@ function ActionItem({
               <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
                 Outputs
               </p>
-              {action.outputs.slice(0, 3).map((cid) => (
-                <div key={cid} className="flex items-center gap-1">
+              {action.outputs.slice(0, 3).map((inp) => (
+                <div key={inp.ref} className="flex items-center gap-1">
                   <code className="text-[10px] font-mono truncate text-muted-foreground flex-1">
-                    {cid.slice(0, 28)}…
+                    {inp.ref.slice(0, 28)}…
                   </code>
                   <button
                     type="button"
-                    onClick={() => onViewProvenance(cid)}
+                    onClick={() => onViewProvenance(inp.ref)}
                     className="shrink-0 text-primary hover:text-primary/80"
                   >
                     <ExternalLink className="h-2.5 w-2.5" />
