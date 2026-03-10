@@ -76,6 +76,15 @@ export type Config = z.infer<typeof ConfigSchema>;
  | Load Configuration                                           |
 \*─────────────────────────────────────────────────────────────*/
 
+/** Normalize a hex key: trim whitespace and strip optional 0x prefix. */
+function normalizeHexKey(value: string | undefined): string | undefined {
+  if (!value) return value;
+  const trimmed = value.trim();
+  return trimmed.startsWith("0x") || trimmed.startsWith("0X")
+    ? trimmed.slice(2)
+    : trimmed;
+}
+
 export function loadConfig(): Config {
   const result = ConfigSchema.safeParse({
     port: process.env.PORT,
@@ -91,7 +100,7 @@ export function loadConfig(): Config {
     openaiApiKey: process.env.OPENAI_API_KEY,
     apiKeys: process.env.API_KEYS,
     proofPolicy: process.env.PROOF_POLICY,
-    serverSigningKey: process.env.SERVER_SIGNING_KEY,
+    serverSigningKey: normalizeHexKey(process.env.SERVER_SIGNING_KEY),
     validateInputs: process.env.VALIDATE_INPUTS === "false" ? false : true,
     minToolAttestationLevel: process.env.MIN_TOOL_ATTESTATION_LEVEL,
     blockchainRpcUrl: process.env.BLOCKCHAIN_RPC_URL,
