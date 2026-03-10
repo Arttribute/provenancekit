@@ -11,6 +11,7 @@ import type { ContentfulStatusCode } from "hono/utils/http-status";
 
 import { config } from "./config.js";
 import { initializeContext, closeContext } from "./context.js";
+import { EmbeddingService } from "./embedding/service.js";
 import { toProvenanceKitError } from "./errors.js";
 import {
   createAuthMiddleware,
@@ -150,6 +151,11 @@ async function main() {
     }
 
     const app = createApp(authProviders.length > 0 ? { authProviders } : undefined);
+
+    // Pre-warm embedding models — downloads CLIP from HuggingFace once and caches it.
+    // Runs in background so it doesn't delay server startup; first request may still
+    // block briefly if the download isn't complete, but won't 500 on HF 429s.
+    new EmbeddingService().warmup();
 
     // Rate limiting — sliding window per API key / IP (v1 routes only; management has own auth)
     app.use("/v1/*", createRateLimitMiddleware());

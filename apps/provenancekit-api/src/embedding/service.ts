@@ -17,6 +17,19 @@ export class EmbeddingService {
   constructor(private p = new XenovaUniversalProvider()) {}
 
   /**
+   * Pre-load embedding models so they're hot before the first request.
+   * Safe to call at startup — logs a warning if HuggingFace is unreachable.
+   */
+  async warmup(): Promise<void> {
+    try {
+      await this.p.warmup();
+      console.log("[PK] Embedding models warmed up.");
+    } catch (err) {
+      console.warn("[PK] Embedding warmup failed (will retry on first request):", err instanceof Error ? err.message : err);
+    }
+  }
+
+  /**
    * Generate an embedding vector for content.
    */
   async vector(kind: ResourceKind, dataUriOrUrl: string): Promise<number[]> {
