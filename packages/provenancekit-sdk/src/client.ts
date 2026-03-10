@@ -67,6 +67,19 @@ function asBlob(input: Blob | File | Buffer | Uint8Array): Blob {
   throw new TypeError("Unsupported binary type");
 }
 
+export interface AIToolOpts {
+  provider: string;
+  model: string;
+  version?: string;
+  promptHash?: string;
+  prompt?: string;
+  systemPrompt?: string;
+  parameters?: Record<string, unknown>;
+  tokensUsed?: number;
+  generationTime?: number;
+  seed?: number;
+}
+
 export interface FileOpts {
   entity: {
     id?: string;
@@ -82,6 +95,8 @@ export interface FileOpts {
     /** Structured action proof (ext:proof@1.0.0) */
     actionProof?: ActionProof;
     extensions?: Record<string, any>;
+    /** AI tool metadata — stored as ext:ai@1.0.0 with proper withAITool() processing */
+    aiTool?: AIToolOpts;
   };
   resourceType?: string;
   sessionId?: string;

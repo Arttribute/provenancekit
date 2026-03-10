@@ -813,6 +813,18 @@ interface SearchResult {
     encrypted?: boolean;
 }
 
+interface AIToolOpts {
+    provider: string;
+    model: string;
+    version?: string;
+    promptHash?: string;
+    prompt?: string;
+    systemPrompt?: string;
+    parameters?: Record<string, unknown>;
+    tokensUsed?: number;
+    generationTime?: number;
+    seed?: number;
+}
 interface FileOpts {
     entity: {
         id?: string;
@@ -828,6 +840,8 @@ interface FileOpts {
         /** Structured action proof (ext:proof@1.0.0) */
         actionProof?: ActionProof;
         extensions?: Record<string, any>;
+        /** AI tool metadata — stored as ext:ai@1.0.0 with proper withAITool() processing */
+        aiTool?: AIToolOpts;
     };
     resourceType?: string;
     sessionId?: string;
@@ -861,8 +875,13 @@ interface FileResult {
 interface ProvenanceKitOptions extends ApiClientOptions {
     /**
      * Project ID for multi-tenant isolation.
-     * All activities will be tagged with this ID,
-     * and session queries will be scoped to it.
+     *
+     * **Optional when using the ProvenanceKit dashboard (pk-app).**
+     * API keys created in the dashboard embed the project ID server-side —
+     * the API derives it automatically from the key, so you don't need to pass it here.
+     *
+     * Only required when using the legacy static `API_KEYS` env-var auth (self-hosted),
+     * or when you want to explicitly override the key's project for testing.
      */
     projectId?: string;
     /**
@@ -902,8 +921,6 @@ declare class ProvenanceKit {
         role: string;
         name?: string;
         publicKey?: string;
-        /** Wallet address for payment attribution */
-        wallet?: string;
         /** AI agent model config — include when role is "ai" */
         aiAgent?: {
             model: {
@@ -950,7 +967,8 @@ declare class ProvenanceKit {
      * Returns actions, resources, entities, and attributions
      * that were created with the given sessionId.
      *
-     * Automatically scoped by projectId if set on the client.
+     * Scoped by projectId: uses the value set on this client instance,
+     * or the project embedded in the API key when using dashboard-issued keys.
      */
     sessionProvenance(sessionId: string): Promise<SessionProvenance>;
     /**

@@ -9358,7 +9358,7 @@ var Api = class {
   key;
   f;
   constructor(opts) {
-    this.base = (opts.baseUrl ?? "https://arttribute-provenancekit-api-prod-848878149972.europe-west1.run.app").replace(/\/$/, "");
+    this.base = (opts.baseUrl ?? "https://api.provenancekit.com").replace(/\/$/, "");
     this.key = opts.apiKey;
     this.f = opts.fetchFn ?? fetch;
   }
@@ -9622,7 +9622,8 @@ var ProvenanceKit = class {
    * Returns actions, resources, entities, and attributions
    * that were created with the given sessionId.
    *
-   * Automatically scoped by projectId if set on the client.
+   * Scoped by projectId: uses the value set on this client instance,
+   * or the project embedded in the API key when using dashboard-issued keys.
    */
   sessionProvenance(sessionId) {
     const qs = this.projectId ? `?projectId=${encodeURIComponent(this.projectId)}` : "";
@@ -10786,7 +10787,7 @@ function ProvenanceBadge(props) {
 }
 
 // src/components/graph/graph-rf-canvas.tsx
-import { useMemo as useMemo2 } from "react";
+import { useMemo as useMemo2, useState as useState7, useEffect as useEffect5 } from "react";
 import {
   ReactFlow,
   Background,
@@ -11073,6 +11074,27 @@ function GraphRFCanvasInner({
   );
 }
 function GraphRFCanvas(props) {
+  const [mounted, setMounted] = useState7(false);
+  useEffect5(() => {
+    setMounted(true);
+  }, []);
+  if (!mounted) {
+    return /* @__PURE__ */ jsx12(
+      "div",
+      {
+        style: {
+          height: props.height ?? 500,
+          borderRadius: 12,
+          background: "var(--pk-graph-bg, #f8fafc)",
+          border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center"
+        },
+        children: /* @__PURE__ */ jsx12("span", { style: { fontSize: 13, color: "var(--pk-muted-foreground, #64748b)" }, children: "Loading graph\u2026" })
+      }
+    );
+  }
   return /* @__PURE__ */ jsx12(ReactFlowProvider, { children: /* @__PURE__ */ jsx12(GraphRFCanvasInner, { ...props }) });
 }
 
@@ -11513,7 +11535,7 @@ function AttributionList({
 }
 
 // src/components/bundle/provenance-bundle-view.tsx
-import { useState as useState7 } from "react";
+import { useState as useState8 } from "react";
 import { jsx as jsx18, jsxs as jsxs14 } from "react/jsx-runtime";
 function TabButton({
   label,
@@ -11588,7 +11610,7 @@ function BundleContent({
     { id: "attribution", label: "Attribution", count: bundle.attributions.length, enabled: !!showAttributions && bundle.attributions.length > 0 },
     { id: "graph", label: "Graph", count: bundle.resources.length + bundle.actions.length + bundle.entities.length, enabled: !!showGraph }
   ].filter((t) => t.enabled);
-  const [activeTab, setActiveTab] = useState7(tabs[0]?.id ?? "resources");
+  const [activeTab, setActiveTab] = useState8(tabs[0]?.id ?? "resources");
   if (tabs.length === 0) return null;
   const resolvedTab = tabs.find((t) => t.id === activeTab) ? activeTab : tabs[0]?.id ?? "resources";
   return /* @__PURE__ */ jsxs14("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
@@ -11692,7 +11714,7 @@ function ProvenanceBundleView({
 }
 
 // src/components/tracker/provenance-tracker.tsx
-import { useEffect as useEffect5, useRef as useRef2 } from "react";
+import { useEffect as useEffect6, useRef as useRef2 } from "react";
 
 // src/components/tracker/tracker-session-header.tsx
 import { Zap as Zap3, Layers, Users } from "lucide-react";
@@ -11938,7 +11960,7 @@ function ProvenanceTracker({
   );
   const session = sessionProp ?? fetchedSession;
   const prevActionCount = useRef2(0);
-  useEffect5(() => {
+  useEffect6(() => {
     if (!session) return;
     const newCount = session.actions.length;
     if (newCount > prevActionCount.current && onNewAction) {
@@ -12035,11 +12057,11 @@ function ProvenanceTracker({
 }
 
 // src/components/search/provenance-search.tsx
-import { useState as useState10, useCallback as useCallback6 } from "react";
+import { useState as useState11, useCallback as useCallback6 } from "react";
 import { Search } from "lucide-react";
 
 // src/components/search/file-upload-zone.tsx
-import { useRef as useRef3, useState as useState8, useCallback as useCallback5 } from "react";
+import { useRef as useRef3, useState as useState9, useCallback as useCallback5 } from "react";
 import { Upload, FileText, X } from "lucide-react";
 import { Fragment as Fragment4, jsx as jsx22, jsxs as jsxs18 } from "react/jsx-runtime";
 function FileUploadZone({
@@ -12051,9 +12073,9 @@ function FileUploadZone({
   className
 }) {
   const inputRef = useRef3(null);
-  const [isDragOver, setIsDragOver] = useState8(false);
-  const [error, setError] = useState8(null);
-  const [preview, setPreview] = useState8(null);
+  const [isDragOver, setIsDragOver] = useState9(false);
+  const [error, setError] = useState9(null);
+  const [preview, setPreview] = useState9(null);
   const handleFile = useCallback5(
     (file) => {
       setError(null);
@@ -12159,7 +12181,7 @@ function FileUploadZone({
 }
 
 // src/components/search/search-result-card.tsx
-import { useState as useState9 } from "react";
+import { useState as useState10 } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { jsx as jsx23, jsxs as jsxs19 } from "react/jsx-runtime";
 function ScoreBar({ score }) {
@@ -12179,7 +12201,7 @@ function SearchResultCard({
   onSelect,
   className
 }) {
-  const [expanded, setExpanded] = useState9(false);
+  const [expanded, setExpanded] = useState10(false);
   return /* @__PURE__ */ jsxs19(
     "div",
     {
@@ -12239,10 +12261,10 @@ function ProvenanceSearch({
   className
 }) {
   const { pk } = useProvenanceKit();
-  const [results, setResults] = useState10([]);
-  const [loading, setLoading] = useState10(false);
-  const [error, setError] = useState10(null);
-  const [cidInput, setCidInput] = useState10("");
+  const [results, setResults] = useState11([]);
+  const [loading, setLoading] = useState11(false);
+  const [error, setError] = useState11(null);
+  const [cidInput, setCidInput] = useState11("");
   const handleFile = useCallback6(
     async (file) => {
       if (!pk) {
@@ -12564,7 +12586,7 @@ function ContribExtensionView({ extension, className }) {
 }
 
 // src/components/provenance/file-provenance-tag.tsx
-import { useEffect as useEffect6, useState as useState11, useCallback as useCallback7 } from "react";
+import { useEffect as useEffect7, useState as useState12, useCallback as useCallback7 } from "react";
 import {
   ShieldCheck as ShieldCheck2,
   ShieldOff as ShieldOff2,
@@ -12670,8 +12692,8 @@ function FileProvenanceTag({
   className
 }) {
   const { pk } = useProvenanceKit();
-  const [state, setState] = useState11({ status: "idle" });
-  const [expanded, setExpanded] = useState11(false);
+  const [state, setState] = useState12({ status: "idle" });
+  const [expanded, setExpanded] = useState12(false);
   const search = useCallback7(async () => {
     if (!pk || !file) return;
     setState({ status: "loading" });
@@ -12692,7 +12714,7 @@ function FileProvenanceTag({
       setState({ status: "error" });
     }
   }, [pk, file, topK]);
-  useEffect6(() => {
+  useEffect7(() => {
     search();
   }, []);
   if (!pk || state.status === "idle" || state.status === "error") return null;
