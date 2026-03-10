@@ -91,6 +91,12 @@ export class XenovaUniversalProvider implements EmbeddingProvider {
     }
     return { proc: this.clapProcessor, mdl: this.clapModel };
   }
+  /* ---------- WARM-UP ---------- */
+  /** Pre-load CLIP models so the first real request doesn't trigger a cold download. */
+  async warmup(): Promise<void> {
+    await Promise.all([this.lText(), this.lImg()]);
+  }
+
   /* ---------- TEXT ---------- */
   async encodeText(text: string): Promise<Vec> {
     const { tok, mdl } = await this.lText();

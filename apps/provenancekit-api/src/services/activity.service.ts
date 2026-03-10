@@ -615,7 +615,11 @@ export async function createActivity(
   // stored as an opaque blob — only the key holder can search it client-side.
   // For non-encrypted resources: the vector is stored in pgvector for server-side search.
   let embedding: number[] | null = null;
-  embedding = await embedder.vector(kind, toDataURI(bytes, mime));
+  try {
+    embedding = await embedder.vector(kind, toDataURI(bytes, mime));
+  } catch (err) {
+    console.error("[PK] embedder.vector failed (non-fatal — similarity search skipped):", err instanceof Error ? err.message : err);
+  }
 
   if (!encrypted) {
     // Server-side duplicate detection only applies to non-encrypted resources.
