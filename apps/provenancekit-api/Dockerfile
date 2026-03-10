@@ -19,13 +19,14 @@ COPY standalone/dist ./dist
 # This eliminates HuggingFace network calls (and rate-limit 429s) at runtime.
 # Models are cached to /app/.cache and baked into the image layer.
 ENV TRANSFORMERS_CACHE=/app/.cache/huggingface/hub
+# Write the preload script to /app/ so Node resolves @xenova/transformers from /app/node_modules
 RUN printf 'import { pipeline, AutoTokenizer, CLIPTextModelWithProjection } from "@xenova/transformers";\n\
 console.log("Pre-downloading Xenova/clip-vit-base-patch16...");\n\
 await pipeline("image-feature-extraction", "Xenova/clip-vit-base-patch16");\n\
 await AutoTokenizer.from_pretrained("Xenova/clip-vit-base-patch16");\n\
 await CLIPTextModelWithProjection.from_pretrained("Xenova/clip-vit-base-patch16");\n\
 console.log("CLIP models cached successfully.");\n' \
-  > /tmp/preload.mjs && node /tmp/preload.mjs && rm /tmp/preload.mjs
+  > /app/preload.mjs && node /app/preload.mjs && rm /app/preload.mjs
 
 EXPOSE 8080
 
