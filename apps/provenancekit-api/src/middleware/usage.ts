@@ -35,7 +35,8 @@ export function createUsageMiddleware(): MiddlewareHandler {
     const segments = path.split("/").filter(Boolean);
     const resourceType = segments[1] ?? segments[0] ?? "unknown";
 
-    // Fire-and-forget
+    // Fire-and-forget — non-fatal, but log errors so operators can diagnose
+    // missing tracking (e.g. app_usage_records table not yet migrated).
     db.insert(appUsageRecords)
       .values({
         projectId,
@@ -45,6 +46,8 @@ export function createUsageMiddleware(): MiddlewareHandler {
         statusCode: c.res.status,
       })
       .then(() => {})
-      .catch(() => {});
+      .catch((err: unknown) => {
+        console.error("[usage] Failed to record usage for project", projectId, "—", err instanceof Error ? err.message : err);
+      });
   };
 }
