@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { ProvenanceBundleView, ProvenanceGraph, ProvenanceTracker } from "@/components/provenance/pk-ui";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,6 +17,13 @@ type Tab = "overview" | "graph" | "session";
 export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
+  // Refresh key forces ProvenanceBundleView / ProvenanceGraph to re-mount and retry
+  const [refreshKey, setRefreshKey] = useState(0);
+  // Auto-retry once after 8 s in case the bundle is still recording
+  useEffect(() => {
+    const t = setTimeout(() => setRefreshKey((k) => k + 1), 8000);
+    return () => clearTimeout(t);
+  }, [cid]);
 
   const TABS: { key: Tab; label: string; disabled?: boolean }[] = [
     { key: "overview", label: "Overview" },
@@ -67,11 +74,23 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
         <div>
           {tab === "overview" && (
             <div className="space-y-4">
-              <p className="text-xs text-muted-foreground">
-                Full provenance bundle for this AI response — entities, actions, resources, and
-                attributions recorded via ProvenanceKit.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Full provenance bundle for this AI response — entities, actions, resources, and
+                  attributions recorded via ProvenanceKit.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setRefreshKey((k) => k + 1)}
+                  title="Retry"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
               <ProvenanceBundleView
+                key={refreshKey}
                 cid={cid}
                 showEntities
                 showActions
@@ -84,12 +103,24 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
 
           {tab === "graph" && (
             <div className="space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Interactive provenance graph. Click nodes to explore entities, actions, and
-                resources.
-              </p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Interactive provenance graph. Click nodes to explore entities, actions, and
+                  resources.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setRefreshKey((k) => k + 1)}
+                  title="Retry"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
               <div className="rounded-lg border overflow-hidden">
                 <ProvenanceGraph
+                  key={refreshKey}
                   cid={cid}
                   height={500}
                 />
