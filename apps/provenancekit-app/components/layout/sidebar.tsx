@@ -32,7 +32,10 @@ const GLOBAL_SEGMENTS = new Set(["dashboard", "orgs", "settings", ""]);
 /** Org-level path segments that are not project slugs. */
 const ORG_SEGMENTS = new Set(["members", "billing", "settings", "projects"]);
 
-function parseSlugs(pathname: string): { orgSlug?: string; projectSlug?: string } {
+function parseSlugs(pathname: string): {
+  orgSlug?: string;
+  projectSlug?: string;
+} {
   const parts = pathname.split("/").filter(Boolean);
   const first = parts[0];
   if (!first || GLOBAL_SEGMENTS.has(first)) return {};
@@ -54,13 +57,42 @@ export function Sidebar() {
   // ── Project context: show only project nav ────────────────────────────────
   if (orgSlug && projectSlug) {
     const projectLinks: NavLink[] = [
-      { href: `/${orgSlug}/${projectSlug}`, label: "Overview", icon: <FolderKanban className="h-4 w-4" />, exact: true },
-      { href: `/${orgSlug}/${projectSlug}/resources`, label: "Resources", icon: <Database className="h-4 w-4" /> },
-      { href: `/${orgSlug}/${projectSlug}/provenance`, label: "Provenance Graph", icon: <GitBranch className="h-4 w-4" /> },
-      { href: `/${orgSlug}/${projectSlug}/api-keys`, label: "API Keys", icon: <Key className="h-4 w-4" /> },
-      { href: `/${orgSlug}/${projectSlug}/analytics`, label: "Analytics", icon: <BarChart3 className="h-4 w-4" /> },
-      { href: `/${orgSlug}/${projectSlug}/privacy`, label: "Privacy", icon: <Shield className="h-4 w-4" /> },
-      { href: `/${orgSlug}/${projectSlug}/settings`, label: "Settings", icon: <Settings className="h-4 w-4" /> },
+      {
+        href: `/${orgSlug}/${projectSlug}`,
+        label: "Overview",
+        icon: <FolderKanban className="h-4 w-4" />,
+        exact: true,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/resources`,
+        label: "Resources",
+        icon: <Database className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/provenance`,
+        label: "Provenance Graph",
+        icon: <GitBranch className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/api-keys`,
+        label: "API Keys",
+        icon: <Key className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/analytics`,
+        label: "Analytics",
+        icon: <BarChart3 className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/privacy`,
+        label: "Privacy",
+        icon: <Shield className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/${projectSlug}/settings`,
+        label: "Settings",
+        icon: <Settings className="h-4 w-4" />,
+      },
     ];
 
     return (
@@ -92,10 +124,27 @@ export function Sidebar() {
   // ── Org context: show only org nav ────────────────────────────────────────
   if (orgSlug) {
     const orgLinks: NavLink[] = [
-      { href: `/${orgSlug}`, label: "Overview", icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
-      { href: `/${orgSlug}/members`, label: "Members", icon: <Users className="h-4 w-4" /> },
-      { href: `/${orgSlug}/billing`, label: "Billing", icon: <CreditCard className="h-4 w-4" /> },
-      { href: `/${orgSlug}/settings`, label: "Settings", icon: <Settings className="h-4 w-4" /> },
+      {
+        href: `/${orgSlug}`,
+        label: "Overview",
+        icon: <LayoutDashboard className="h-4 w-4" />,
+        exact: true,
+      },
+      {
+        href: `/${orgSlug}/members`,
+        label: "Members",
+        icon: <Users className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/billing`,
+        label: "Billing",
+        icon: <CreditCard className="h-4 w-4" />,
+      },
+      {
+        href: `/${orgSlug}/settings`,
+        label: "Settings",
+        icon: <Settings className="h-4 w-4" />,
+      },
     ];
 
     return (
@@ -126,9 +175,22 @@ export function Sidebar() {
 
   // ── Global context ────────────────────────────────────────────────────────
   const globalLinks: NavLink[] = [
-    { href: "/dashboard", label: "Overview", icon: <LayoutDashboard className="h-4 w-4" />, exact: true },
-    { href: "/orgs", label: "Organizations", icon: <Users className="h-4 w-4" /> },
-    { href: "/settings", label: "Settings", icon: <Settings className="h-4 w-4" /> },
+    {
+      href: "/dashboard",
+      label: "Overview",
+      icon: <LayoutDashboard className="h-4 w-4" />,
+      exact: true,
+    },
+    {
+      href: "/orgs",
+      label: "Organizations",
+      icon: <Users className="h-4 w-4" />,
+    },
+    {
+      href: "/settings",
+      label: "Settings",
+      icon: <Settings className="h-4 w-4" />,
+    },
   ];
 
   return (
@@ -147,7 +209,7 @@ function SidebarHeader() {
     <div className="flex h-14 items-center border-b px-4">
       <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
         <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-          PK
+          Pr
         </div>
         <span className="text-sm">ProvenanceKit</span>
       </Link>
@@ -188,7 +250,7 @@ function NavSection({
               "flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors",
               isActive(link.href, link.exact)
                 ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground",
             )}
           >
             {link.icon}
