@@ -35,6 +35,12 @@ export default function ConversationPage({
       return res.json();
     },
     enabled: !!userId,
+    // Poll until the conversation has a provenanceCid (set after first recording completes).
+    refetchInterval: (query) => {
+      const conv = query.state.data as Conversation | undefined;
+      return conv && !conv.provenanceCid ? 4000 : false;
+    },
+    refetchIntervalInBackground: false,
   });
 
   const { data: historyData, isFetching: isFetchingHistory, refetch: refetchMessages } = useQuery<{
@@ -48,6 +54,14 @@ export default function ConversationPage({
     },
     enabled: !!userId,
     staleTime: 0,
+    // Poll every 4 s while any message is still recording provenance.
+    // Stops automatically once all messages reach "recorded" or "failed".
+    // On-chain provenance can take 20-30 s so a fixed 6 s timeout is not enough.
+    refetchInterval: (query) => {
+      const msgs = (query.state.data as { messages: ChatMessage[] } | undefined)?.messages ?? [];
+      return msgs.some((m) => m.provenanceStatus === "recording") ? 4000 : false;
+    },
+    refetchIntervalInBackground: false,
   });
 
   const dbMessages = historyData?.messages ?? [];
@@ -69,17 +83,14 @@ export default function ConversationPage({
     },
     initialMessages: [],
     onFinish: () => {
-      // Phase 1 — quick refetch so messages appear immediately (messages are saved before provenance)
+      // Quick refetch so DB messages appear immediately.
+      // refetchInterval takes over from here — it polls every 4 s until
+      // all messages leave "recording" state (provenance + on-chain can take 20-30 s).
       setTimeout(() => {
         refetchMessages();
         queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
         queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
       }, 300);
-      // Phase 2 — follow-up refetch to pick up provenance CIDs once async recording completes
-      setTimeout(() => {
-        refetchMessages();
-        queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
-      }, 6000);
     },
   });
 
