@@ -69,6 +69,7 @@ export interface SupabaseQueryBuilder<T = unknown> {
   eq(column: string, value: unknown): SupabaseQueryBuilder<T>;
   gt(column: string, value: unknown): SupabaseQueryBuilder<T>;
   contains(column: string, value: unknown): SupabaseQueryBuilder<T>;
+  filter(column: string, operator: string, value: unknown): SupabaseQueryBuilder<T>;
   order(
     column: string,
     options?: { ascending?: boolean }
@@ -675,10 +676,13 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
   async getActionsByOutput(ref: string): Promise<Action[]> {
     this.ensureInitialized();
 
+    // .contains() with an array of objects uses Array.isArray() branch in postgrest-js
+    // and calls .join(',') which stringifies objects as "[object Object]" — invalid JSON.
+    // Use .filter() with explicit JSON.stringify() to pass the correct `cs.[{...}]` value.
     const result = await this.client
       .from<ActionRow>(this.t.action)
       .select("*")
-      .contains("outputs", [{ ref }]);
+      .filter("outputs", "cs", JSON.stringify([{ ref }]));
 
     this.handleError(result, "get actions by output");
 
@@ -692,7 +696,7 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
     const result = await this.client
       .from<ActionRow>(this.t.action)
       .select("*")
-      .contains("inputs", [{ ref }]);
+      .filter("inputs", "cs", JSON.stringify([{ ref }]));
 
     this.handleError(result, "get actions by input");
 
@@ -891,13 +895,13 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
     this.ensureInitialized();
 
     // Fetch actions of ownership types that list this resource as an input.
-    // Supabase does not support LIKE on JSONB arrays directly, so we use
-    // the `contains` filter on the inputs array with the ref field.
+    // Use .filter() with explicit JSON.stringify() — .contains() with an array of objects
+    // calls .join(',') in postgrest-js which produces invalid "[object Object]" syntax.
     const claimResult = await this.client
       .from<ActionRow>(this.t.action)
       .select("*")
       .eq("type", "ext:ownership:claim@1.0.0")
-      .contains("inputs", [{ ref: resourceRef }])
+      .filter("inputs", "cs", JSON.stringify([{ ref: resourceRef }]))
       .order("timestamp", { ascending: true });
 
     this.handleError(claimResult, "get ownership history (claims)");
@@ -906,7 +910,7 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
       .from<ActionRow>(this.t.action)
       .select("*")
       .eq("type", "ext:ownership:transfer@1.0.0")
-      .contains("inputs", [{ ref: resourceRef }])
+      .filter("inputs", "cs", JSON.stringify([{ ref: resourceRef }]))
       .order("timestamp", { ascending: true });
 
     this.handleError(transferResult, "get ownership history (transfers)");
