@@ -134,10 +134,16 @@ async function recordAndUpdateProvenance(opts: {
     });
 
     if (imagePkResult) {
+      // Replace the expiring OpenAI URL with a persistent Pinata/IPFS gateway URL.
+      // The image binary was already uploaded to IPFS inside recordImageProvenance,
+      // so imagePkResult.cid IS the content-addressed permanent identifier.
+      const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
+      const persistentImageUrl = `${ipfsGateway}/${imagePkResult.cid}`;
       await MessageModel.updateOne(
         { _id: assistantMsgId },
         {
           $set: {
+            imageUrl: persistentImageUrl,
             imageProvenance: {
               cid: imagePkResult.cid,
               actionId: imagePkResult.actionId,

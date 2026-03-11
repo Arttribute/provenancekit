@@ -622,17 +622,33 @@ export async function createActivity(
   }
 
   if (!encrypted && embedding) {
-    // Server-side duplicate detection only applies to non-encrypted resources.
-    // Cross-key dedup is fundamentally incompatible with encryption — the server
-    // cannot compare vectors it cannot read. Same-key dedup is handled client-side
-    // by the SDK before upload.
-    const nearMatch = await embedder.matchTop1(embedding, config.duplicateThreshold, kind);
-    if (nearMatch) {
-      throw new ProvenanceKitError("Duplicate", "Very similar resource already exists", {
-        recovery: "Consider using the existing resource",
-        details: { cid: nearMatch.cid, similarity: nearMatch.score },
-      });
+    // Near-duplicate detection: binary content only.
+    //
+    // CLIP/semantic embeddings measure *meaning*, not textual identity.
+    // Two completely different texts about the same topic (e.g. two different
+    // articles about the French Revolution, two different prompts asking for
+    // "an image of a cat") can score well above any practical cosine threshold.
+    //
+    // For text/tool resources the only reliable duplicate signal is an exact
+    // SHA-256 match — which is already checked above via CID collision.
+    // Applying vector near-duplicate to text would cause false positives
+    // (different user prompts linking to each other's provenance chains).
+    //
+    // Binary content (image/audio/video): semantic embeddings ARE a valid
+    // near-duplicate signal because two near-identical images/recordings
+    // will have nearly identical feature vectors regardless of minor edits,
+    // re-encoding, or slight crops.
+    const isBinaryKind = kind === "image" || kind === "audio" || kind === "video";
+    if (isBinaryKind) {
+      const nearMatch = await embedder.matchTop1(embedding, config.duplicateThreshold, kind);
+      if (nearMatch) {
+        throw new ProvenanceKitError("Duplicate", "Very similar resource already exists", {
+          recovery: "Consider using the existing resource",
+          details: { cid: nearMatch.cid, similarity: nearMatch.score },
+        });
+      }
     }
+    // text/tool: skip near-duplicate — exact CID check above is sufficient
   }
 
   // 8. Create records

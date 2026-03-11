@@ -30,6 +30,9 @@ export default async function AnalyticsPage({ params }: Props) {
     getProjectUsageByDay(projectId, user.privyDid),
   ]);
 
+  const totalCalls = usage?.totalCalls ?? 0;
+  const successRate = usage?.successRate ?? 0;
+
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
       <div>
@@ -44,17 +47,17 @@ export default async function AnalyticsPage({ params }: Props) {
         <StatCard
           icon={<Activity className="h-4 w-4" />}
           label="Total API Calls"
-          value={usage.totalCalls.toLocaleString()}
+          value={totalCalls.toLocaleString()}
         />
         <StatCard
           icon={<CheckCircle className="h-4 w-4 text-green-500" />}
           label="Success Rate"
-          value={`${usage.successRate.toFixed(1)}%`}
+          value={`${successRate.toFixed(1)}%`}
         />
         <StatCard
           icon={<AlertTriangle className="h-4 w-4 text-yellow-500" />}
           label="Error Rate"
-          value={`${(100 - usage.successRate).toFixed(1)}%`}
+          value={`${(100 - successRate).toFixed(1)}%`}
         />
       </div>
 

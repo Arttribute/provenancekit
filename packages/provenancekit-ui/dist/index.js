@@ -9360,7 +9360,7 @@ var Api = class {
   constructor(opts) {
     this.base = (opts.baseUrl ?? "https://api.provenancekit.com").replace(/\/$/, "");
     this.key = opts.apiKey;
-    this.f = opts.fetchFn ?? fetch;
+    this.f = opts.fetchFn ?? fetch.bind(globalThis);
   }
   h(extra = {}) {
     return this.key ? { Authorization: `Bearer ${this.key}`, ...extra } : extra;

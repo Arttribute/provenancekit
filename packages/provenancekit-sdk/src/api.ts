@@ -14,7 +14,9 @@ export class Api {
   constructor(opts: ApiClientOptions) {
     this.base = (opts.baseUrl ?? "https://api.provenancekit.com").replace(/\/$/, "");
     this.key = opts.apiKey;
-    this.f = opts.fetchFn ?? fetch;
+    // Bind to globalThis so native fetch never loses its window/global context
+    // when stored as a class property — prevents "Illegal invocation" in browsers.
+    this.f = opts.fetchFn ?? fetch.bind(globalThis);
   }
 
   private h(extra: HeadersInit = {}) {

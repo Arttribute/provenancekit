@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/ui/query-provider";
+import { ProvenanceKitProvider } from "@/components/providers/pk-provider";
 import "./globals.css";
 import { Space_Grotesk } from "next/font/google";
 
@@ -88,7 +89,18 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning className={spaceGrotesk.variable}>
       <body>
         <PrivyProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            {/*
+             * ProvenanceKitProvider points at /api/pk-proxy — adds Authorization
+             * server-side so PROVENANCEKIT_API_KEY never reaches the browser.
+             * All @provenancekit/ui interactive components (ProvenanceGraph,
+             * ProvenanceBundleView, ProvenanceSearch, FileUploadZone) work
+             * transparently through this proxy.
+             */}
+            <ProvenanceKitProvider apiUrl="/api/pk-proxy" apiKey="">
+              {children}
+            </ProvenanceKitProvider>
+          </QueryProvider>
         </PrivyProvider>
       </body>
     </html>

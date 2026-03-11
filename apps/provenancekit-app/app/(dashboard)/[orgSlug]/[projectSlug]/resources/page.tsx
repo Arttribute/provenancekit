@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { createPK } from "@/lib/pk-api";
+import { FileSimilaritySearch } from "@/components/resources/file-similarity-search";
 import type { ProvenanceBundle, Distribution } from "@provenancekit/sdk";
 
 interface Props {
@@ -107,7 +108,29 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
         </div>
       </div>
 
-      {/* Search form */}
+      {/* File similarity search — drag-and-drop to find similar recorded resources */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileBox className="h-4 w-4" />
+            Find Similar Resources
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <FileSimilaritySearch
+            onSelectCid={(selectedCid) => {
+              // Navigate to the same page with the selected CID as a search param
+              if (typeof window !== "undefined") {
+                const url = new URL(window.location.href);
+                url.searchParams.set("cid", selectedCid);
+                window.location.href = url.toString();
+              }
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* CID lookup form */}
       <form method="GET" className="flex gap-2">
         <Input
           name="cid"
