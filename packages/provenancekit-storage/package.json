@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/storage",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Unified storage abstraction for ProvenanceKit - database and file storage",
   "type": "module",
   "main": "./dist/index.js",
