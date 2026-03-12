@@ -78,11 +78,14 @@ export function ChatInput({
         const res = await fetch("/api/media/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
-        // Store original File object so FileProvenanceTag can run background provenance search
+        // Store original File object so FileProvenanceTag can run background provenance search.
+        // cid is set when Pinata is configured; textContent is set for text/* files.
         newAttachments.push({
           url: data.url,
+          cid: data.cid,
           mimeType: data.mimeType,
           name: data.name,
+          textContent: data.textContent,
           file,
         });
       } catch { /* skip */ }

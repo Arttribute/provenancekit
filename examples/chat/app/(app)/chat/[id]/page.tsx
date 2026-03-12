@@ -114,22 +114,44 @@ export default function ConversationPage({
   const handleFormSubmit = useCallback(
     (e: React.FormEvent, attachments?: FileAttachment[]) => {
       e.preventDefault();
-      if (!input.trim() && (!attachments || attachments.length === 0)) return;
+      const atts = attachments ?? [];
+      if (!input.trim() && atts.length === 0) return;
 
-      const imageAttachments = (attachments ?? []).filter((a) => a.mimeType.startsWith("image/"));
-
-      if (imageAttachments.length > 0) {
-        const parts: Array<{ type: "text" | "image"; text?: string; image?: string }> = [];
-        if (input.trim()) parts.push({ type: "text", text: input.trim() });
-        for (const att of imageAttachments) {
-          if (att.url) parts.push({ type: "image", image: att.url });
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        append({ role: "user", content: parts as any });
-        setInput("");
-      } else {
+      if (atts.length === 0) {
+        // Plain text — use handleSubmit (input state already set)
         handleSubmit(e);
+        return;
       }
+
+      // Build AI SDK content parts
+      const parts: Array<{ type: "text" | "image"; text?: string; image?: string }> = [];
+
+      // Include non-image file content first (text files inline, PDFs as a note)
+      for (const att of atts) {
+        if (!att.mimeType.startsWith("image/")) {
+          const fileText = att.textContent
+            ? `**Attached: ${att.name}**\n\n${att.textContent}`
+            : `**Attached file: ${att.name}** (${att.mimeType} — content not available inline)`;
+          parts.push({ type: "text", text: fileText });
+        }
+      }
+
+      // User text
+      if (input.trim()) parts.push({ type: "text", text: input.trim() });
+
+      // Images
+      for (const att of atts) {
+        if (att.mimeType.startsWith("image/") && att.url) {
+          parts.push({ type: "image", image: att.url });
+        }
+      }
+
+      // Attachment metadata passed in request body for provenance recording
+      const attachmentMeta = atts.map(({ cid, url, mimeType, name }) => ({ cid, url, mimeType, name }));
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      append({ role: "user", content: parts as any }, { body: { attachments: attachmentMeta } });
+      setInput("");
     },
     [input, handleSubmit, append, setInput]
   );

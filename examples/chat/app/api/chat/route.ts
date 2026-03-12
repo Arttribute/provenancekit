@@ -64,6 +64,7 @@ async function recordAndUpdateProvenance(opts: {
   imageToolResult: { name: string; result: unknown; blob?: Blob } | undefined;
   conversationFirstCid: string | undefined;
   conversationTotalMessages: number;
+  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string }>;
 }) {
   const {
     assistantMsgId,
@@ -78,6 +79,7 @@ async function recordAndUpdateProvenance(opts: {
     imageToolResult,
     conversationFirstCid,
     conversationTotalMessages,
+    attachments,
   } = opts;
 
   // 1. Record text-response provenance
@@ -89,6 +91,7 @@ async function recordAndUpdateProvenance(opts: {
     response: text,
     tokens,
     sessionId,
+    attachments,
   });
 
   if (!pkResult) {
@@ -208,7 +211,9 @@ export async function POST(req: Request) {
     userId,
     provider: bodyProvider = "openai",
     model: bodyModel = "gpt-4o",
+    attachments,
   } = body;
+  // attachments?: Array<{cid?: string, url?: string, mimeType: string, name: string}>
 
   // Load conversation from DB to get canonical model + sessionId
   const conversation = conversationId
@@ -347,16 +352,27 @@ export async function POST(req: Request) {
         const now = new Date();
         const msgIds = { user: uuidv4(), assistant: uuidv4() };
 
+        // Build user message contentParts in our MongoDB format from attachments metadata.
+        // We use the `attachments` body field (not the AI SDK content array) because it carries
+        // mimeType + name info that the raw content array lacks.
+        const userContentParts: Array<{ type: string; url?: string; mimeType?: string; name?: string }> = [];
+        if (Array.isArray(attachments) && attachments.length > 0) {
+          for (const att of attachments as Array<{ cid?: string; url?: string; mimeType: string; name: string }>) {
+            if (att.mimeType?.startsWith("image/") && att.url) {
+              userContentParts.push({ type: "image_url", url: att.url, mimeType: att.mimeType, name: att.name });
+            } else {
+              userContentParts.push({ type: "file", name: att.name, mimeType: att.mimeType });
+            }
+          }
+        }
+
         // Build user message (may have multi-modal contentParts)
         const userMsg: Partial<IMessage> = {
           _id: msgIds.user,
           conversationId,
           role: "user",
           content: userContent,
-          contentParts:
-            Array.isArray(lastUserMsg?.content)
-              ? lastUserMsg.content
-              : undefined,
+          contentParts: userContentParts.length > 0 ? userContentParts : undefined,
           createdAt: now,
         };
 
@@ -434,6 +450,7 @@ export async function POST(req: Request) {
           imageToolResult,
           conversationFirstCid: conversation?.provenance?.firstCid,
           conversationTotalMessages: conversation?.provenance?.totalMessages ?? 0,
+          attachments: Array.isArray(attachments) ? attachments : undefined,
         }).catch((err) => {
           console.error("[chat] provenance background error:", err);
           // Best-effort: mark the message as failed so the UI can surface it
