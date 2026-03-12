@@ -219,6 +219,7 @@ export default function ConversationPage({
             onChange={setInput}
             onSubmit={handleFormSubmit}
             isLoading={isLoading}
+            userId={userId}
           />
           <p className="text-center text-xs text-muted-foreground mt-2">
             Every response is provenance-tracked via{" "}

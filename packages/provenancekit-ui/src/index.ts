@@ -88,3 +88,8 @@ export {
   FileProvenanceTag,
   type FileProvenanceTagProps,
 } from "./components/provenance/file-provenance-tag";
+export {
+  FileOwnershipClaim,
+  type FileOwnershipClaimProps,
+  type FileOwnershipClaimResult,
+} from "./components/provenance/file-ownership-claim";

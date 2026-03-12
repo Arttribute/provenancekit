@@ -24,6 +24,10 @@ import {
   FileImage,
   Tag,
   Calendar,
+  UserCheck,
+  ExternalLink,
+  CheckCircle,
+  AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -202,13 +206,105 @@ interface ProvenanceState {
 export interface FileProvenanceTagProps {
   file: File | Blob;
   onViewDetail?: (cid: string) => void;
+  /**
+   * Called when the file has no prior provenance and the user makes an ownership
+   * decision. The callback should call /api/pk-proxy/claim and return the CID.
+   * If omitted, falls back to a plain "No prior provenance" label.
+   */
+  onClaim?: (owned: boolean) => Promise<{ cid: string; status: "claimed" | "referenced" }>;
   topK?: number;
   className?: string;
+}
+
+// ── Inline ownership-claim UI (mirrors FileOwnershipClaim from @provenancekit/ui) ──
+
+type ClaimState = "idle" | "claiming" | "claimed" | "referenced" | "error";
+
+function OwnershipClaim({
+  onClaim,
+  className,
+}: {
+  onClaim: (owned: boolean) => Promise<{ cid: string; status: "claimed" | "referenced" }>;
+  className?: string;
+}) {
+  const [claimState, setClaimState] = useState<ClaimState>("idle");
+
+  async function handleClaim(owned: boolean) {
+    setClaimState("claiming");
+    try {
+      const result = await onClaim(owned);
+      setClaimState(result.status === "claimed" ? "claimed" : "referenced");
+    } catch {
+      setClaimState("error");
+    }
+  }
+
+  if (claimState === "claiming") {
+    return (
+      <div className={cn("flex items-center gap-1 mt-1", className)}>
+        <Loader2 size={10} className="animate-spin text-muted-foreground" />
+        <span className="text-[10px] text-muted-foreground">Recording provenance…</span>
+      </div>
+    );
+  }
+  if (claimState === "claimed") {
+    return (
+      <div className={cn("flex items-center gap-1.5 mt-1", className)}>
+        <CheckCircle size={10} className="shrink-0 text-emerald-500" />
+        <span className="text-[10px] text-emerald-600">Claimed as your work</span>
+      </div>
+    );
+  }
+  if (claimState === "referenced") {
+    return (
+      <div className={cn("flex items-center gap-1.5 mt-1", className)}>
+        <CheckCircle size={10} className="shrink-0 text-blue-500" />
+        <span className="text-[10px] text-blue-600">Recorded as external source</span>
+      </div>
+    );
+  }
+  if (claimState === "error") {
+    return (
+      <div className={cn("flex items-center gap-1.5 mt-1", className)}>
+        <AlertCircle size={10} className="shrink-0 text-red-500" />
+        <span className="text-[10px] text-red-600">Failed —</span>
+        <button type="button" onClick={() => setClaimState("idle")} className="text-[10px] text-primary hover:underline">
+          retry
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className={cn("mt-1 rounded-md border border-border bg-background p-1.5", className)}>
+      <p className="text-[10px] text-muted-foreground mb-1.5 leading-snug">
+        New file — do you own this?
+      </p>
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => handleClaim(true)}
+          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 transition-colors"
+        >
+          <UserCheck size={9} />
+          Yes, I own it
+        </button>
+        <button
+          type="button"
+          onClick={() => handleClaim(false)}
+          className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+        >
+          <ExternalLink size={9} />
+          No, I don't
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function FileProvenanceTag({
   file,
   onViewDetail,
+  onClaim,
   topK = 3,
   className,
 }: FileProvenanceTagProps) {
@@ -265,6 +361,7 @@ export function FileProvenanceTag({
   }
 
   if (state.status === "not-found") {
+    if (onClaim) return <OwnershipClaim onClaim={onClaim} className={className} />;
     return (
       <div className={cn("flex items-center gap-1 mt-1", className)}>
         <ShieldOff size={10} className="text-muted-foreground/60" />

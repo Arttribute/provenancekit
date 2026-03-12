@@ -17,6 +17,7 @@ import { cn } from "../../lib/utils";
 import { useProvenanceKit } from "../../context/provenance-kit-provider";
 import { CidDisplay } from "../primitives/cid-display";
 import { formatDate } from "../../lib/format";
+import { FileOwnershipClaim, type FileOwnershipClaimResult } from "./file-ownership-claim";
 import type { UploadMatchResult, ProvenanceBundle } from "@provenancekit/sdk";
 
 export interface FileProvenanceTagProps {
@@ -24,6 +25,14 @@ export interface FileProvenanceTagProps {
   file: File | Blob;
   /** Called when user clicks "View Full Provenance" */
   onViewDetail?: (cid: string) => void;
+  /**
+   * Called when the file has no prior provenance and the user makes an ownership decision.
+   * `owned = true` → record as "create" (user is the creator)
+   * `owned = false` → record as "reference" (external/unknown source)
+   * Should upload the file and return its CID + status.
+   * If omitted, falls back to a plain "No prior provenance" label.
+   */
+  onClaim?: (owned: boolean) => Promise<FileOwnershipClaimResult>;
   /** Max matches to request (default 3) */
   topK?: number;
   className?: string;
@@ -168,6 +177,7 @@ function BundleSummary({
 export function FileProvenanceTag({
   file,
   onViewDetail,
+  onClaim,
   topK = 3,
   className,
 }: FileProvenanceTagProps) {
@@ -218,6 +228,11 @@ export function FileProvenanceTag({
   }
 
   if (state.status === "not-found") {
+    // If the host provides an onClaim callback, let the user claim ownership.
+    // Otherwise fall back to a simple label.
+    if (onClaim) {
+      return <FileOwnershipClaim onClaim={onClaim} className={className} />;
+    }
     return (
       <div className={cn("flex items-center gap-1 mt-1", className)}>
         <ShieldOff size={10} className="text-[var(--pk-muted-foreground,#94a3b8)]" />
