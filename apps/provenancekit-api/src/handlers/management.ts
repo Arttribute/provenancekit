@@ -689,6 +689,36 @@ management.get("/projects/:id/usage", async (c) => {
   });
 });
 
+/**
+ * GET /management/projects/:id/logs?limit=50
+ * Returns the most recent API calls for a project (up to 100).
+ * Used by the dashboard to show a live activity feed.
+ */
+management.get("/projects/:id/logs", async (c) => {
+  const userId = getMgmtUserId(c);
+  const { id } = c.req.param();
+  const limit = Math.min(Number(c.req.query("limit") ?? "50"), 100);
+
+  const resolved = await resolveProjectMembership(id, userId);
+  if (!resolved) return c.json({ error: "Not found" }, 404);
+
+  const database = db();
+  const logs = await database
+    .select({
+      id: appUsageRecords.id,
+      endpoint: appUsageRecords.endpoint,
+      resourceType: appUsageRecords.resourceType,
+      statusCode: appUsageRecords.statusCode,
+      timestamp: appUsageRecords.timestamp,
+    })
+    .from(appUsageRecords)
+    .where(eq(appUsageRecords.projectId, id))
+    .orderBy(desc(appUsageRecords.timestamp))
+    .limit(limit);
+
+  return c.json({ logs });
+});
+
 // ─── Auth utilities ───────────────────────────────────────────────────────────
 
 /**

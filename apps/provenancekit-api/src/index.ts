@@ -70,6 +70,11 @@ export function createApp(opts?: CreateAppOptions) {
     excludePrefixes: ["/management"],
   }));
 
+  // Usage recording — registered BEFORE routes so it wraps all route handlers.
+  // Uses the after-pattern (calls next() first, then records the status code).
+  // No-ops when DATABASE_URL is not set or the request has no projectId claim.
+  app.use("*", createUsageMiddleware());
+
   // Management control plane — own auth, no pk_live_ key required
   app.use("/management/*", createManagementAuthMiddleware());
   app.route("/management", management);
@@ -162,9 +167,6 @@ async function main() {
     app.use("/activities*", createRateLimitMiddleware());
     app.use("/entities*", createRateLimitMiddleware());
     app.use("/resources*", createRateLimitMiddleware());
-
-    // Usage recording (fire-and-forget via Drizzle, only when DATABASE_URL is set)
-    app.use("*", createUsageMiddleware());
 
     // Start HTTP server
     serve({ fetch: app.fetch, port: config.port }, ({ port }) =>

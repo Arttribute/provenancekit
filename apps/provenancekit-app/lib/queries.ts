@@ -6,10 +6,10 @@
  * from the server session (never from client-supplied input).
  */
 
-import { mgmt, type MgmtOrg, type MgmtProject, type MgmtApiKey } from "@/lib/management-client";
+import { mgmt, type MgmtOrg, type MgmtProject, type MgmtApiKey, type MgmtUsageLog } from "@/lib/management-client";
 
 // Re-export types for consumers that previously imported from here
-export type { MgmtOrg as OrgWithRole, MgmtProject as ProjectWithOrg, MgmtApiKey as ApiKeyRow };
+export type { MgmtOrg as OrgWithRole, MgmtProject as ProjectWithOrg, MgmtApiKey as ApiKeyRow, MgmtUsageLog };
 
 /** Get all orgs where a user is a member (with their role). */
 export async function getUserOrgs(userId: string): Promise<MgmtOrg[]> {
@@ -91,6 +91,16 @@ export async function getProjectUsageByDay(projectId: string, userId: string) {
 export async function getOrgMembers(orgSlug: string, userId: string) {
   try {
     return await mgmt(userId).members.list(orgSlug);
+  } catch {
+    return [];
+  }
+}
+
+/** Recent API call logs for a project (up to 50 most recent). */
+export async function getProjectRecentLogs(projectId: string, userId: string): Promise<MgmtUsageLog[]> {
+  try {
+    const data = await mgmt(userId).logs.recent(projectId);
+    return data.logs;
   } catch {
     return [];
   }

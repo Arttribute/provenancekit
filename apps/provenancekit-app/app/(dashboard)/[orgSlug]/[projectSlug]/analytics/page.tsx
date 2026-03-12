@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import { redirect, notFound } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
-import { getOrgBySlug, getProjectBySlug, getProjectUsageSummary, getProjectUsageByDay } from "@/lib/queries";
+import { getOrgBySlug, getProjectBySlug, getProjectUsageSummary, getProjectUsageByDay, getProjectRecentLogs } from "@/lib/queries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BarChart3, Activity, CheckCircle, AlertTriangle } from "lucide-react";
+import { BarChart3, Activity, CheckCircle, AlertTriangle, ScrollText } from "lucide-react";
 import { UsageChart } from "@/components/analytics/usage-chart";
+import { ActivityLog } from "@/components/analytics/activity-log";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
@@ -25,9 +26,10 @@ export default async function AnalyticsPage({ params }: Props) {
   if (!project) notFound();
 
   const projectId = project.id;
-  const [usage, dailyData] = await Promise.all([
+  const [usage, dailyData, recentLogs] = await Promise.all([
     getProjectUsageSummary(projectId, user.privyDid),
     getProjectUsageByDay(projectId, user.privyDid),
+    getProjectRecentLogs(projectId, user.privyDid),
   ]);
 
   const totalCalls = usage?.totalCalls ?? 0;
@@ -71,6 +73,19 @@ export default async function AnalyticsPage({ params }: Props) {
         </CardHeader>
         <CardContent>
           <UsageChart data={dailyData} />
+        </CardContent>
+      </Card>
+
+      {/* Recent activity log */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ScrollText className="h-4 w-4" />
+            Recent Activity
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ActivityLog logs={recentLogs} />
         </CardContent>
       </Card>
     </div>

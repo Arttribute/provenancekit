@@ -117,16 +117,7 @@ export default async function ResourcesPage({ params, searchParams }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
-          <FileSimilaritySearch
-            onSelectCid={(selectedCid) => {
-              // Navigate to the same page with the selected CID as a search param
-              if (typeof window !== "undefined") {
-                const url = new URL(window.location.href);
-                url.searchParams.set("cid", selectedCid);
-                window.location.href = url.toString();
-              }
-            }}
-          />
+          <FileSimilaritySearch />
         </CardContent>
       </Card>
 
