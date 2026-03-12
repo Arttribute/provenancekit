@@ -11,8 +11,7 @@ export const contentType = "image/png";
 export default async function Image() {
   const fonts = await loadOgFonts();
 
-  return new ImageResponse(<OgImageJsx hasFonts={fonts.length > 0} />, {
-    ...size,
-    fonts,
-  });
+  const imageOptions = fonts.length > 0 ? { ...size, fonts } : { ...size };
+
+  return new ImageResponse(<OgImageJsx hasFonts={fonts.length > 0} />, imageOptions);
 }
