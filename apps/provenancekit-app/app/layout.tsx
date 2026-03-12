@@ -12,7 +12,7 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
-const baseUrl = "https://provenancekit.com";
+const baseUrl = "https://www.provenancekit.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
