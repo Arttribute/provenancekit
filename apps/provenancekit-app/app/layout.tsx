@@ -50,10 +50,10 @@ export const metadata: Metadata = {
     locale: "en_US",
     images: [
       {
-        url: "/og-image.png",
+        url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "ProvenanceKit — Content Provenance for Human-AI Works",
+        alt: "ProvenanceKit — Verifiable records of how it was made.",
       },
     ],
   },
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
       "ProvenanceKit — Open Source Content Provenance Toolkit for Human-AI Works",
     description:
       "Record, verify, and communicate how Human-AI content was created. Onchain anchoring, C2PA support, and programmable attribution — open source.",
-    images: ["/og-image.png"],
+    images: ["/opengraph-image"],
   },
   robots: {
     index: true,
