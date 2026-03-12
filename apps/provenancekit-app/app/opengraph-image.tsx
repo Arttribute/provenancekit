@@ -7,27 +7,50 @@ export const contentType = "image/png";
 
 const BASE_URL = "https://provenancekit.com";
 
-export default async function Image() {
-  // Fetch hero photo to embed directly (avoids Satori external fetch issues)
-  let photoSrc: string | undefined;
+async function loadGoogleFont(family: string, weight: number) {
   try {
-    const res = await fetch(`${BASE_URL}/hero-photo.jpg`);
-    if (res.ok) {
-      const buf = await res.arrayBuffer();
-      const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
-      photoSrc = `data:image/jpeg;base64,${b64}`;
-    }
+    const css = await fetch(
+      `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&display=swap`,
+      {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        },
+      }
+    ).then((r) => r.text());
+    const match = css.match(/src: url\((.+?)\) format\('woff2'\)/);
+    if (!match) return null;
+    return fetch(match[1]).then((r) => r.arrayBuffer());
   } catch {
-    // no photo — card renders without image
+    return null;
   }
+}
 
-  const infoRows = [
-    { label: "Date", value: "March 8, 2026", mono: false, green: false },
-    { label: "Produced by", value: "Alex Chen", mono: false, green: false },
-    { label: "AI tools used", value: "Midjourney, DALL-E 3", mono: false, green: false },
-    { label: "License", value: "CC BY 4.0", mono: false, green: false },
-    { label: "Verified onchain", value: "0x8f2e…4a1c", mono: true, green: true },
-  ];
+const infoRows = [
+  { label: "Date", value: "March 8, 2026", mono: false, green: false },
+  { label: "Produced by", value: "Alex Chen", mono: false, green: false },
+  { label: "AI tools used", value: "Midjourney, DALL-E 3", mono: false, green: false },
+  { label: "License", value: "CC BY 4.0", mono: false, green: false },
+  { label: "Verified onchain", value: "0x8f2e…4a1c", mono: true, green: true },
+];
+
+const pillars = [
+  { label: "Open standard", sub: "EAA · Entity · Action · Attribution" },
+  { label: "Onchain by default", sub: "Every record is independently verifiable" },
+  { label: "Privacy by design", sub: "Selective disclosure built in" },
+];
+
+export default async function Image() {
+  const [fontRegular, fontBold] = await Promise.all([
+    loadGoogleFont("Space Grotesk", 500),
+    loadGoogleFont("Space Grotesk", 700),
+  ]);
+
+  const fonts: { name: string; data: ArrayBuffer; weight: number; style: "normal" }[] = [];
+  if (fontRegular) fonts.push({ name: "Space Grotesk", data: fontRegular, weight: 500, style: "normal" });
+  if (fontBold) fonts.push({ name: "Space Grotesk", data: fontBold, weight: 700, style: "normal" });
+
+  const fontFamily = fonts.length ? "'Space Grotesk', sans-serif" : "ui-sans-serif, sans-serif";
 
   return new ImageResponse(
     (
@@ -40,7 +63,7 @@ export default async function Image() {
           background: "#ffffff",
           position: "relative",
           overflow: "hidden",
-          fontFamily: "ui-sans-serif, system-ui, sans-serif",
+          fontFamily,
         }}
       >
         {/* Blue grid */}
@@ -54,33 +77,7 @@ export default async function Image() {
           }}
         />
 
-        {/* Soft blue glow — top right */}
-        <div
-          style={{
-            position: "absolute",
-            top: "-40px",
-            right: "140px",
-            width: "600px",
-            height: "360px",
-            borderRadius: "50%",
-            background: "rgba(219,234,254,0.65)",
-          }}
-        />
-
-        {/* Soft glow — left */}
-        <div
-          style={{
-            position: "absolute",
-            top: "60px",
-            left: "-40px",
-            width: "440px",
-            height: "300px",
-            borderRadius: "50%",
-            background: "rgba(241,245,249,0.7)",
-          }}
-        />
-
-        {/* Main layout */}
+        {/* Main content */}
         <div
           style={{
             position: "relative",
@@ -107,8 +104,9 @@ export default async function Image() {
                 style={{
                   color: "white",
                   fontSize: "12px",
-                  fontWeight: 800,
+                  fontWeight: 700,
                   letterSpacing: "-0.5px",
+                  fontFamily,
                 }}
               >
                 Pr
@@ -120,6 +118,7 @@ export default async function Image() {
                 fontSize: "17px",
                 fontWeight: 500,
                 letterSpacing: "-0.2px",
+                fontFamily,
               }}
             >
               ProvenanceKit
@@ -164,9 +163,10 @@ export default async function Image() {
                   display: "flex",
                   flexDirection: "column",
                   fontSize: "82px",
-                  fontWeight: 800,
+                  fontWeight: 700,
                   lineHeight: 0.9,
                   letterSpacing: "-3px",
+                  fontFamily,
                 }}
               >
                 <span style={{ color: "#0f172a" }}>Verifiable</span>
@@ -185,60 +185,55 @@ export default async function Image() {
                 flexDirection: "column",
                 borderRadius: "18px",
                 overflow: "hidden",
-                border: "1px solid rgba(226,232,240,0.9)",
+                border: "1px solid #e2e8f0",
                 background: "white",
                 boxShadow:
                   "0 20px 60px rgba(59,130,246,0.10), 0 4px 16px rgba(0,0,0,0.06)",
               }}
             >
               {/* Photo */}
-              {photoSrc && (
+              <div
+                style={{
+                  position: "relative",
+                  height: "196px",
+                  display: "flex",
+                  overflow: "hidden",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`${BASE_URL}/hero-photo.jpg`}
+                  alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                />
+                {/* Squircle badge */}
                 <div
                   style={{
-                    position: "relative",
-                    height: "196px",
+                    position: "absolute",
+                    top: "12px",
+                    right: "12px",
+                    width: "34px",
+                    height: "34px",
+                    borderRadius: "28%",
+                    background: "rgba(255,255,255,0.92)",
+                    border: "1px solid rgba(255,255,255,0.6)",
                     display: "flex",
-                    overflow: "hidden",
+                    alignItems: "center",
+                    justifyContent: "center",
                   }}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={photoSrc}
-                    alt=""
+                  <span
                     style={{
-                      width: "100%",
-                      height: "100%",
-                      objectFit: "cover",
-                    }}
-                  />
-                  {/* Squircle badge */}
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "12px",
-                      right: "12px",
-                      width: "34px",
-                      height: "34px",
-                      borderRadius: "28%",
-                      background: "rgba(255,255,255,0.92)",
-                      border: "1px solid rgba(255,255,255,0.6)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      color: "#0f172a",
+                      fontSize: "9px",
+                      fontWeight: 700,
+                      fontFamily,
                     }}
                   >
-                    <span
-                      style={{
-                        color: "#0f172a",
-                        fontSize: "9px",
-                        fontWeight: 800,
-                      }}
-                    >
-                      Pr
-                    </span>
-                  </div>
+                    Pr
+                  </span>
                 </div>
-              )}
+              </div>
 
               {/* Card header */}
               <div
@@ -266,7 +261,8 @@ export default async function Image() {
                     style={{
                       color: "white",
                       fontSize: "8px",
-                      fontWeight: 800,
+                      fontWeight: 700,
+                      fontFamily,
                     }}
                   >
                     Pr
@@ -278,6 +274,7 @@ export default async function Image() {
                       fontSize: "13px",
                       fontWeight: 600,
                       color: "#0f172a",
+                      fontFamily,
                     }}
                   >
                     ProvenanceKit
@@ -300,7 +297,6 @@ export default async function Image() {
                   padding: "8px 18px 12px",
                   display: "flex",
                   flexDirection: "column",
-                  gap: "0px",
                 }}
               >
                 {infoRows.map(({ label, value, mono, green }) => (
@@ -313,7 +309,7 @@ export default async function Image() {
                       padding: "5px 0",
                     }}
                   >
-                    <span style={{ fontSize: "11px", color: "#94a3b8" }}>
+                    <span style={{ fontSize: "11px", color: "#94a3b8", fontFamily }}>
                       {label}
                     </span>
                     <span
@@ -321,9 +317,7 @@ export default async function Image() {
                         fontSize: "11px",
                         fontWeight: 500,
                         color: green ? "#16a34a" : "#334155",
-                        fontFamily: mono
-                          ? "ui-monospace, monospace"
-                          : "inherit",
+                        fontFamily: mono ? "ui-monospace, monospace" : fontFamily,
                       }}
                     >
                       {value}
@@ -348,20 +342,7 @@ export default async function Image() {
             height: "68px",
           }}
         >
-          {[
-            {
-              label: "Open standard",
-              sub: "EAA · Entity · Action · Attribution",
-            },
-            {
-              label: "Onchain by default",
-              sub: "Every record is independently verifiable",
-            },
-            {
-              label: "Privacy by design",
-              sub: "Selective disclosure built in",
-            },
-          ].map(({ label, sub }, i) => (
+          {pillars.map(({ label, sub }, i) => (
             <div
               key={label}
               style={{
@@ -370,7 +351,8 @@ export default async function Image() {
                 flexDirection: "column",
                 justifyContent: "center",
                 padding: "0 32px",
-                borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.2)" : "none",
+                borderLeft:
+                  i > 0 ? "1px solid rgba(255,255,255,0.2)" : "none",
               }}
             >
               <span
@@ -378,6 +360,7 @@ export default async function Image() {
                   color: "white",
                   fontSize: "13px",
                   fontWeight: 600,
+                  fontFamily,
                 }}
               >
                 {label}
@@ -387,6 +370,7 @@ export default async function Image() {
                   color: "rgba(255,255,255,0.65)",
                   fontSize: "11px",
                   marginTop: "2px",
+                  fontFamily,
                 }}
               >
                 {sub}
@@ -396,6 +380,6 @@ export default async function Image() {
         </div>
       </div>
     ),
-    { ...size }
+    { ...size, fonts }
   );
 }
