@@ -61,7 +61,7 @@ const jsonLd = {
       "@id": `${baseUrl}/#organization`,
       name: "ProvenanceKit",
       url: baseUrl,
-      logo: { "@type": "ImageObject", url: `${baseUrl}/og-image.png` },
+      logo: { "@type": "ImageObject", url: `${baseUrl}/opengraph-image` },
       sameAs: [
         "https://github.com/Arttribute/provenancekit",
         "https://docs.provenancekit.com",
