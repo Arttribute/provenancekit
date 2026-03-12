@@ -29,15 +29,11 @@ import { cn } from "@/lib/utils";
 
 // ── Minimal types (mirrors @provenancekit/sdk) ───────────────────────────────
 
+// /search/file returns SearchResult[] directly — a plain array, no wrapper object.
 interface Match {
   cid: string;
-  type: string;
+  type?: string;
   score: number;
-}
-
-interface UploadMatchResult {
-  verdict: "auto" | "review" | "no-match";
-  matches: Match[];
 }
 
 interface ProvenanceEntity {
@@ -199,7 +195,7 @@ function BundleSummary({
 
 interface ProvenanceState {
   status: "idle" | "loading" | "found" | "not-found" | "error";
-  result?: UploadMatchResult;
+  matches?: Match[];
   topBundle?: ProvenanceBundle;
 }
 
@@ -233,19 +229,20 @@ export function FileProvenanceTag({
         setState({ status: "error" });
         return;
       }
-      const result: UploadMatchResult = await res.json();
-      if (!result.matches?.length || result.verdict === "no-match") {
-        setState({ status: "not-found", result });
+      // API returns SearchResult[] — a plain array [{ cid, score, type? }, ...]
+      const matches: Match[] = await res.json();
+      if (!matches?.length) {
+        setState({ status: "not-found", matches: [] });
         return;
       }
       // Fetch bundle for top match
-      const topCid = result.matches[0].cid;
+      const topCid = matches[0].cid;
       let topBundle: ProvenanceBundle | undefined;
       try {
         const bundleRes = await fetch(`/api/pk-proxy/bundle/${topCid}`);
         if (bundleRes.ok) topBundle = await bundleRes.json();
       } catch { /* non-fatal */ }
-      setState({ status: "found", result, topBundle });
+      setState({ status: "found", matches, topBundle });
     } catch {
       setState({ status: "error" });
     }
@@ -276,7 +273,7 @@ export function FileProvenanceTag({
     );
   }
 
-  const topMatch = state.result?.matches?.[0];
+  const topMatch = state.matches?.[0];
   if (!topMatch) return null;
 
   const creator = state.topBundle?.entities?.find(
@@ -285,7 +282,7 @@ export function FileProvenanceTag({
   const headerLabel = creator?.name
     ? `By ${creator.name}`
     : `${Math.round(topMatch.score * 100)}% match`;
-  const extraMatches = (state.result?.matches?.length ?? 0) - 1;
+  const extraMatches = (state.matches?.length ?? 0) - 1;
 
   return (
     <div
