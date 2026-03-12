@@ -1,0 +1,231 @@
+---
+title: "FileProvenanceTag & FileOwnershipClaim"
+description: "Inline provenance search for file attachments. Shows match info when a file is known, and asks users to claim ownership when it isn't."
+---
+
+> When a user attaches a file, `FileProvenanceTag` searches the provenance system in the background and shows one of three states: **found** (the file is known), **not found** (the file is new — show ownership claim), or **loading**. `FileOwnershipClaim` handles the not-found state: it asks the user whether they own the file, records it on-chain, and returns the CID.
+
+## FileProvenanceTag
+
+Shows below an uploaded file attachment. Runs `uploadAndMatch` on mount, then:
+
+- **Found** — shows the creator name (or match %) with an expandable bundle summary
+- **Not found + `onClaim` provided** — shows `FileOwnershipClaim` inline
+- **Not found, no `onClaim`** — shows a plain "No prior provenance" label
+- **Loading** — shows a spinner while searching
+
+```tsx
+import { FileProvenanceTag } from "@provenancekit/ui";
+
+// Minimal — just shows match info, no ownership claim
+<FileProvenanceTag
+  file={uploadedFile}
+  onViewDetail={(cid) => router.push(`/provenance/${cid}`)}
+/>
+
+// With ownership claim (shown when file has no prior provenance)
+<FileProvenanceTag
+  file={uploadedFile}
+  onViewDetail={(cid) => router.push(`/provenance/${cid}`)}
+  onClaim={async (owned) => {
+    const res = await fetch("/api/claim", {
+      method: "POST",
+      body: buildFormData(uploadedFile, owned, userId),
+    });
+    const { cid, status } = await res.json();
+    return { cid, status }; // "claimed" | "referenced"
+  }}
+  topK={3}
+/>
+```
+
+### Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `file` | `File \| Blob` | **required** | The file to search for |
+| `onViewDetail` | `(cid: string) => void` | — | Called when user clicks "View full →" |
+| `onClaim` | `(owned: boolean) => Promise<{ cid: string; status: "claimed" \| "referenced" }>` | — | Ownership claim callback. If provided, shown when `status === "not-found"` |
+| `topK` | `number` | `3` | Max results to request from the search API |
+| `className` | `string` | — | Additional CSS classes |
+
+### onClaim callback
+
+The `onClaim` callback receives a boolean:
+
+| `owned` | Meaning | Suggested action type |
+|---------|---------|----------------------|
+| `true`  | User created the file | `action.type = "create"` |
+| `false` | File is from an external/unknown source | `action.type = "reference"` |
+
+The callback must return `{ cid: string; status: "claimed" | "referenced" }`. The returned CID should be included as `inputCids` on any downstream provenance action.
+
+---
+
+## FileOwnershipClaim
+
+A standalone component that shows the ownership question, handles loading and success states. `FileProvenanceTag` renders this automatically in the not-found state when `onClaim` is provided — but you can also use it directly.
+
+```tsx
+import { FileOwnershipClaim } from "@provenancekit/ui";
+
+<FileOwnershipClaim
+  onClaim={async (owned) => {
+    const res = await fetch("/api/claim", {
+      method: "POST",
+      body: JSON.stringify({ fileId, owned, userId }),
+      headers: { "Content-Type": "application/json" },
+    });
+    const { cid } = await res.json();
+    return { cid, status: owned ? "claimed" : "referenced" };
+  }}
+/>
+```
+
+States rendered:
+
+| State | UI |
+|-------|----|
+| `idle` | "New file — do you own this?" + \[Yes, I own it\] \[No, I don't\] |
+| `claiming` | Spinner + "Recording provenance…" |
+| `claimed` | ✓ "Claimed as your work" (green) |
+| `referenced` | ✓ "Recorded as external source" (blue) |
+| `error` | "Failed to record — retry" |
+
+### Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `onClaim` | `(owned: boolean) => Promise<FileOwnershipClaimResult>` | **required** — called when user makes a decision |
+| `className` | `string` | Additional CSS classes |
+
+---
+
+## Full Integration Example
+
+Here is the full integration pattern used in the PK Chat example app:
+
+### 1. Upload route stores file to IPFS and returns a CID
+
+```typescript
+// app/api/media/upload/route.ts
+import { NextRequest, NextResponse } from "next/server";
+
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const file = form.get("file") as File;
+
+  // Upload to Pinata/IPFS for a persistent URL
+  const pinata = await uploadToPinata(file, process.env.PINATA_JWT!);
+  return NextResponse.json({
+    url: pinata.url,  // https://gateway.pinata.cloud/ipfs/Qm...
+    cid: pinata.cid,  // Qm... — use this as inputCid later
+    mimeType: file.type,
+    name: file.name,
+  });
+}
+```
+
+### 2. Claim route records ownership in ProvenanceKit
+
+```typescript
+// app/api/claim/route.ts
+import { getPKClient } from "@/lib/pk-client";
+
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  const file = form.get("file") as File;
+  const owned = form.get("owned") === "true";
+  const userId = form.get("userId") as string;
+
+  const pk = getPKClient();
+  const entityId = await pk.entity({ role: "human", name: userId });
+
+  const result = await pk.file(file, {
+    entity: { id: entityId, role: "human", name: userId },
+    action: {
+      type: owned ? "create" : "reference",
+    },
+    resourceType: file.type.startsWith("image/") ? "image" : "text",
+  });
+  // On-chain recording fires automatically if CHAIN_PRIVATE_KEY is set.
+
+  return NextResponse.json({
+    cid: result.cid,
+    actionId: result.actionId,
+    status: owned ? "claimed" : "referenced",
+  });
+}
+```
+
+### 3. AttachmentChip wires everything together
+
+```tsx
+function AttachmentChip({ file, userId, onCidAssigned }) {
+  async function handleClaim(owned: boolean) {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("owned", String(owned));
+    form.append("userId", userId ?? "anonymous");
+    const res = await fetch("/api/claim", { method: "POST", body: form });
+    if (!res.ok) throw new Error("Claim failed");
+    const data = await res.json();
+    onCidAssigned(data.cid); // update CID in parent state
+    return { cid: data.cid, status: data.status };
+  }
+
+  return (
+    <div>
+      <span>{file.name}</span>
+      <FileProvenanceTag
+        file={file}
+        onClaim={handleClaim}
+        onViewDetail={(cid) => router.push(`/provenance/${cid}`)}
+      />
+    </div>
+  );
+}
+```
+
+### 4. CID flows into the AI response provenance action
+
+```typescript
+// When the message is sent, claimed CIDs are included as inputCids
+const response = await pk.file(responseBlob, {
+  entity: { id: agentId, role: "ai" },
+  action: {
+    type: "generate",
+    inputCids: [promptCid, ...attachmentCids],  // ← attachment CIDs here
+  },
+  resourceType: "text",
+});
+```
+
+The provenance graph then shows the full chain:
+```
+[user: alice] ──creates──► [file.png (CID: Qm...)]
+                                  │
+                           inputCid of
+                                  │
+                                  ▼
+[gpt-4o] ──generates──► [response.txt (CID: Qm...)]
+```
+
+---
+
+## Ownership Semantics
+
+| Decision | `action.type` | EAA meaning |
+|----------|--------------|-------------|
+| "Yes, I own it" | `"create"` | User is the original creator. The resource is a **claimed** work. |
+| "No, I don't" | `"reference"` | User is citing an external source. Original creator is unknown. The resource is an **unclaimed** input. |
+
+Both cases result in a CID that can be referenced in downstream provenance actions. The difference is the action type and whether a human creator entity is recorded alongside the resource.
+
+<Note>
+  Ownership is asserted, not verified. ProvenanceKit records the assertion — trust is established by the completeness and consistency of the provenance graph over time.
+</Note>
+
+<Tip>
+  For files that already have a 100% match in the system (returned by `FileProvenanceTag`), no ownership claim is needed — the existing CID should be reused directly as an `inputCid`.
+</Tip>
