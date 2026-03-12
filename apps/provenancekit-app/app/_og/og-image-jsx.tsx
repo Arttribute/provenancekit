@@ -14,10 +14,8 @@ const pillars = [
   { label: "Privacy by design", sub: "Selective disclosure built in" },
 ];
 
-export function OgImageJsx({ hasFonts }: { hasFonts: boolean }) {
-  const fontFamily = hasFonts
-    ? "'Space Grotesk', sans-serif"
-    : "ui-sans-serif, sans-serif";
+export function OgImageJsx() {
+  const fontFamily = "'Space Grotesk', sans-serif";
 
   return (
     <div
