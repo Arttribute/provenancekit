@@ -1,5 +1,3 @@
-const BASE_URL = "https://www.provenancekit.com";
-
 const infoRows = [
   { label: "Date", value: "March 8, 2026", mono: false, green: false },
   { label: "Produced by", value: "Alex Chen", mono: false, green: false },
@@ -25,29 +23,15 @@ export function OgImageJsx() {
         display: "flex",
         flexDirection: "column",
         background: "#ffffff",
-        position: "relative",
-        overflow: "hidden",
         fontFamily,
       }}
     >
-      {/* Blue grid */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage:
-            "linear-gradient(rgba(59,130,246,0.09) 1px, transparent 1px), linear-gradient(90deg, rgba(59,130,246,0.09) 1px, transparent 1px)",
-          backgroundSize: "72px 72px",
-        }}
-      />
-
       {/* Main content */}
       <div
         style={{
-          position: "relative",
           display: "flex",
           flexDirection: "column",
-          height: "100%",
+          flex: 1,
           padding: "52px 72px 0 72px",
         }}
       >
@@ -144,56 +128,64 @@ export function OgImageJsx() {
           <div
             style={{
               display: "flex",
-              width: "380px",
+              width: "360px",
               flexShrink: 0,
               flexDirection: "column",
-              borderRadius: "18px",
+              borderRadius: "16px",
               overflow: "hidden",
               border: "1px solid #e2e8f0",
               background: "white",
-              boxShadow:
-                "0 20px 60px rgba(59,130,246,0.10), 0 4px 16px rgba(0,0,0,0.06)",
             }}
           >
-            {/* Photo */}
+            {/* Card photo area — solid blue header, no external image fetch */}
             <div
               style={{
-                position: "relative",
-                height: "196px",
+                height: "160px",
+                background: "#1e40af",
                 display: "flex",
-                overflow: "hidden",
+                alignItems: "flex-end",
+                justifyContent: "flex-end",
+                padding: "12px",
+                position: "relative",
               }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`${BASE_URL}/hero-photo.jpg`}
-                alt=""
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-              />
-              {/* Squircle badge */}
+              {/* Decorative dots pattern — pure CSS, no external resource */}
               <div
                 style={{
                   position: "absolute",
-                  top: "12px",
-                  right: "12px",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: "rgba(255,255,255,0.04)",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "20px",
+                  left: "20px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.3)" }} />
+                <div style={{ width: "40px", height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.15)" }} />
+              </div>
+              {/* Squircle badge */}
+              <div
+                style={{
                   width: "34px",
                   height: "34px",
                   borderRadius: "28%",
                   background: "rgba(255,255,255,0.92)",
-                  border: "1px solid rgba(255,255,255,0.6)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <span
-                  style={{
-                    color: "#0f172a",
-                    fontSize: "9px",
-                    fontWeight: 700,
-                    fontFamily,
-                  }}
-                >
+                <span style={{ color: "#0f172a", fontSize: "9px", fontWeight: 700, fontFamily }}>
                   Pr
                 </span>
               </div>
@@ -221,35 +213,15 @@ export function OgImageJsx() {
                   flexShrink: 0,
                 }}
               >
-                <span
-                  style={{
-                    color: "white",
-                    fontSize: "8px",
-                    fontWeight: 700,
-                    fontFamily,
-                  }}
-                >
+                <span style={{ color: "white", fontSize: "8px", fontWeight: 700, fontFamily }}>
                   Pr
                 </span>
               </div>
               <div style={{ display: "flex", flexDirection: "column" }}>
-                <span
-                  style={{
-                    fontSize: "13px",
-                    fontWeight: 600,
-                    color: "#0f172a",
-                    fontFamily,
-                  }}
-                >
+                <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a", fontFamily }}>
                   ProvenanceKit
                 </span>
-                <span
-                  style={{
-                    fontSize: "10px",
-                    color: "#94a3b8",
-                    fontFamily: "ui-monospace, monospace",
-                  }}
-                >
+                <span style={{ fontSize: "10px", color: "#94a3b8", fontFamily: "ui-monospace, monospace" }}>
                   sunflower.png
                 </span>
               </div>
@@ -296,13 +268,8 @@ export function OgImageJsx() {
       {/* Bottom bar */}
       <div
         style={{
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
           background: "#2563eb",
           display: "flex",
-          alignItems: "stretch",
           height: "68px",
         }}
       >
@@ -318,24 +285,10 @@ export function OgImageJsx() {
               borderLeft: i > 0 ? "1px solid rgba(255,255,255,0.2)" : "none",
             }}
           >
-            <span
-              style={{
-                color: "white",
-                fontSize: "13px",
-                fontWeight: 600,
-                fontFamily,
-              }}
-            >
+            <span style={{ color: "white", fontSize: "13px", fontWeight: 600, fontFamily }}>
               {label}
             </span>
-            <span
-              style={{
-                color: "rgba(255,255,255,0.65)",
-                fontSize: "11px",
-                marginTop: "2px",
-                fontFamily,
-              }}
-            >
+            <span style={{ color: "rgba(255,255,255,0.65)", fontSize: "11px", marginTop: "2px", fontFamily }}>
               {sub}
             </span>
           </div>
