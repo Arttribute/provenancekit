@@ -1,5 +1,11 @@
 # @provenancekit/sdk
 
+## 0.1.8
+
+### Patch Changes
+
+- Auto patch release
+
 ## 0.1.7
 
 ### Patch Changes
