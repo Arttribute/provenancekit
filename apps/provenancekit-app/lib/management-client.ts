@@ -99,6 +99,14 @@ export interface MgmtUsageSummary {
   byDay: Array<{ date: string; total: number; success: number }>;
 }
 
+export interface MgmtUsageLog {
+  id: string;
+  endpoint: string;
+  resourceType: string | null;
+  statusCode: number | null;
+  timestamp: string;
+}
+
 export type MgmtValidateKeyResult =
   | { valid: true; projectId: string; orgId: string | null; userId: string | null; permissions: string }
   | { valid: false; reason: string };
@@ -259,6 +267,12 @@ export function mgmt(userId: string) {
     // ── Usage ──────────────────────────────────────────────────────────────
     usage: {
       get: (projectId: string) => get<MgmtUsageSummary>(`/projects/${projectId}/usage`),
+    },
+
+    // ── Logs ───────────────────────────────────────────────────────────────
+    logs: {
+      recent: (projectId: string, limit = 50) =>
+        get<{ logs: MgmtUsageLog[] }>(`/projects/${projectId}/logs?limit=${limit}`),
     },
 
     // ── Network ────────────────────────────────────────────────────────────

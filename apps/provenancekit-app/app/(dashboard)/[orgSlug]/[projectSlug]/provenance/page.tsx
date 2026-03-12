@@ -3,12 +3,13 @@ import { redirect, notFound } from "next/navigation";
 import { getServerUser } from "@/lib/auth";
 import { mgmt } from "@/lib/management-client";
 import { getOrgBySlug, getProjectBySlug } from "@/lib/queries";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GitBranch, Info, AlertCircle } from "lucide-react";
+import { GitBranch, Info, FileBox } from "lucide-react";
 import { NetworkBadge } from "@/components/network-badge";
 import { ProvenanceViewer } from "@/components/provenance/provenance-viewer";
+import { FileSimilaritySearch } from "@/components/resources/file-similarity-search";
 
 interface Props {
   params: Promise<{ orgSlug: string; projectSlug: string }>;
@@ -60,6 +61,19 @@ export default async function ProvenancePage({ params, searchParams }: Props) {
           outputs, and attribution across the entire lineage.
         </p>
       </div>
+
+      {/* File similarity search — upload a file to find its CID */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileBox className="h-4 w-4" />
+            Find by File
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <FileSimilaritySearch />
+        </CardContent>
+      </Card>
 
       {/* CID search form */}
       <form method="GET" className="flex gap-2">

@@ -1,25 +1,25 @@
 "use client";
 
 /**
- * File similarity search panel for the Resources page.
+ * File similarity search panel for the Resources and Provenance pages.
  *
  * Drag-and-drop (or click-to-select) a file to find similar resources already
  * recorded in this project via ProvenanceKit vector embeddings.
  *
  * Uses the ProvenanceKitProvider context (pk-proxy route → PK API).
+ * On match selection, navigates to the current page with ?cid=<selected>.
  */
 
 import React, { useState, useCallback, useRef, DragEvent } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import { Upload, FileSearch, X, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import { useProvenanceKit } from "@provenancekit/ui";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import type { UploadMatchResult } from "@provenancekit/sdk";
 
-interface Props {
-  /** Called when the user selects a match to inspect in the CID lookup section */
-  onSelectCid?: (cid: string) => void;
-}
+// No external props needed — navigation is handled internally via useRouter.
+interface Props {}
 
 function formatScore(score: number) {
   return `${(score * 100).toFixed(1)}%`;
@@ -37,8 +37,10 @@ function verdictClass(verdict: string) {
   return "text-slate-600 border-slate-200 bg-slate-50";
 }
 
-export function FileSimilaritySearch({ onSelectCid }: Props) {
+export function FileSimilaritySearch(_props: Props) {
   const { pk } = useProvenanceKit();
+  const router = useRouter();
+  const pathname = usePathname();
   const [dragging, setDragging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -212,14 +214,12 @@ export function FileSimilaritySearch({ onSelectCid }: Props) {
                         />
                       </div>
                     </div>
-                    {onSelectCid && (
-                      <button
-                        onClick={() => onSelectCid(match.cid)}
-                        className="text-xs text-primary hover:underline shrink-0"
-                      >
-                        Inspect
-                      </button>
-                    )}
+                    <button
+                      onClick={() => router.push(`${pathname}?cid=${encodeURIComponent(match.cid)}`)}
+                      className="text-xs text-primary hover:underline shrink-0"
+                    >
+                      Inspect
+                    </button>
                   </div>
                 </div>
               ))}
