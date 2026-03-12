@@ -74,15 +74,17 @@ export interface ToolCall {
 export interface FileAttachment {
   /** Original browser File object — kept for provenance search */
   file?: File;
-  /** base64 data URL or remote URL (after upload/processing) */
+  /** Pinata/IPFS gateway URL (preferred) or base64 data URL fallback */
   url?: string;
+  /** IPFS CID — set when uploaded to Pinata; used for provenance inputCids */
+  cid?: string;
   mimeType: string;
   name: string;
+  /** Extracted text content for text/* files — included inline for the LLM */
+  textContent?: string;
   /** For images: width x height (optional display hint) */
   width?: number;
   height?: number;
-  /** Provenance CID if this file was found in the ProvenanceKit registry */
-  provenanceCid?: string;
 }
 
 export interface ChatMessage {

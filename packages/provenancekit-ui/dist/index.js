@@ -12586,32 +12586,122 @@ function ContribExtensionView({ extension, className }) {
 }
 
 // src/components/provenance/file-provenance-tag.tsx
-import { useEffect as useEffect7, useState as useState12, useCallback as useCallback7 } from "react";
+import { useEffect as useEffect7, useState as useState13, useCallback as useCallback7 } from "react";
 import {
   ShieldCheck as ShieldCheck2,
   ShieldOff as ShieldOff2,
   ChevronDown as ChevronDown2,
   ChevronUp as ChevronUp2,
-  Loader2,
+  Loader2 as Loader22,
   User as User4,
   Bot as Bot7,
   FileImage,
   Tag,
   Calendar
 } from "lucide-react";
+
+// src/components/provenance/file-ownership-claim.tsx
+import { useState as useState12 } from "react";
+import { UserCheck, ExternalLink as ExternalLink4, Loader2, CheckCircle as CheckCircle3, AlertCircle as AlertCircle2 } from "lucide-react";
 import { jsx as jsx30, jsxs as jsxs26 } from "react/jsx-runtime";
+function FileOwnershipClaim({ onClaim, className }) {
+  const [claimState, setClaimState] = useState12("idle");
+  async function handleClaim(owned) {
+    setClaimState("claiming");
+    try {
+      const result = await onClaim(owned);
+      setClaimState(result.status === "claimed" ? "claimed" : "referenced");
+    } catch {
+      setClaimState("error");
+    }
+  }
+  if (claimState === "claiming") {
+    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx30(Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#64748b)]" }),
+      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)]", children: "Recording provenance\u2026" })
+    ] });
+  }
+  if (claimState === "claimed") {
+    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx30(CheckCircle3, { size: 10, className: "shrink-0 text-emerald-500" }),
+      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-emerald-600 dark:text-emerald-400", children: "Claimed as your work" })
+    ] });
+  }
+  if (claimState === "referenced") {
+    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx30(CheckCircle3, { size: 10, className: "shrink-0 text-blue-500" }),
+      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-blue-600 dark:text-blue-400", children: "Recorded as external source" })
+    ] });
+  }
+  if (claimState === "error") {
+    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx30(AlertCircle2, { size: 10, className: "shrink-0 text-red-500" }),
+      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-red-600", children: "Recording failed \u2014" }),
+      /* @__PURE__ */ jsx30(
+        "button",
+        {
+          type: "button",
+          onClick: () => setClaimState("idle"),
+          className: "text-[10px] text-[var(--pk-node-resource,#6366f1)] hover:underline",
+          children: "retry"
+        }
+      )
+    ] });
+  }
+  return /* @__PURE__ */ jsxs26(
+    "div",
+    {
+      className: cn(
+        "mt-1 rounded-md border border-[var(--pk-surface-border,#e2e8f0)] bg-[var(--pk-surface,#ffffff)] p-1.5",
+        className
+      ),
+      children: [
+        /* @__PURE__ */ jsx30("p", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)] mb-1.5 leading-snug", children: "New file \u2014 do you own this?" }),
+        /* @__PURE__ */ jsxs26("div", { className: "flex gap-1", children: [
+          /* @__PURE__ */ jsxs26(
+            "button",
+            {
+              type: "button",
+              onClick: () => handleClaim(true),
+              className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors",
+              children: [
+                /* @__PURE__ */ jsx30(UserCheck, { size: 9 }),
+                "Yes, I own it"
+              ]
+            }
+          ),
+          /* @__PURE__ */ jsxs26(
+            "button",
+            {
+              type: "button",
+              onClick: () => handleClaim(false),
+              className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[var(--pk-surface-muted,#f1f5f9)] text-[var(--pk-muted-foreground,#64748b)] hover:bg-[var(--pk-surface-muted,#e2e8f0)] transition-colors",
+              children: [
+                /* @__PURE__ */ jsx30(ExternalLink4, { size: 9 }),
+                "No, I don't"
+              ]
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/provenance/file-provenance-tag.tsx
+import { jsx as jsx31, jsxs as jsxs27 } from "react/jsx-runtime";
 function SimilarityBar({ score }) {
   const pct = Math.round(score * 100);
   const color = pct >= 90 ? "bg-[var(--pk-verified,#22c55e)]" : pct >= 70 ? "bg-[var(--pk-partial,#f59e0b)]" : "bg-[var(--pk-unverified,#ef4444)]";
-  return /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 w-full", children: [
-    /* @__PURE__ */ jsx30("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ jsx30(
+  return /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 w-full", children: [
+    /* @__PURE__ */ jsx31("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ jsx31(
       "div",
       {
         className: cn("h-full rounded-full transition-all", color),
         style: { width: `${pct}%` }
       }
     ) }),
-    /* @__PURE__ */ jsxs26("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
+    /* @__PURE__ */ jsxs27("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
       pct,
       "%"
     ] })
@@ -12631,10 +12721,10 @@ function BundleSummary({
   const topResource = bundle.resources?.[0];
   const licenseExt = topResource?.extensions?.["ext:license@1.0.0"];
   const aiExt = topAction?.extensions?.["ext:ai@1.0.0"];
-  return /* @__PURE__ */ jsxs26("div", { className: "space-y-1.5 text-[11px]", children: [
-    /* @__PURE__ */ jsxs26("div", { className: "flex items-center justify-between gap-2", children: [
-      /* @__PURE__ */ jsx30(CidDisplay, { cid, showCopy: true }),
-      onViewDetail && /* @__PURE__ */ jsx30(
+  return /* @__PURE__ */ jsxs27("div", { className: "space-y-1.5 text-[11px]", children: [
+    /* @__PURE__ */ jsxs27("div", { className: "flex items-center justify-between gap-2", children: [
+      /* @__PURE__ */ jsx31(CidDisplay, { cid, showCopy: true }),
+      onViewDetail && /* @__PURE__ */ jsx31(
         "button",
         {
           type: "button",
@@ -12644,40 +12734,40 @@ function BundleSummary({
         }
       )
     ] }),
-    creator && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
-      /* @__PURE__ */ jsx30(User4, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "truncate", children: creator.name ?? creator.id })
+    creator && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
+      /* @__PURE__ */ jsx31(User4, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
+      /* @__PURE__ */ jsx31("span", { className: "truncate", children: creator.name ?? creator.id })
     ] }),
-    aiEntity && !aiExt && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
+    aiEntity && !aiExt && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ jsx31("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
     ] }),
-    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
+    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ jsx31("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
     ] }),
-    topResource?.type && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(FileImage, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx30("span", { className: "capitalize", children: topResource.type })
+    topResource?.type && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(FileImage, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx31("span", { className: "capitalize", children: topResource.type })
     ] }),
-    topAction?.type && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(Tag, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx30("span", { className: "capitalize", children: topAction.type })
+    topAction?.type && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(Tag, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx31("span", { className: "capitalize", children: topAction.type })
     ] }),
-    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(ShieldCheck2, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx30("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
+    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(ShieldCheck2, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx31("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
     ] }),
-    topAction?.timestamp && /* @__PURE__ */ jsxs26("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx30(Calendar, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx30("span", { children: formatDate(topAction.timestamp) })
+    topAction?.timestamp && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx31(Calendar, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx31("span", { children: formatDate(topAction.timestamp) })
     ] }),
-    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ jsxs26("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
+    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ jsxs27("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
       bundle.attributions.length,
       " attribution",
       bundle.attributions.length > 1 ? "s" : ""
     ] }),
-    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ jsxs26("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
+    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ jsxs27("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
       "+",
       extraMatches,
       " more similar record",
@@ -12688,12 +12778,13 @@ function BundleSummary({
 function FileProvenanceTag({
   file,
   onViewDetail,
+  onClaim,
   topK = 3,
   className
 }) {
   const { pk } = useProvenanceKit();
-  const [state, setState] = useState12({ status: "idle" });
-  const [expanded, setExpanded] = useState12(false);
+  const [state, setState] = useState13({ status: "idle" });
+  const [expanded, setExpanded] = useState13(false);
   const search = useCallback7(async () => {
     if (!pk || !file) return;
     setState({ status: "loading" });
@@ -12719,15 +12810,18 @@ function FileProvenanceTag({
   }, []);
   if (!pk || state.status === "idle" || state.status === "error") return null;
   if (state.status === "loading") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
+    return /* @__PURE__ */ jsxs27("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx31(Loader22, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ jsx31("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
     ] });
   }
   if (state.status === "not-found") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(ShieldOff2, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
+    if (onClaim) {
+      return /* @__PURE__ */ jsx31(FileOwnershipClaim, { onClaim, className });
+    }
+    return /* @__PURE__ */ jsxs27("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx31(ShieldOff2, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ jsx31("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
     ] });
   }
   const topMatch = state.result?.matches?.[0];
@@ -12737,7 +12831,7 @@ function FileProvenanceTag({
   );
   const headerLabel = creator?.name ? `By ${creator.name}` : `${Math.round(topMatch.score * 100)}% match`;
   const extraMatches = (state.result?.matches?.length ?? 0) - 1;
-  return /* @__PURE__ */ jsxs26(
+  return /* @__PURE__ */ jsxs27(
     "div",
     {
       className: cn(
@@ -12745,22 +12839,22 @@ function FileProvenanceTag({
         className
       ),
       children: [
-        /* @__PURE__ */ jsxs26(
+        /* @__PURE__ */ jsxs27(
           "button",
           {
             type: "button",
             onClick: () => setExpanded((v) => !v),
             className: "w-full flex items-center gap-1.5 px-2 pt-1.5 pb-1 hover:bg-[var(--pk-surface-muted,#f8fafc)] transition-colors",
             children: [
-              /* @__PURE__ */ jsx30(ShieldCheck2, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
-              /* @__PURE__ */ jsx30("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
-              topMatch.type && /* @__PURE__ */ jsx30("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
-              expanded ? /* @__PURE__ */ jsx30(ChevronUp2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ jsx30(ChevronDown2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
+              /* @__PURE__ */ jsx31(ShieldCheck2, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
+              /* @__PURE__ */ jsx31("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
+              topMatch.type && /* @__PURE__ */ jsx31("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
+              expanded ? /* @__PURE__ */ jsx31(ChevronUp2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ jsx31(ChevronDown2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
             ]
           }
         ),
-        /* @__PURE__ */ jsx30("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ jsx30(SimilarityBar, { score: topMatch.score }) }),
-        expanded && /* @__PURE__ */ jsx30("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ jsx30(
+        /* @__PURE__ */ jsx31("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ jsx31(SimilarityBar, { score: topMatch.score }) }),
+        expanded && /* @__PURE__ */ jsx31("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ jsx31(
           BundleSummary,
           {
             bundle: state.topBundle,
@@ -12768,9 +12862,9 @@ function FileProvenanceTag({
             onViewDetail,
             extraMatches: extraMatches > 0 ? extraMatches : void 0
           }
-        ) : /* @__PURE__ */ jsxs26("div", { className: "flex items-center justify-between gap-2", children: [
-          /* @__PURE__ */ jsx30(CidDisplay, { cid: topMatch.cid, showCopy: true }),
-          onViewDetail && /* @__PURE__ */ jsx30(
+        ) : /* @__PURE__ */ jsxs27("div", { className: "flex items-center justify-between gap-2", children: [
+          /* @__PURE__ */ jsx31(CidDisplay, { cid: topMatch.cid, showCopy: true }),
+          onViewDetail && /* @__PURE__ */ jsx31(
             "button",
             {
               type: "button",
@@ -12793,6 +12887,7 @@ export {
   ContributionBar,
   EntityAvatar,
   EntityCard,
+  FileOwnershipClaim,
   FileProvenanceTag,
   FileUploadZone,
   LicenseChip,

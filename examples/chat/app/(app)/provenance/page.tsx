@@ -2,12 +2,14 @@
 
 import { usePrivy } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ShieldCheck, MessageSquare, Clock, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelInfo } from "@/lib/provenance";
+import { ProvenanceSearch } from "@/components/provenance/pk-ui";
 import type { Conversation, AIProvider } from "@/types";
 
 const PROVIDER_COLORS: Record<AIProvider | string, string> = {
@@ -82,6 +84,7 @@ function ConversationRow({ conversation }: { conversation: Conversation }) {
 
 export default function ProvenanceExplorerPage() {
   const { user } = usePrivy();
+  const router = useRouter();
   const userId = user?.id;
 
   const { data: conversations, isLoading } = useQuery<Conversation[]>({
@@ -113,6 +116,17 @@ export default function ProvenanceExplorerPage() {
           <p className="text-sm text-muted-foreground mt-1">
             View the provenance records for all your AI-generated content.
           </p>
+        </div>
+
+        {/* Search */}
+        <div className="rounded-lg border bg-card p-4 space-y-2">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Search by CID or file
+          </p>
+          <ProvenanceSearch
+            mode="both"
+            onResult={({ cid }) => router.push(`/provenance/${cid}`)}
+          />
         </div>
 
         {/* Stats row */}

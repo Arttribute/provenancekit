@@ -114,6 +114,8 @@ export async function recordChatProvenance(opts: {
   response: string;
   tokens: number;
   sessionId: string | null;
+  /** Attachments sent with the user message — their CIDs become inputCids on the response action */
+  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string }>;
 }): Promise<ProvenanceResult | null> {
   const pk = await getPKClientAsync();
   if (!pk) return null;
@@ -136,12 +138,15 @@ export async function recordChatProvenance(opts: {
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
 
+      // Include attachment CIDs as additional inputs to the response action
+      const attachmentCids = (opts.attachments ?? []).filter((a) => a.cid).map((a) => a.cid!);
+
       const responseBlob = new Blob([opts.response], { type: "text/plain" });
       const responseResult = await pk.file(responseBlob, {
         entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
         action: {
           type: "generate",
-          inputCids: [promptResult.cid],
+          inputCids: [promptResult.cid, ...attachmentCids],
           aiTool: {
             provider: opts.provider,
             model: opts.model,

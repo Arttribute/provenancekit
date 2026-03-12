@@ -1,0 +1,219 @@
+---
+title: "File Attribution & Ownership Claims"
+description: "How to handle files with no prior provenance — claim ownership or record as an unclaimed external source. Both result in a CID that anchors the provenance chain."
+---
+
+> Not every file a user attaches has prior provenance. When a file is new to the system, you need to ask: **who created this?** The answer changes the action type recorded, but in both cases the file gets a content-addressed CID that downstream AI actions can reference.
+
+## The Two Cases
+
+### Case 1 — Known file (provenance exists)
+
+The file matches an existing record in the system. The existing CID is reused as an `inputCid` — no additional recording needed.
+
+```
+Search result: { cid: "Qm...", score: 1.0, ... }
+                        ↓
+Use this CID directly as inputCid in the AI response action.
+```
+
+### Case 2 — New file (no prior provenance)
+
+The file is not in the system. Ask the user: **"Do you own this file?"**
+
+| Answer | EAA action type | Meaning |
+|--------|----------------|---------|
+| Yes — I created it | `"create"` | User is the original creator. Resource enters the system as a **claimed work**. |
+| No — it's from elsewhere | `"reference"` | User is providing an external source. Original creator unknown. Resource enters as an **unclaimed input**. |
+
+Both paths produce a CID. Both CIDs can be used as `inputCids` in downstream provenance actions.
+
+---
+
+## Why Both Cases Matter
+
+**Claimed resources** (`action.type = "create"`) establish a clean ownership chain. The provenance graph shows `user → creates → file → inputs → AI response`. This is strong evidence for copyright claims (see the [Human Creative Input](/patterns/human-creative-input) pattern).
+
+**Unclaimed resources** (`action.type = "reference"`) are equally important. Recording that an AI response used an unknown-origin file is honest provenance — it accurately represents the training data and inputs used. Silently omitting unattributed inputs is worse than recording their existence.
+
+<Note>
+  An unclaimed resource is not a problem in the provenance graph — it's an honest representation of reality. The absence of a creator entity signals "origin unknown" rather than "created by no one."
+</Note>
+
+---
+
+## Implementation
+
+### Server-side claim endpoint
+
+```typescript
+// POST /api/claim
+// FormData: { file, owned: "true"|"false", userId, mimeType }
+import { ProvenanceKit } from "@provenancekit/sdk";
+
+export async function POST(req: Request) {
+  const form = await req.formData();
+  const file = form.get("file") as File;
+  const owned = form.get("owned") === "true";
+  const userId = (form.get("userId") as string) ?? "anonymous";
+  const mimeType = (form.get("mimeType") as string) ?? file.type;
+
+  const pk = new ProvenanceKit({ apiKey: process.env.PK_API_KEY });
+
+  const entityId = await pk.entity({ role: "human", name: userId });
+
+  const result = await pk.file(file, {
+    entity: { id: entityId, role: "human", name: userId },
+    action: {
+      type: owned ? "create" : "reference",
+    },
+    resourceType: mimeType.startsWith("image/") ? "image" : "text",
+    // On-chain recording fires automatically if CHAIN_PRIVATE_KEY is set
+  });
+
+  return Response.json({
+    cid: result.cid,
+    actionId: result.actionId,
+    onchain: result.onchain ?? null,
+    status: owned ? "claimed" : "referenced",
+  });
+}
+```
+
+### Client-side with FileProvenanceTag
+
+```tsx
+import { FileProvenanceTag } from "@provenancekit/ui";
+
+function AttachmentPreview({ file, userId, onCidAssigned }) {
+  async function handleClaim(owned: boolean) {
+    const form = new FormData();
+    form.append("file", file, file.name);
+    form.append("owned", String(owned));
+    form.append("userId", userId);
+    form.append("mimeType", file.type);
+
+    const res = await fetch("/api/claim", { method: "POST", body: form });
+    if (!res.ok) throw new Error("Claim failed");
+
+    const { cid, status } = await res.json();
+    onCidAssigned(cid);                         // ← propagate CID to parent state
+    return { cid, status };                     // ← returned to FileOwnershipClaim
+  }
+
+  return (
+    <div className="attachment">
+      <span>{file.name}</span>
+      <FileProvenanceTag
+        file={file}
+        onClaim={handleClaim}                   // ← shown when file not found
+        onViewDetail={(cid) => navigate(`/provenance/${cid}`)}
+      />
+    </div>
+  );
+}
+```
+
+When the file has no prior provenance, `FileProvenanceTag` renders `FileOwnershipClaim` inline:
+
+```
+┌─────────────────────────────────────────┐
+│ New file — do you own this?             │
+│ [✓ Yes, I own it]  [↗ No, I don't]     │
+└─────────────────────────────────────────┘
+```
+
+After the user decides, the component transitions to a success state:
+
+```
+✓ Claimed as your work       (owned = true)
+✓ Recorded as external source (owned = false)
+```
+
+---
+
+## Using the CID in downstream actions
+
+Once the file has a CID (from either a match or a claim), pass it as `inputCids` when recording the AI response:
+
+```typescript
+// The claimed CID is now a first-class provenance input
+const response = await pk.file(responseBlob, {
+  entity: { id: agentId, role: "ai", name: "openai/gpt-4o" },
+  action: {
+    type: "generate",
+    inputCids: [
+      promptCid,          // the user's text prompt
+      attachedFileCid,    // ← the claimed or matched file CID
+    ],
+    aiTool: { provider: "openai", model: "gpt-4o" },
+  },
+  resourceType: "text",
+});
+```
+
+The resulting provenance graph:
+
+```
+[user] ──creates──► [photo.jpg]        (owned = true)
+    OR
+[user] ──references──► [photo.jpg]     (owned = false)
+
+Both connect as:
+
+[photo.jpg] ──inputCid──► [generate action] ──produces──► [AI response]
+```
+
+---
+
+## On-Chain Recording
+
+Both `"create"` and `"reference"` actions are eligible for on-chain recording. If `CHAIN_PRIVATE_KEY` and `BASE_SEPOLIA_RPC_URL` are set, `pk.file()` automatically records the action hash to the ProvenanceRegistry contract on Base Sepolia.
+
+```typescript
+const result = await pk.file(file, { ... });
+
+if (result.onchain) {
+  console.log("Anchored on-chain:", result.onchain.txHash);
+  // txHash can be verified on Basescan
+}
+```
+
+On-chain recording is fire-and-forget — if it fails, the off-chain record (in Supabase/PostgreSQL) always stands as the canonical provenance record.
+
+---
+
+## What the Provenance Graph Looks Like
+
+### Claimed file
+
+```
+Entities:    alice (role: human)
+Resources:   photo.jpg (CID: Qm..., type: image)
+             ai-response.txt (CID: Qm..., type: text)
+Actions:     [create] alice → photo.jpg
+             [generate] gpt-4o → ai-response.txt
+               inputCids: [photo.jpg, prompt.json]
+```
+
+### Unclaimed file (referenced)
+
+```
+Entities:    alice (role: human)
+Resources:   external-file.jpg (CID: Qm..., type: image)
+             ai-response.txt (CID: Qm..., type: text)
+Actions:     [reference] alice → external-file.jpg
+             [generate] gpt-4o → ai-response.txt
+               inputCids: [external-file.jpg, prompt.json]
+```
+
+The difference: `create` signals Alice made it; `reference` signals Alice used it but didn't make it. Both are honest, auditable records.
+
+---
+
+## Gotchas
+
+- **Ask before the message is sent**: The ownership decision should happen in the attachment UI, not after submission. `FileProvenanceTag` handles this — it runs the search and shows the claim prompt while the file is still in the input area.
+- **Reuse existing CIDs**: If `FileProvenanceTag` finds a match (score ≥ some threshold), use the existing CID directly as `inputCid`. Don't re-record the same file as a new resource.
+- **CID propagation**: Store the claimed CID in local state immediately after `onClaim` resolves so it's available when the message is submitted. `FileOwnershipClaim`'s `onClaim` callback is the right place to call `setState`.
+- **Binary files (PDFs)**: For files where text content can't be extracted inline, the provenance record still captures the file hash (CID). The LLM won't see the content, but the provenance chain remains complete.

@@ -18,13 +18,38 @@ interface MessageListProps {
 /**
  * Convert a Vercel AI SDK Message to our ChatMessage type for rendering.
  * Stream messages don't have provenance yet (set after response completes).
+ * Multi-modal user messages (images/files) get their content parts converted
+ * from AI SDK format to our MessagePart format so they display during streaming.
  */
 function toRenderMessage(msg: Message): ChatMessage {
+  if (typeof msg.content === "string") {
+    return {
+      _id: msg.id,
+      conversationId: "",
+      role: msg.role as "user" | "assistant",
+      content: msg.content,
+      createdAt: msg.createdAt ?? new Date(),
+    };
+  }
+
+  // Multi-modal: convert AI SDK parts ({ type:"text"|"image", ... }) to our format
+  const textParts: string[] = [];
+  const contentParts: ChatMessage["contentParts"] = [];
+
+  for (const part of msg.content as Array<{ type: string; text?: string; image?: string }>) {
+    if (part.type === "text" && part.text) {
+      textParts.push(part.text);
+    } else if (part.type === "image" && part.image) {
+      contentParts.push({ type: "image_url", url: part.image });
+    }
+  }
+
   return {
     _id: msg.id,
     conversationId: "",
     role: msg.role as "user" | "assistant",
-    content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    content: textParts.join(" "),
+    contentParts: contentParts.length > 0 ? contentParts : undefined,
     createdAt: msg.createdAt ?? new Date(),
   };
 }

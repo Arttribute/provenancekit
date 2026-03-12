@@ -211,6 +211,19 @@ const final = await pk.file(finalBuffer, {
 // The final work has a full provenance chain: create → AI-revise → human-edit
 ```
 
+## File Attachments as Inputs
+
+When users attach existing files (images, documents) as inputs to an AI task, you need to record them in the provenance graph too. Two cases:
+
+1. **File already in the system** (returned by `pk.searchByFile`) — reuse the existing CID as `inputCid` directly.
+2. **File not yet in the system** — ask the user if they own it before recording:
+   - **Owned** → `action.type = "create"` → enters as a claimed resource
+   - **Not owned** → `action.type = "reference"` → enters as an unclaimed/external source
+
+The `FileProvenanceTag` + `FileOwnershipClaim` UI components from `@provenancekit/ui` handle this flow automatically.
+
+See [File Attribution & Ownership Claims](/patterns/file-attribution) for full implementation details.
+
 ## Gotchas
 
 - **Prompt privacy**: Recording a prompt as a resource makes it content-addressed and potentially discoverable. If the prompt is sensitive, encrypt it with `EncryptedFileStorage` before uploading.

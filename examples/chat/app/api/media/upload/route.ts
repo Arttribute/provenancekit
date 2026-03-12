@@ -1,12 +1,12 @@
 /**
  * POST /api/media/upload
  *
- * Accepts a multipart form with a `file` field.
- * Returns a base64 data URL so the browser can use it inline.
- * For images, this is passed as image_url content to GPT-4o vision.
+ * Accepts a multipart form with a `file` field (and optional `userId`).
+ * Uploads to Pinata/IPFS and returns a persistent gateway URL + CID.
+ * Falls back to base64 data URL if PINATA_JWT is not configured (local dev).
  *
- * In production you'd upload to S3/Supabase and return the URL.
- * For this demo, base64 inline keeps it self-contained.
+ * For text/* files, the text content is also returned so the LLM
+ * can read the file contents inline.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -22,6 +22,31 @@ const ALLOWED_TYPES = [
 ];
 
 const MAX_SIZE_MB = 20;
+
+async function uploadToPinata(
+  file: File,
+  pinataJwt: string
+): Promise<{ cid: string; url: string } | null> {
+  try {
+    const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
+    const form = new FormData();
+    form.append("file", file, file.name);
+
+    const res = await fetch("https://api.pinata.cloud/pinning/pinFileToIPFS", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${pinataJwt}` },
+      body: form,
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const cid: string = data.IpfsHash;
+    return { cid, url: `${ipfsGateway}/${cid}` };
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const form = await req.formData();
@@ -45,15 +70,44 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const isImage = ALLOWED_IMAGE_TYPES.includes(file.type);
+
+  // Extract text content for text/* files so the LLM can read them inline.
+  let textContent: string | undefined;
+  if (file.type.startsWith("text/")) {
+    textContent = await file.text();
+  }
+
+  // Try to upload to Pinata/IPFS for a persistent URL (never store base64 in DB).
+  const pinataJwt = process.env.PINATA_JWT;
+  if (pinataJwt) {
+    const pinata = await uploadToPinata(file, pinataJwt);
+    if (pinata) {
+      return NextResponse.json({
+        url: pinata.url,
+        cid: pinata.cid,
+        mimeType: file.type,
+        name: file.name,
+        size: file.size,
+        isImage,
+        textContent,
+      });
+    }
+  }
+
+  // Fallback: base64 data URL (local dev without Pinata configured).
+  // In production, PINATA_JWT must be set — base64 is too large for MongoDB.
   const buffer = Buffer.from(await file.arrayBuffer());
   const base64 = buffer.toString("base64");
   const dataUrl = `data:${file.type};base64,${base64}`;
 
   return NextResponse.json({
     url: dataUrl,
+    cid: undefined,
     mimeType: file.type,
     name: file.name,
     size: file.size,
-    isImage: ALLOWED_IMAGE_TYPES.includes(file.type),
+    isImage,
+    textContent,
   });
 }

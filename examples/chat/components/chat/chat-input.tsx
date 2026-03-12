@@ -22,6 +22,8 @@ interface ChatInputProps {
   isLoading: boolean;
   disabled?: boolean;
   placeholder?: string;
+  /** Privy user ID — passed to the claim API so provenance is recorded under the right entity */
+  userId?: string;
 }
 
 export function ChatInput({
@@ -31,6 +33,7 @@ export function ChatInput({
   isLoading,
   disabled,
   placeholder = "Message PK Chat… (Shift+Enter for new line)",
+  userId,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -78,11 +81,14 @@ export function ChatInput({
         const res = await fetch("/api/media/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
-        // Store original File object so FileProvenanceTag can run background provenance search
+        // Store original File object so FileProvenanceTag can run background provenance search.
+        // cid is set when Pinata is configured; textContent is set for text/* files.
         newAttachments.push({
           url: data.url,
+          cid: data.cid,
           mimeType: data.mimeType,
           name: data.name,
+          textContent: data.textContent,
           file,
         });
       } catch { /* skip */ }
@@ -140,6 +146,12 @@ export function ChatInput({
               attachment={att}
               onRemove={() => removeAttachment(i)}
               onViewProvenance={(cid) => router.push(`/provenance/${cid}`)}
+              onCidAssigned={(cid) =>
+                setAttachments((prev) =>
+                  prev.map((a, j) => j === i ? { ...a, cid } : a)
+                )
+              }
+              userId={userId}
             />
           ))}
         </div>
@@ -195,12 +207,33 @@ function AttachmentChip({
   attachment,
   onRemove,
   onViewProvenance,
+  onCidAssigned,
+  userId,
 }: {
   attachment: FileAttachment;
   onRemove: () => void;
   onViewProvenance: (cid: string) => void;
+  /** Called when the user claims the file — updates the CID in parent state */
+  onCidAssigned?: (cid: string) => void;
+  userId?: string;
 }) {
   const isImage = attachment.mimeType.startsWith("image/");
+
+  // Claim callback — calls /api/pk-proxy/claim and returns the CID
+  async function handleClaim(owned: boolean) {
+    if (!attachment.file) throw new Error("No file available");
+    const form = new FormData();
+    form.append("file", attachment.file, attachment.name);
+    form.append("owned", String(owned));
+    form.append("userId", userId ?? "anonymous");
+    form.append("mimeType", attachment.mimeType);
+    const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
+    if (!res.ok) throw new Error("Claim failed");
+    const data = await res.json();
+    onCidAssigned?.(data.cid);
+    return { cid: data.cid as string, status: data.status as "claimed" | "referenced" };
+  }
+
   return (
     <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs max-w-[220px]">
       {/* File name row */}
@@ -214,11 +247,12 @@ function AttachmentChip({
           <X className="h-3 w-3" />
         </button>
       </div>
-      {/* Provenance tag — background search fires on mount */}
+      {/* Provenance tag — background search fires on mount; shows ownership claim if not found */}
       {attachment.file && (
         <FileProvenanceTag
           file={attachment.file}
           onViewDetail={onViewProvenance}
+          onClaim={handleClaim}
           topK={3}
         />
       )}

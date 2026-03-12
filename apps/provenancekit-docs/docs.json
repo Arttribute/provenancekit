@@ -94,6 +94,7 @@
               "ui-reference/provenance-tracker",
               "ui-reference/provenance-bundle-view",
               "ui-reference/provenance-search",
+              "ui-reference/file-provenance-tag",
               "ui-reference/primitives",
               "ui-reference/extension-views"
             ]
@@ -121,6 +122,12 @@
               "patterns/model-training-provenance",
               "patterns/human-creative-input",
               "patterns/authorization-consent"
+            ]
+          },
+          {
+            "group": "Input Attribution",
+            "pages": [
+              "patterns/file-attribution"
             ]
           }
         ]
