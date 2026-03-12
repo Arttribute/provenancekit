@@ -4,7 +4,7 @@ import { LandingCTAButton } from "@/components/auth/landing-cta-button";
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 
-const baseUrl = "https://provenancekit.com";
+const baseUrl = "https://www.provenancekit.com";
 
 export const metadata: Metadata = {
   title:
