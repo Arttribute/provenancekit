@@ -198,16 +198,28 @@ export class ProvenanceKit {
     return f;
   }
 
-  uploadAndMatch(
+  async uploadAndMatch(
     file: Blob | File | Buffer | Uint8Array,
     o: UploadOptions = {}
-  ) {
+  ): Promise<UploadMatchResult> {
     const qs = `topK=${o.topK ?? 5}&min=${o.min ?? 0}${
       o.type ? `&type=${o.type}` : ""
     }`;
     const form = new FormData();
     form.append("file", asBlob(file), (file as any).name ?? "file.bin");
-    return this.api.postForm<UploadMatchResult>(`/search/file?${qs}`, form);
+    const raw = await this.api.postForm<
+      UploadMatchResult | Array<{ cid: string; score: number; type?: string }>
+    >(`/search/file?${qs}`, form);
+
+    // Normalize: older API versions return a plain SearchResult[]; newer returns { verdict, matches }
+    if (Array.isArray(raw)) {
+      const matches = raw;
+      const topScore = matches[0]?.score ?? 0;
+      const verdict: UploadMatchResult["verdict"] =
+        matches.length === 0 ? "no-match" : topScore >= 0.95 ? "auto" : "review";
+      return { verdict, matches };
+    }
+    return raw;
   }
 
   async file(

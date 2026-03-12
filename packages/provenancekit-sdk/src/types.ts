@@ -112,7 +112,7 @@ export interface DuplicateDetails {
 \*───────────────────────────────────────────────────────────*/
 export interface Match {
   cid: string;
-  type: string;
+  type?: string;
   score: number; // cosine similarity 0‑1
 }
 

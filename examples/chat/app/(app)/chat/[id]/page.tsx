@@ -123,34 +123,36 @@ export default function ConversationPage({
         return;
       }
 
-      // Build AI SDK content parts
-      const parts: Array<{ type: "text" | "image"; text?: string; image?: string }> = [];
-
-      // Include non-image file content first (text files inline, PDFs as a note)
+      // Build text content string (non-image files inline + user input)
+      const textParts: string[] = [];
       for (const att of atts) {
         if (!att.mimeType.startsWith("image/")) {
-          const fileText = att.textContent
-            ? `**Attached: ${att.name}**\n\n${att.textContent}`
-            : `**Attached file: ${att.name}** (${att.mimeType} — content not available inline)`;
-          parts.push({ type: "text", text: fileText });
+          textParts.push(
+            att.textContent
+              ? `**Attached: ${att.name}**\n\n${att.textContent}`
+              : `**Attached file: ${att.name}** (${att.mimeType} — content not available inline)`
+          );
         }
       }
+      if (input.trim()) textParts.push(input.trim());
 
-      // User text
-      if (input.trim()) parts.push({ type: "text", text: input.trim() });
+      // Images are sent via experimental_attachments — the Vercel AI SDK's supported
+      // multimodal API for useChat. This ensures images reach the model correctly
+      // instead of being silently dropped by the SDK's string-content serialization.
+      const imageAttachments = atts
+        .filter((att) => att.mimeType.startsWith("image/") && att.url)
+        .map((att) => ({ url: att.url!, contentType: att.mimeType, name: att.name }));
 
-      // Images
-      for (const att of atts) {
-        if (att.mimeType.startsWith("image/") && att.url) {
-          parts.push({ type: "image", image: att.url });
-        }
-      }
-
-      // Attachment metadata passed in request body for provenance recording
+      // Attachment metadata in the request body for provenance recording
       const attachmentMeta = atts.map(({ cid, url, mimeType, name }) => ({ cid, url, mimeType, name }));
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      append({ role: "user", content: parts as any }, { body: { attachments: attachmentMeta } });
+      append(
+        { role: "user", content: textParts.join("\n\n") || " " },
+        {
+          body: { attachments: attachmentMeta },
+          experimental_attachments: imageAttachments.length > 0 ? imageAttachments : undefined,
+        }
+      );
       setInput("");
     },
     [input, handleSubmit, append, setInput]

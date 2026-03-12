@@ -22,20 +22,33 @@ interface MessageListProps {
  * from AI SDK format to our MessagePart format so they display during streaming.
  */
 function toRenderMessage(msg: Message): ChatMessage {
+  const contentParts: ChatMessage["contentParts"] = [];
+
+  // Images sent via experimental_attachments (useChat multimodal API for URL images)
+  const expAtts = (msg as any).experimental_attachments as
+    | Array<{ url: string; contentType?: string; name?: string }>
+    | undefined;
+  if (expAtts?.length) {
+    for (const att of expAtts) {
+      if (att.contentType?.startsWith("image/") || /\.(jpe?g|png|gif|webp|avif)$/i.test(att.url)) {
+        contentParts.push({ type: "image_url", url: att.url });
+      }
+    }
+  }
+
   if (typeof msg.content === "string") {
     return {
       _id: msg.id,
       conversationId: "",
       role: msg.role as "user" | "assistant",
       content: msg.content,
+      contentParts: contentParts.length > 0 ? contentParts : undefined,
       createdAt: msg.createdAt ?? new Date(),
     };
   }
 
-  // Multi-modal: convert AI SDK parts ({ type:"text"|"image", ... }) to our format
+  // Multi-modal array content (AI SDK tool-call responses, etc.)
   const textParts: string[] = [];
-  const contentParts: ChatMessage["contentParts"] = [];
-
   for (const part of msg.content as Array<{ type: string; text?: string; image?: string }>) {
     if (part.type === "text" && part.text) {
       textParts.push(part.text);
