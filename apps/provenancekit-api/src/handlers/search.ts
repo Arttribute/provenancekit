@@ -34,7 +34,7 @@ r.post("/search/file", async (c) => {
       }
     );
 
-  const result = await searchByFile(form.file, {
+  const matches = await searchByFile(form.file, {
     type: kind,
     topK,
     minScore: min,
@@ -48,7 +48,11 @@ r.post("/search/file", async (c) => {
     );
   });
 
-  return c.json(result);
+  const topScore = matches[0]?.score ?? 0;
+  const verdict =
+    matches.length === 0 ? "no-match" : topScore >= 0.95 ? "auto" : "review";
+
+  return c.json({ verdict, matches });
 });
 
 /*--------------------------------------------------------------
