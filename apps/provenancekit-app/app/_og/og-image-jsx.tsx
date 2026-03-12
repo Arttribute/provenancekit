@@ -1,3 +1,5 @@
+const BASE_URL = "https://www.provenancekit.com";
+
 const infoRows = [
   { label: "Date", value: "March 8, 2026", mono: false, green: false },
   { label: "Produced by", value: "Alex Chen", mono: false, green: false },
@@ -137,47 +139,29 @@ export function OgImageJsx() {
               background: "white",
             }}
           >
-            {/* Card photo area — solid blue header, no external image fetch */}
+            {/* Card photo area — 15KB optimised copy, fast to fetch */}
             <div
               style={{
                 height: "160px",
-                background: "#1e40af",
                 display: "flex",
-                alignItems: "flex-end",
-                justifyContent: "flex-end",
-                padding: "12px",
                 position: "relative",
+                overflow: "hidden",
               }}
             >
-              {/* Decorative dots pattern — pure CSS, no external resource */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: "rgba(255,255,255,0.04)",
-                }}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={`${BASE_URL}/og-hero.jpg`}
+                alt=""
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
               />
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: "20px",
-                  left: "20px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "4px",
-                }}
-              >
-                <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.3)" }} />
-                <div style={{ width: "40px", height: "6px", borderRadius: "3px", background: "rgba(255,255,255,0.15)" }} />
-              </div>
               {/* Squircle badge */}
               <div
                 style={{
-                  width: "34px",
-                  height: "34px",
+                  position: "absolute",
+                  top: "10px",
+                  right: "10px",
+                  width: "32px",
+                  height: "32px",
                   borderRadius: "28%",
                   background: "rgba(255,255,255,0.92)",
                   display: "flex",
