@@ -71,7 +71,10 @@ export function ConversationSidebar() {
   // Close profile menu when clicking outside
   useEffect(() => {
     function handler(e: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(e.target as Node)
+      ) {
         setProfileOpen(false);
       }
     }
@@ -101,7 +104,12 @@ export function ConversationSidebar() {
       const res = await fetch("/api/conversations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, provider, model, title: "New conversation" }),
+        body: JSON.stringify({
+          userId: user.id,
+          provider,
+          model,
+          title: "New conversation",
+        }),
       });
       return res.json() as Promise<Conversation>;
     },
@@ -147,12 +155,12 @@ export function ConversationSidebar() {
       <div className="flex h-14 items-center justify-between px-3 border-b">
         <Link href="/chat" className="flex items-center gap-2 min-w-0">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
-            PK
+            Pr
           </div>
-          <span className="text-sm font-semibold truncate">PK Chat</span>
+          <span className="text-sm font-semibold truncate">Pr Chat</span>
         </Link>
         <button
-          onClick={() => authenticated ? newConversation.mutate() : login()}
+          onClick={() => (authenticated ? newConversation.mutate() : login())}
           disabled={newConversation.isPending}
           className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-muted transition-colors disabled:opacity-50 shrink-0"
           title={authenticated ? "New conversation" : "Sign in to chat"}
@@ -212,13 +220,18 @@ export function ConversationSidebar() {
                             "flex items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors pr-7",
                             isActive
                               ? "bg-background border shadow-sm"
-                              : "hover:bg-muted/60"
+                              : "hover:bg-muted/60",
                           )}
                         >
                           <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
-                          <span className="truncate flex-1 text-xs">{conv.title}</span>
+                          <span className="truncate flex-1 text-xs">
+                            {conv.title}
+                          </span>
                           {conv.provenanceCid && (
-                            <ShieldCheck className="h-3 w-3 shrink-0 text-emerald-500" aria-label="Provenance tracked" />
+                            <ShieldCheck
+                              className="h-3 w-3 shrink-0 text-emerald-500"
+                              aria-label="Provenance tracked"
+                            />
                           )}
                         </Link>
                         <button
@@ -248,7 +261,7 @@ export function ConversationSidebar() {
                 "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
                 pathname.startsWith("/provenance")
                   ? "bg-background border font-medium"
-                  : "hover:bg-muted/60 text-muted-foreground"
+                  : "hover:bg-muted/60 text-muted-foreground",
               )}
             >
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
@@ -260,7 +273,7 @@ export function ConversationSidebar() {
                 "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
                 pathname === "/settings"
                   ? "bg-background border font-medium"
-                  : "hover:bg-muted/60 text-muted-foreground"
+                  : "hover:bg-muted/60 text-muted-foreground",
               )}
             >
               <Settings className="h-3.5 w-3.5" />
@@ -288,17 +301,27 @@ export function ConversationSidebar() {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium truncate">{displayName}</p>
                 {displayEmail && (
-                  <p className="text-[10px] text-muted-foreground truncate">{displayEmail}</p>
+                  <p className="text-[10px] text-muted-foreground truncate">
+                    {displayEmail}
+                  </p>
                 )}
               </div>
-              <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", profileOpen && "rotate-180")} />
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform",
+                  profileOpen && "rotate-180",
+                )}
+              />
             </button>
 
             {/* Profile popup menu */}
             {profileOpen && (
               <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border bg-popover shadow-lg py-1 z-10">
                 <button
-                  onClick={() => { setProfileOpen(false); logout(); }}
+                  onClick={() => {
+                    setProfileOpen(false);
+                    logout();
+                  }}
                   className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
                 >
                   <LogOut className="h-3.5 w-3.5" />
