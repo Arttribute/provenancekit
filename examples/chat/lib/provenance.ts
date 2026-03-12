@@ -18,7 +18,25 @@ import type { AIProvider, ModelInfo } from "@/types";
 
 /** True for transient network errors worth retrying (cold start, connection reset). */
 function isRetryable(err: unknown): boolean {
-  const msg = String(err instanceof Error ? (err.cause ?? err).toString() : err);
+  // Collect all text representations: message, cause message, and error codes
+  // (ECONNRESET lives in err.cause.code, not in .toString(), so we must check codes explicitly)
+  const parts: string[] = [];
+  if (err instanceof Error) {
+    parts.push(err.message);
+    const cause = err.cause;
+    if (cause instanceof Error) {
+      parts.push(cause.message);
+      const code = (cause as NodeJS.ErrnoException).code;
+      if (code) parts.push(code);
+    } else if (typeof cause === "string") {
+      parts.push(cause);
+    }
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code) parts.push(code);
+  } else {
+    parts.push(String(err));
+  }
+  const msg = parts.join(" ");
   return (
     msg.includes("ETIMEDOUT") ||
     msg.includes("ECONNRESET") ||
