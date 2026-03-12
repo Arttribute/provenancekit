@@ -1360,15 +1360,39 @@ interface ContribExtensionViewProps {
 }
 declare function ContribExtensionView({ extension, className }: ContribExtensionViewProps): react_jsx_runtime.JSX.Element;
 
+interface FileOwnershipClaimResult {
+    cid: string;
+    status: "claimed" | "referenced";
+}
+interface FileOwnershipClaimProps {
+    /**
+     * Called when the user makes an ownership decision.
+     * `owned = true`  → user created the file
+     * `owned = false` → file is from an external / unknown source
+     * Should return the CID of the recorded resource.
+     */
+    onClaim: (owned: boolean) => Promise<FileOwnershipClaimResult>;
+    className?: string;
+}
+declare function FileOwnershipClaim({ onClaim, className }: FileOwnershipClaimProps): react_jsx_runtime.JSX.Element;
+
 interface FileProvenanceTagProps {
     /** The File or Blob to search for provenance */
     file: File | Blob;
     /** Called when user clicks "View Full Provenance" */
     onViewDetail?: (cid: string) => void;
+    /**
+     * Called when the file has no prior provenance and the user makes an ownership decision.
+     * `owned = true` → record as "create" (user is the creator)
+     * `owned = false` → record as "reference" (external/unknown source)
+     * Should upload the file and return its CID + status.
+     * If omitted, falls back to a plain "No prior provenance" label.
+     */
+    onClaim?: (owned: boolean) => Promise<FileOwnershipClaimResult>;
     /** Max matches to request (default 3) */
     topK?: number;
     className?: string;
 }
-declare function FileProvenanceTag({ file, onViewDetail, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
+declare function FileProvenanceTag({ file, onViewDetail, onClaim, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
 
-export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, ResourceCard, RoleBadge, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };
+export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, ResourceCard, RoleBadge, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };

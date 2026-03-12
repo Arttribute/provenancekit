@@ -38,6 +38,7 @@ __export(src_exports, {
   ContributionBar: () => ContributionBar,
   EntityAvatar: () => EntityAvatar,
   EntityCard: () => EntityCard,
+  FileOwnershipClaim: () => FileOwnershipClaim,
   FileProvenanceTag: () => FileProvenanceTag,
   FileUploadZone: () => FileUploadZone,
   LicenseChip: () => LicenseChip,
@@ -12658,21 +12659,111 @@ function ContribExtensionView({ extension, className }) {
 }
 
 // src/components/provenance/file-provenance-tag.tsx
+var import_react19 = require("react");
+var import_lucide_react20 = require("lucide-react");
+
+// src/components/provenance/file-ownership-claim.tsx
 var import_react18 = require("react");
 var import_lucide_react19 = require("lucide-react");
 var import_jsx_runtime30 = require("react/jsx-runtime");
+function FileOwnershipClaim({ onClaim, className }) {
+  const [claimState, setClaimState] = (0, import_react18.useState)("idle");
+  async function handleClaim(owned) {
+    setClaimState("claiming");
+    try {
+      const result = await onClaim(owned);
+      setClaimState(result.status === "claimed" ? "claimed" : "referenced");
+    } catch {
+      setClaimState("error");
+    }
+  }
+  if (claimState === "claiming") {
+    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#64748b)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)]", children: "Recording provenance\u2026" })
+    ] });
+  }
+  if (claimState === "claimed") {
+    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.CheckCircle, { size: 10, className: "shrink-0 text-emerald-500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-emerald-600 dark:text-emerald-400", children: "Claimed as your work" })
+    ] });
+  }
+  if (claimState === "referenced") {
+    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.CheckCircle, { size: 10, className: "shrink-0 text-blue-500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-blue-600 dark:text-blue-400", children: "Recorded as external source" })
+    ] });
+  }
+  if (claimState === "error") {
+    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.AlertCircle, { size: 10, className: "shrink-0 text-red-500" }),
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-red-600", children: "Recording failed \u2014" }),
+      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+        "button",
+        {
+          type: "button",
+          onClick: () => setClaimState("idle"),
+          className: "text-[10px] text-[var(--pk-node-resource,#6366f1)] hover:underline",
+          children: "retry"
+        }
+      )
+    ] });
+  }
+  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+    "div",
+    {
+      className: cn(
+        "mt-1 rounded-md border border-[var(--pk-surface-border,#e2e8f0)] bg-[var(--pk-surface,#ffffff)] p-1.5",
+        className
+      ),
+      children: [
+        /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("p", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)] mb-1.5 leading-snug", children: "New file \u2014 do you own this?" }),
+        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex gap-1", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+            "button",
+            {
+              type: "button",
+              onClick: () => handleClaim(true),
+              className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors",
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.UserCheck, { size: 9 }),
+                "Yes, I own it"
+              ]
+            }
+          ),
+          /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+            "button",
+            {
+              type: "button",
+              onClick: () => handleClaim(false),
+              className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[var(--pk-surface-muted,#f1f5f9)] text-[var(--pk-muted-foreground,#64748b)] hover:bg-[var(--pk-surface-muted,#e2e8f0)] transition-colors",
+              children: [
+                /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ExternalLink, { size: 9 }),
+                "No, I don't"
+              ]
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/provenance/file-provenance-tag.tsx
+var import_jsx_runtime31 = require("react/jsx-runtime");
 function SimilarityBar({ score }) {
   const pct = Math.round(score * 100);
   const color = pct >= 90 ? "bg-[var(--pk-verified,#22c55e)]" : pct >= 70 ? "bg-[var(--pk-partial,#f59e0b)]" : "bg-[var(--pk-unverified,#ef4444)]";
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 w-full", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 w-full", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
       "div",
       {
         className: cn("h-full rounded-full transition-all", color),
         style: { width: `${pct}%` }
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
       pct,
       "%"
     ] })
@@ -12692,10 +12783,10 @@ function BundleSummary({
   const topResource = bundle.resources?.[0];
   const licenseExt = topResource?.extensions?.["ext:license@1.0.0"];
   const aiExt = topAction?.extensions?.["ext:ai@1.0.0"];
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "space-y-1.5 text-[11px]", children: [
-    /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center justify-between gap-2", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(CidDisplay, { cid, showCopy: true }),
-      onViewDetail && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "space-y-1.5 text-[11px]", children: [
+    /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center justify-between gap-2", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(CidDisplay, { cid, showCopy: true }),
+      onViewDetail && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
         "button",
         {
           type: "button",
@@ -12705,40 +12796,40 @@ function BundleSummary({
         }
       )
     ] }),
-    creator && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.User, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "truncate", children: creator.name ?? creator.id })
+    creator && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.User, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "truncate", children: creator.name ?? creator.id })
     ] }),
-    aiEntity && !aiExt && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Bot, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
+    aiEntity && !aiExt && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.Bot, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
     ] }),
-    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Bot, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
+    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.Bot, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
     ] }),
-    topResource?.type && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.FileImage, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "capitalize", children: topResource.type })
+    topResource?.type && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.FileImage, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "capitalize", children: topResource.type })
     ] }),
-    topAction?.type && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Tag, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "capitalize", children: topAction.type })
+    topAction?.type && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.Tag, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "capitalize", children: topAction.type })
     ] }),
-    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ShieldCheck, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
+    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.ShieldCheck, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
     ] }),
-    topAction?.timestamp && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Calendar, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { children: formatDate(topAction.timestamp) })
+    topAction?.timestamp && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.Calendar, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { children: formatDate(topAction.timestamp) })
     ] }),
-    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
+    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
       bundle.attributions.length,
       " attribution",
       bundle.attributions.length > 1 ? "s" : ""
     ] }),
-    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
+    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
       "+",
       extraMatches,
       " more similar record",
@@ -12749,13 +12840,14 @@ function BundleSummary({
 function FileProvenanceTag({
   file,
   onViewDetail,
+  onClaim,
   topK = 3,
   className
 }) {
   const { pk } = useProvenanceKit();
-  const [state, setState] = (0, import_react18.useState)({ status: "idle" });
-  const [expanded, setExpanded] = (0, import_react18.useState)(false);
-  const search = (0, import_react18.useCallback)(async () => {
+  const [state, setState] = (0, import_react19.useState)({ status: "idle" });
+  const [expanded, setExpanded] = (0, import_react19.useState)(false);
+  const search = (0, import_react19.useCallback)(async () => {
     if (!pk || !file) return;
     setState({ status: "loading" });
     try {
@@ -12775,20 +12867,23 @@ function FileProvenanceTag({
       setState({ status: "error" });
     }
   }, [pk, file, topK]);
-  (0, import_react18.useEffect)(() => {
+  (0, import_react19.useEffect)(() => {
     search();
   }, []);
   if (!pk || state.status === "idle" || state.status === "error") return null;
   if (state.status === "loading") {
-    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
+    return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
     ] });
   }
   if (state.status === "not-found") {
-    return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ShieldOff, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
+    if (onClaim) {
+      return /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(FileOwnershipClaim, { onClaim, className });
+    }
+    return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.ShieldOff, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
     ] });
   }
   const topMatch = state.result?.matches?.[0];
@@ -12798,7 +12893,7 @@ function FileProvenanceTag({
   );
   const headerLabel = creator?.name ? `By ${creator.name}` : `${Math.round(topMatch.score * 100)}% match`;
   const extraMatches = (state.result?.matches?.length ?? 0) - 1;
-  return /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+  return /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
     "div",
     {
       className: cn(
@@ -12806,22 +12901,22 @@ function FileProvenanceTag({
         className
       ),
       children: [
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)(
+        /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)(
           "button",
           {
             type: "button",
             onClick: () => setExpanded((v) => !v),
             className: "w-full flex items-center gap-1.5 px-2 pt-1.5 pb-1 hover:bg-[var(--pk-surface-muted,#f8fafc)] transition-colors",
             children: [
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ShieldCheck, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
-              /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
-              topMatch.type && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
-              expanded ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ChevronUp, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(import_lucide_react19.ChevronDown, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.ShieldCheck, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
+              /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
+              topMatch.type && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
+              expanded ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.ChevronUp, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(import_lucide_react20.ChevronDown, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
             ]
           }
         ),
-        /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(SimilarityBar, { score: topMatch.score }) }),
-        expanded && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+        /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(SimilarityBar, { score: topMatch.score }) }),
+        expanded && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
           BundleSummary,
           {
             bundle: state.topBundle,
@@ -12829,9 +12924,9 @@ function FileProvenanceTag({
             onViewDetail,
             extraMatches: extraMatches > 0 ? extraMatches : void 0
           }
-        ) : /* @__PURE__ */ (0, import_jsx_runtime30.jsxs)("div", { className: "flex items-center justify-between gap-2", children: [
-          /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(CidDisplay, { cid: topMatch.cid, showCopy: true }),
-          onViewDetail && /* @__PURE__ */ (0, import_jsx_runtime30.jsx)(
+        ) : /* @__PURE__ */ (0, import_jsx_runtime31.jsxs)("div", { className: "flex items-center justify-between gap-2", children: [
+          /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(CidDisplay, { cid: topMatch.cid, showCopy: true }),
+          onViewDetail && /* @__PURE__ */ (0, import_jsx_runtime31.jsx)(
             "button",
             {
               type: "button",
@@ -12855,6 +12950,7 @@ function FileProvenanceTag({
   ContributionBar,
   EntityAvatar,
   EntityCard,
+  FileOwnershipClaim,
   FileProvenanceTag,
   FileUploadZone,
   LicenseChip,
