@@ -24,7 +24,16 @@ r.get("/graph/:cid", async (c) => {
       "`depth` must be a positive number"
     );
 
-  const graph = await buildProvenanceGraph(cid, depth);
+  let graph;
+  try {
+    graph = await buildProvenanceGraph(cid, depth);
+  } catch (err) {
+    if (err instanceof ProvenanceKitError) throw err;
+    console.error("[graph] Storage error for CID", cid, "—", err instanceof Error ? err.message : err);
+    throw new ProvenanceKitError("NotFound", `Resource not found or still recording: ${cid}`, {
+      recovery: "Wait a few seconds and retry — recording can take a few seconds to propagate to the DB.",
+    });
+  }
   return c.json(graph);
 });
 
