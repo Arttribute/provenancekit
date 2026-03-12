@@ -15,7 +15,7 @@
     "@provenancekit/extensions": "^0.1.4",
     "@provenancekit/media": "^0.1.4",
     "@provenancekit/payments": "^0.1.4",
-    "@provenancekit/sdk": "^0.1.6",
+    "@provenancekit/sdk": "^0.1.7",
     "@provenancekit/ui": "^0.1.10",
     "@radix-ui/react-avatar": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.14",
