@@ -11,8 +11,9 @@ export const contentType = "image/png";
 export default async function Image() {
   const fonts = await loadOgFonts();
 
-  return new ImageResponse(<OgImageJsx hasFonts={fonts.length > 0} />, {
-    ...size,
-    fonts,
-  });
+  // Satori requires at least one font — only pass the fonts key when we have data.
+  // If both fetches failed, hasFonts=false switches the JSX to ui-sans-serif (browser built-in).
+  const imageOptions = fonts.length > 0 ? { ...size, fonts } : { ...size };
+
+  return new ImageResponse(<OgImageJsx hasFonts={fonts.length > 0} />, imageOptions);
 }
