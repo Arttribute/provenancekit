@@ -166,6 +166,27 @@ export interface ProvenanceKitOptions extends ApiClientOptions {
    * `IChainAdapter` directly for other EVM clients (ethers.js, wagmi, etc.).
    */
   chain?: IChainAdapter;
+
+  /**
+   * In-memory bundle cache TTL in seconds.
+   *
+   * When set, `bundle()` and `provenance()` responses are cached in-memory
+   * keyed by CID. Useful in Node.js server environments (Next.js API routes,
+   * Express middleware) where the browser HTTP cache is not available.
+   *
+   * CIDs are content-addressed so the resource itself is immutable, but
+   * lineage can grow as new transforms reference old CIDs as inputs.
+   * A short TTL (e.g. 60–300 s) balances freshness against DB load.
+   *
+   * Default: 0 (disabled). Browsers don't need this — the HTTP cache
+   * handles the `Cache-Control` + ETag headers the server already sends.
+   */
+  bundleCacheTtl?: number;
+}
+
+interface BundleCacheEntry {
+  value: ProvenanceBundle;
+  expiresAt: number;
 }
 
 export class ProvenanceKit {
@@ -174,6 +195,8 @@ export class ProvenanceKit {
   private readonly signingKey?: string;
   private readonly signingEntityId?: string;
   private readonly chainAdapter?: IChainAdapter;
+  private readonly bundleCache: Map<string, BundleCacheEntry> | null;
+  private readonly bundleCacheTtlMs: number;
   readonly unclaimed = "ent:unclaimed";
 
   constructor(opts: ProvenanceKitOptions = {}) {
@@ -182,10 +205,28 @@ export class ProvenanceKit {
     this.signingKey = opts.signingKey;
     this.signingEntityId = opts.signingEntityId;
     this.chainAdapter = opts.chain;
+    this.bundleCacheTtlMs = (opts.bundleCacheTtl ?? 0) * 1000;
+    this.bundleCache = this.bundleCacheTtlMs > 0 ? new Map() : null;
 
     if (this.signingKey && !this.signingEntityId) {
       throw new Error("signingEntityId is required when signingKey is set");
     }
+  }
+
+  private getCachedBundle(cid: string): ProvenanceBundle | null {
+    if (!this.bundleCache) return null;
+    const entry = this.bundleCache.get(cid);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.bundleCache.delete(cid);
+      return null;
+    }
+    return entry.value;
+  }
+
+  private setCachedBundle(cid: string, bundle: ProvenanceBundle): void {
+    if (!this.bundleCache) return;
+    this.bundleCache.set(cid, { value: bundle, expiresAt: Date.now() + this.bundleCacheTtlMs });
   }
 
   private form(file: Blob | File | Buffer | Uint8Array, json: unknown) {
@@ -418,16 +459,24 @@ export class ProvenanceKit {
    * Get the full provenance bundle for a resource.
    * Includes resource, actions, entities, attributions, and lineage.
    */
-  bundle(cid: string) {
-    return this.api.get<ProvenanceBundle>(`/bundle/${cid}`);
+  async bundle(cid: string): Promise<ProvenanceBundle> {
+    const cached = this.getCachedBundle(cid);
+    if (cached) return cached;
+    const bundle = await this.api.get<ProvenanceBundle>(`/bundle/${cid}`);
+    this.setCachedBundle(cid, bundle);
+    return bundle;
   }
 
   /**
    * Get the provenance chain for a resource.
    * Returns the same data as bundle() - alias for compatibility.
    */
-  provenance(cid: string) {
-    return this.api.get<ProvenanceBundle>(`/provenance/${cid}`);
+  async provenance(cid: string): Promise<ProvenanceBundle> {
+    const cached = this.getCachedBundle(cid);
+    if (cached) return cached;
+    const bundle = await this.api.get<ProvenanceBundle>(`/provenance/${cid}`);
+    this.setCachedBundle(cid, bundle);
+    return bundle;
   }
 
   /**

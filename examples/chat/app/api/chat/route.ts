@@ -134,6 +134,7 @@ async function recordAndUpdateProvenance(opts: {
       imageBlob: imageToolResult.blob, // pre-downloaded binary for IPFS + embeddings
       inputCids: [pkResult.promptCid ?? pkResult.cid],
       sessionId,
+      agentEntityId: pkResult.agentEntityId, // reuse conversation entity — no duplicate dall-e entity
     });
 
     if (imagePkResult) {

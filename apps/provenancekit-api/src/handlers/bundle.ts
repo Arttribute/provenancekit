@@ -15,8 +15,18 @@ r.get("/bundle/:cid", async (c) => {
       recovery: "Call /bundle/{CID}",
     });
 
+  // CIDs are content-addressed and immutable — safe to cache aggressively.
+  // ETag = the CID itself (it IS the content hash).
+  const etag = `"${cid}"`;
+  if (c.req.header("if-none-match") === etag) {
+    return new Response(null, { status: 304 });
+  }
+
   const bundle = await fetchBundle(cid);
-  return c.json(bundle);
+  return c.json(bundle, 200, {
+    "Cache-Control": "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+    "ETag": etag,
+  });
 });
 
 export default r;
