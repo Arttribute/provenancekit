@@ -171,7 +171,7 @@ export function ConversationSidebar() {
 
       {/* ── Search (only when logged in) ───────────────────────────── */}
       {authenticated && (
-        <div className="px-3 py-2 border-b">
+        <div className="px-3 py-2">
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground pointer-events-none" />
             <Input
