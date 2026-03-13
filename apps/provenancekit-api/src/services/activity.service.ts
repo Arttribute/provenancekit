@@ -358,9 +358,13 @@ async function validateInputs(
     return { status: "skipped", detail: "Input validation disabled" };
   }
 
+  // Check all input CIDs in parallel — one round-trip per CID → one batch of concurrent calls.
+  const existsResults = await Promise.all(inputCids.map((cid) => dbStorage.resourceExists(cid)));
+
   let validCount = 0;
-  for (const inputCid of inputCids) {
-    const exists = await dbStorage.resourceExists(inputCid);
+  for (let i = 0; i < inputCids.length; i++) {
+    const exists = existsResults[i];
+    const inputCid = inputCids[i];
     if (!exists) {
       if (config.proofPolicy === "enforce") {
         throw new ProvenanceKitError("NotFound", `Input resource not found: ${inputCid}`, {
@@ -507,16 +511,39 @@ export async function createActivity(
   // 2. Resolve entity identity
   const entityId = ent.id ?? uuidv4();
 
-  // Use registerOrUpdateEntity for identity protection
+  // Run entity registration and flag check in parallel — they're independent DB operations.
   const { registerOrUpdateEntity } = await import("./entity.service.js");
-  const { entity: resolvedEntity } = await registerOrUpdateEntity({
-    id: entityId,
-    role: ent.role,
-    name: ent.name,
-    wallet: ent.wallet,
-    publicKey: ent.publicKey,
-    registrationSignature: ent.registrationSignature,
-  });
+  const db = getDb();
+  const [{ entity: resolvedEntity }, flagRow] = await Promise.all([
+    registerOrUpdateEntity({
+      id: entityId,
+      role: ent.role,
+      name: ent.name,
+      wallet: ent.wallet,
+      publicKey: ent.publicKey,
+      registrationSignature: ent.registrationSignature,
+    }),
+    db
+      ? db
+          .select({ flag: pkApiEntityFlags.flag, reason: pkApiEntityFlags.reason, expiresAt: pkApiEntityFlags.expiresAt })
+          .from(pkApiEntityFlags)
+          .where(eq(pkApiEntityFlags.entityId, entityId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+      : Promise.resolve(null),
+  ]);
+
+  // 2a. Entity flag check (suspended/banned entities cannot create activities)
+  if (flagRow) {
+    const expired = flagRow.expiresAt && new Date(flagRow.expiresAt) < new Date();
+    if (!expired) {
+      throw new ProvenanceKitError(
+        "Forbidden",
+        `Entity is ${flagRow.flag}${flagRow.reason ? `: ${flagRow.reason}` : ""}`,
+        { recovery: "Contact support if you believe this is an error" }
+      );
+    }
+  }
 
   // Track identity verification status
   if (resolvedEntity.publicKey) {
@@ -537,27 +564,6 @@ export async function createActivity(
       : { status: "unverified", detail: "No publicKey registered" };
   }
 
-  // 2a. Entity flag check (suspended/banned entities cannot create activities)
-  const db = getDb();
-  if (db) {
-    const [flag] = await db
-      .select({ flag: pkApiEntityFlags.flag, reason: pkApiEntityFlags.reason, expiresAt: pkApiEntityFlags.expiresAt })
-      .from(pkApiEntityFlags)
-      .where(eq(pkApiEntityFlags.entityId, entityId))
-      .limit(1);
-
-    if (flag) {
-      const expired = flag.expiresAt && new Date(flag.expiresAt) < new Date();
-      if (!expired) {
-        throw new ProvenanceKitError(
-          "Forbidden",
-          `Entity is ${flag.flag}${flag.reason ? `: ${flag.reason}` : ""}`,
-          { recovery: "Contact support if you believe this is an error" }
-        );
-      }
-    }
-  }
-
   // 2b. Auth-to-entity binding check
   if (authIdentity?.entityId && authIdentity.entityId !== entityId) {
     throw new ProvenanceKitError(
@@ -575,50 +581,59 @@ export async function createActivity(
   const mime = file.type || "application/octet-stream";
   const kind = (resourceType ?? inferKindFromMime(mime) ?? "other") as ResourceKind;
 
-  // 5. Upload file to IPFS
+  // 5+7. Upload to IPFS and generate embedding in parallel.
+  // Both operations only need `bytes` + `mime` (already in memory), so there's no
+  // dependency between them. On Cloud Run, IPFS upload (~500-2000ms network) and
+  // CLIP embedding (~100-500ms CPU) can overlap, cutting the wall-clock time by
+  // roughly the shorter of the two.
+  let encryptionKey: Uint8Array | undefined;
+  if (encrypt) {
+    encryptionKey = getContext().generateKey();
+  }
+
+  const [uploadResult, embeddingRaw] = await Promise.all([
+    // 5. Upload
+    encrypt && encryptionKey
+      ? encryptedStorage.uploadEncrypted(bytes, {
+          key: encryptionKey,
+          filename: file.name || "file.bin",
+          contentType: mime,
+        })
+      : fileStorage.upload(bytes, {
+          name: file.name || "file.bin",
+          mimeType: mime,
+        }),
+    // 7. Embedding (non-fatal)
+    embedder.vector(kind, toDataURI(bytes, mime)).catch((err) => {
+      console.error("[PK] embedder.vector failed (non-fatal — similarity search skipped):", err instanceof Error ? err.message : err);
+      return null;
+    }),
+  ]);
+
+  // Unpack upload result
   let cid: string;
   let size: number;
   let encrypted = false;
-  let encryptionKey: Uint8Array | undefined;
 
-  if (encrypt) {
-    encryptionKey = getContext().generateKey();
-    const result = await encryptedStorage.uploadEncrypted(bytes, {
-      key: encryptionKey,
-      filename: file.name || "file.bin",
-      contentType: mime,
-    });
-    cid = result.ref.ref;
-    size = result.encryptedSize;
+  if (encrypt && "ref" in uploadResult && "encryptedSize" in uploadResult) {
+    cid = (uploadResult as { ref: { ref: string }; encryptedSize: number }).ref.ref;
+    size = (uploadResult as { ref: { ref: string }; encryptedSize: number }).encryptedSize;
     encrypted = true;
   } else {
-    const result = await fileStorage.upload(bytes, {
-      name: file.name || "file.bin",
-      mimeType: mime,
-    });
-    cid = result.ref.ref!;
-    size = result.size;
+    const r = uploadResult as { ref: { ref?: string }; size: number };
+    cid = r.ref.ref!;
+    size = r.size;
   }
 
-  // 6. Check for exact duplicate
+  const embedding: number[] | null = embeddingRaw;
+
+  // 6. Check for exact duplicate (needs CID from upload above)
   const existing = await dbStorage.getResource(cid);
   if (existing) {
     throw new ProvenanceKitError("Duplicate", "Resource with identical CID already exists", {
       recovery: "Use the existing CID instead of uploading again",
       details: { cid, similarity: 1 },
     });
-  }
-
-  // 7. Generate embedding and check for near-duplicates.
-  // Embeddings are generated from plaintext BEFORE encryption obscures content.
-  // For encrypted resources: the vector is encrypted with the resource key and
-  // stored as an opaque blob — only the key holder can search it client-side.
-  // For non-encrypted resources: the vector is stored in pgvector for server-side search.
-  let embedding: number[] | null = null;
-  try {
-    embedding = await embedder.vector(kind, toDataURI(bytes, mime));
-  } catch (err) {
-    console.error("[PK] embedder.vector failed (non-fatal — similarity search skipped):", err instanceof Error ? err.message : err);
   }
 
   if (!encrypted && embedding) {
@@ -779,9 +794,7 @@ export async function createActivity(
     policyUsed: config.proofPolicy,
   });
 
-  await dbStorage.createAction(action);
-
-  // 9. Create resource with storage extension
+  // 9. Build resource record (sync — no I/O)
   let resource: Resource = {
     address: cidRef(cid, size),
     type: kind,
@@ -791,7 +804,6 @@ export async function createActivity(
     rootAction: actionId,
   };
 
-  // Add session context as namespaced extension on resource too
   if (sessionId || projectId) {
     const sessionData: Record<string, string> = {};
     if (sessionId) sessionData.sessionId = sessionId;
@@ -806,7 +818,6 @@ export async function createActivity(
     replicas: [{ provider: "ipfs-pinata", status: "active" }],
   });
 
-  // Add license if provided
   if (attr?.license) {
     if (typeof attr.license === "string") {
       const preset = Licenses[attr.license as keyof typeof Licenses];
@@ -816,24 +827,18 @@ export async function createActivity(
     }
   }
 
-  await dbStorage.createResource(resource);
-
-  // Initialize ownership state: registrant becomes the first owner.
-  // This is a materialized cache for fast queries; the immutable `created_by`
-  // field on the resource record is always the original registrant regardless
-  // of any future ownership transfers.
-  //
-  // Non-fatal: if pk_ownership_state doesn't exist (e.g. migration not yet applied)
-  // the immutable records in pk_resource and pk_action remain the authoritative
-  // provenance — the cache can be rebuilt from the action chain at any time.
-  try {
-    await dbStorage.initOwnershipState(cid, entityId);
-  } catch (err) {
-    console.error(
-      "[PK] initOwnershipState failed (non-fatal — run 002_add_ownership.sql to fix):",
-      err instanceof Error ? err.message : err
-    );
-  }
+  // createAction, createResource, and initOwnershipState are independent DB writes —
+  // run them in parallel to cut the round-trip count from 3 → 1.
+  await Promise.all([
+    dbStorage.createAction(action),
+    dbStorage.createResource(resource),
+    dbStorage.initOwnershipState(cid, entityId).catch((err) => {
+      console.error(
+        "[PK] initOwnershipState failed (non-fatal — run 002_add_ownership.sql to fix):",
+        err instanceof Error ? err.message : err
+      );
+    }),
+  ]);
 
   // 10. Store embedding (non-fatal — similarity search is a secondary feature)
   // If the vector dimension doesn't match the DB column (e.g. pk_embedding was created
@@ -884,16 +889,18 @@ export async function createActivity(
 
   await dbStorage.createAttribution(attribution);
 
-  // 12. Create source attributions for inputs
-  for (const inputCid of act.inputCids) {
-    await dbStorage.createAttribution({
-      resourceRef: cidRef(cid),
-      actionId,
-      entityId,
-      role: "source",
-      note: `Source: ${inputCid}`,
-    });
-  }
+  // 12. Create source attributions for inputs (parallel — no ordering dependency)
+  await Promise.all(
+    act.inputCids.map((inputCid) =>
+      dbStorage.createAttribution({
+        resourceRef: cidRef(cid),
+        actionId,
+        entityId,
+        role: "source",
+        note: `Source: ${inputCid}`,
+      })
+    )
+  );
 
   // 13. Optionally record on-chain (fire-and-forget)
   //

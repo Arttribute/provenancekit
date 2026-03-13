@@ -142,8 +142,12 @@ export async function initializeContext(): Promise<AppContext> {
   console.log("Initializing ProvenanceKit API context...");
 
   // 0. Run database migrations (idempotent; skipped when DATABASE_URL is absent)
+  // Set SKIP_MIGRATIONS=true in production Cloud Run service env vars and run
+  // migrations separately via a Cloud Run Job before each deployment.
+  // This removes the migration round-trip (~500ms-5s) from the cold-start path.
   const databaseUrl = process.env.DATABASE_URL;
-  if (databaseUrl) {
+  const skipMigrations = process.env.SKIP_MIGRATIONS === "true";
+  if (databaseUrl && !skipMigrations) {
     try {
       await runMigrations(databaseUrl, config.vectorDimension);
       console.log("✓ Database migrations applied");
@@ -151,6 +155,8 @@ export async function initializeContext(): Promise<AppContext> {
       console.error("[migrate] Migration failed — startup aborted:", err);
       throw err;
     }
+  } else if (databaseUrl && skipMigrations) {
+    console.log("⏭ Database migrations skipped (SKIP_MIGRATIONS=true)");
   }
 
   // 1. Initialize database storage

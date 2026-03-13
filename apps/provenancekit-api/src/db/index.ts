@@ -29,8 +29,11 @@ export function getDb(): DrizzleDb | null {
   if (!url) return null;
 
   const sql = postgres(url, {
-    prepare: false,  // Required for Supabase pgBouncer / transaction pooler
-    max: 5,          // Small pool — API is stateless across requests
+    prepare: false,       // Required for Supabase pgBouncer / transaction pooler
+    max: 5,               // Small pool — API is stateless; Cloud Run scales horizontally
+    idle_timeout: 20,     // Release idle connections after 20s (Cloud Run instances shut down fast)
+    connect_timeout: 10,  // Fail fast on connection errors rather than hanging a request
+    max_lifetime: 1800,   // Recycle connections every 30 min to avoid stale TCP issues
   });
 
   _db = drizzle(sql, { schema });

@@ -92,6 +92,12 @@ export interface ProvenanceResult {
   cid: string;
   actionId?: string;
   promptCid?: string;
+  /**
+   * Entity ID of the AI agent that performed this action.
+   * Pass this to recordImageProvenance so DALL-E image actions are attributed
+   * to the same conversation model rather than creating a duplicate entity.
+   */
+  agentEntityId?: string;
   /** Present when on-chain recording succeeded */
   onchain?: {
     txHash: string;
@@ -100,6 +106,28 @@ export interface ProvenanceResult {
     chainName?: string;
     contractAddress: string;
   };
+}
+
+/*─────────────────────────────────────────────────────────────*\
+ | Entity ID Cache                                              |
+ |                                                              |
+ | Deduplicates entity creation across messages in a session.   |
+ | Key: "role:name" — stable for the lifetime of the process.  |
+ | On server restart, new IDs are created (semantically fine). |
+\*─────────────────────────────────────────────────────────────*/
+
+const entityIdCache = new Map<string, string>();
+
+async function getOrCreateEntity(
+  pk: Awaited<ReturnType<typeof getPKClientAsync>>,
+  opts: Parameters<NonNullable<typeof pk>["entity"]>[0]
+): Promise<string> {
+  const cacheKey = `${opts.role}:${opts.name ?? ""}`;
+  const cached = entityIdCache.get(cacheKey);
+  if (cached) return cached;
+  const id = await pk!.entity(opts);
+  entityIdCache.set(cacheKey, id);
+  return id;
 }
 
 /**
@@ -122,8 +150,10 @@ export async function recordChatProvenance(opts: {
 
   try {
     return await withRetry(async () => {
-      const humanEntityId = await pk.entity({ role: "human", name: opts.userPrivyDid });
-      const agentEntityId = await pk.entity({
+      // getOrCreateEntity caches by "role:name" — same user and same model
+      // always reuse the same entity ID across all messages in a session.
+      const humanEntityId = await getOrCreateEntity(pk, { role: "human", name: opts.userPrivyDid });
+      const agentEntityId = await getOrCreateEntity(pk, {
         role: "ai",
         name: `${opts.provider}/${opts.model}`,
         aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
@@ -166,6 +196,7 @@ export async function recordChatProvenance(opts: {
         cid: responseResult.cid,
         actionId: responseResult.actionId,
         promptCid: promptResult.cid,
+        agentEntityId,
         onchain: responseResult.onchain,
       };
     });
@@ -199,6 +230,13 @@ export async function recordImageProvenance(opts: {
   imageBlob?: Blob;
   inputCids: string[]; // prompt CID(s) from the parent chat exchange
   sessionId: string | null;
+  /**
+   * Entity ID of the conversation AI model (e.g. gpt-4o) that called DALL-E as a tool.
+   * When provided, the image action is attributed to this entity with dall-e-3 recorded
+   * only as aiTool metadata — no separate DALL-E entity is created.
+   * This keeps the entity count at 2 (human + AI model) regardless of image tool usage.
+   */
+  agentEntityId?: string;
 }): Promise<ProvenanceResult | null> {
   const pk = await getPKClientAsync();
   if (!pk) return null;
@@ -224,17 +262,28 @@ export async function recordImageProvenance(opts: {
 
   try {
     return await withRetry(async () => {
-      const agentEntityId = await pk.entity({
-        role: "ai",
-        name: `${opts.provider}/${opts.model}`,
-        aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "autonomous" },
-      });
+      // DALL-E is a tool called by the conversation AI model, not a separate entity.
+      // Reuse the conversation model's entity ID if provided; fall back to creating one
+      // (deduplicated by name via cache) only when called outside a chat exchange context.
+      const performerEntityId =
+        opts.agentEntityId ??
+        (await getOrCreateEntity(pk, {
+          role: "ai",
+          name: `${opts.provider}/${opts.model}`,
+          aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
+        }));
+
+      // Use the conversation model's display name if we have its entity ID, otherwise dall-e-3
+      const performerName = opts.agentEntityId
+        ? `${opts.provider}/${opts.model}` // still label it by the base model for readability
+        : `${opts.provider}/${opts.model}`;
 
       const result = await pk.file(uploadBlob, {
-        entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
+        entity: { id: performerEntityId, role: "ai", name: performerName },
         action: {
           type: "generate",
           inputCids: opts.inputCids,
+          // dall-e-3 is recorded as the tool used, not as the performer entity
           aiTool: {
             provider: opts.provider,
             model: opts.model,
