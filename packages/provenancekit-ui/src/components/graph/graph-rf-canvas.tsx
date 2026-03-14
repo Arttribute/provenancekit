@@ -7,36 +7,48 @@ import {
   Controls,
   BackgroundVariant,
   ReactFlowProvider,
+  MarkerType,
   type Node,
   type Edge,
 } from "@xyflow/react";
 import { nodeTypes } from "./graph-rf-nodes";
 import type { GraphNode as ApiNode, GraphEdge as ApiEdge } from "@provenancekit/sdk";
 
-// BFS layout
+const NODE_WIDTH = 240;
+const NODE_HEIGHT = 110;
+const H_GAP = 80;
+const V_GAP = 30;
+
+// BFS layout — centers each column vertically around the canvas midpoint
 function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
+  if (apiNodes.length === 0) return [];
+
   const incoming = new Set(apiEdges.map((e) => e.to));
   const roots = apiNodes.filter((n) => !incoming.has(n.id));
 
   const levels = new Map<string, number>();
-  const queue: { id: string; level: number }[] = roots.map((n) => ({ id: n.id, level: 0 }));
+  // Seed with roots at level 0; fall back to all nodes if no roots found
+  const seeds = roots.length > 0 ? roots : apiNodes.slice(0, 1);
+  const queue: { id: string; level: number }[] = seeds.map((n) => ({ id: n.id, level: 0 }));
   const seen = new Set<string>();
 
   while (queue.length) {
     const { id, level } = queue.shift()!;
     if (seen.has(id)) continue;
     seen.add(id);
-    levels.set(id, level);
+    // Keep the deepest level to avoid collapsing long chains
+    if (!levels.has(id) || levels.get(id)! < level) levels.set(id, level);
     apiEdges
       .filter((e) => e.from === id)
       .forEach((e) => queue.push({ id: e.to, level: level + 1 }));
   }
 
-  // Assign unseen nodes (disconnected)
+  // Assign any disconnected nodes to level 0
   apiNodes.forEach((n) => {
     if (!levels.has(n.id)) levels.set(n.id, 0);
   });
 
+  // Group nodes by level
   const byLevel = new Map<number, ApiNode[]>();
   apiNodes.forEach((n) => {
     const l = levels.get(n.id) ?? 0;
@@ -46,11 +58,17 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
 
   const nodes: Node[] = [];
   byLevel.forEach((arr, level) => {
+    // Center the column vertically so all levels are aligned around y = 0
+    const columnHeight = arr.length * NODE_HEIGHT + (arr.length - 1) * V_GAP;
+    const startY = -columnHeight / 2;
     arr.forEach((n, idx) => {
       nodes.push({
         id: n.id,
         type: n.type,
-        position: { x: level * 300, y: idx * 140 },
+        position: {
+          x: level * (NODE_WIDTH + H_GAP),
+          y: startY + idx * (NODE_HEIGHT + V_GAP),
+        },
         data: { ...n.data, label: n.label },
       });
     });
@@ -96,7 +114,7 @@ function GraphRFCanvasInner({
         labelStyle: { fill: "#64748b", fontSize: 10 },
         labelBgStyle: { fill: "var(--pk-graph-node-bg, #fff)", fillOpacity: 0.85 },
         markerEnd: {
-          type: "arrowclosed" as any,
+          type: MarkerType.ArrowClosed,
           color: edgeColors[e.type] ?? "#94a3b8",
         },
       })),
@@ -119,9 +137,14 @@ function GraphRFCanvasInner({
         edges={rfEdges}
         nodeTypes={nodeTypes}
         fitView
-        fitViewOptions={{ padding: 0.2 }}
-        minZoom={0.2}
+        fitViewOptions={{ padding: 0.25, includeHiddenNodes: false }}
+        minZoom={0.1}
         maxZoom={4}
+        panOnScroll
+        zoomOnScroll
+        zoomOnPinch
+        panOnDrag
+        proOptions={{ hideAttribution: true }}
         onNodeClick={(_, node) => {
           if (onNodeClick) {
             const apiNode = apiNodes.find((n) => n.id === node.id);

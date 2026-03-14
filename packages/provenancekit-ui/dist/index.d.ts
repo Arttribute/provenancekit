@@ -1389,10 +1389,18 @@ interface FileProvenanceTagProps {
      * If omitted, falls back to a plain "No prior provenance" label.
      */
     onClaim?: (owned: boolean) => Promise<FileOwnershipClaimResult>;
+    /**
+     * Called when existing provenance is found (match score ≥ threshold).
+     * The host should use this CID as the inputCid for any subsequent provenance
+     * actions (e.g. the generate action that uses this file as input), so that
+     * the new action references the existing provenance chain rather than a
+     * disconnected raw IPFS CID.
+     */
+    onMatchFound?: (cid: string) => void;
     /** Max matches to request (default 3) */
     topK?: number;
     className?: string;
 }
-declare function FileProvenanceTag({ file, onViewDetail, onClaim, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
+declare function FileProvenanceTag({ file, onViewDetail, onClaim, onMatchFound, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
 
 export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, ResourceCard, RoleBadge, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };
