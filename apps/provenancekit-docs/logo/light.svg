@@ -1,9 +1,12 @@
 <svg width="160" height="24" viewBox="0 0 160 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&amp;display=swap');</style>
+  </defs>
   <!-- Squircle badge: dark bg always -->
   <rect x="0" y="1" width="22" height="22" rx="6.16" fill="#09090B"/>
-  <text x="11" y="12" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="10" font-weight="700" fill="#FAFAFA" text-anchor="middle" dominant-baseline="central" letter-spacing="-0.3">Pr</text>
+  <text x="11" y="15.5" font-family="'Space Grotesk', Inter, system-ui, sans-serif" font-size="10" font-weight="700" fill="#FAFAFA" text-anchor="middle" letter-spacing="-0.3">Pr</text>
   <!-- Wordmark -->
-  <text x="30" y="18" font-family="Inter, system-ui, -apple-system, sans-serif" font-size="15.5">
+  <text x="30" y="18" font-family="'Space Grotesk', Inter, system-ui, sans-serif" font-size="15.5">
     <tspan font-weight="700" fill="#09090B">Provenance</tspan><tspan font-weight="400" fill="#52525C">Kit</tspan>
   </text>
 </svg>
