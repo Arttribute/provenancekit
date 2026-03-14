@@ -78,6 +78,7 @@ export function ChatInput({
       try {
         const form = new FormData();
         form.append("file", file);
+        if (userId) form.append("userId", userId);
         const res = await fetch("/api/media/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
@@ -247,12 +248,17 @@ function AttachmentChip({
           <X className="h-3 w-3" />
         </button>
       </div>
-      {/* Provenance tag — background search fires on mount; shows ownership claim if not found */}
+      {/* Provenance tag — background search fires on mount.
+          - Match found: onMatchFound updates the attachment CID to the existing
+            PK record so the generate action references the right provenance chain.
+          - No match: FileOwnershipClaim asks the user, then onClaim registers
+            the file in PK and calls onCidAssigned with the new CID. */}
       {attachment.file && (
         <FileProvenanceTag
           file={attachment.file}
           onViewDetail={onViewProvenance}
           onClaim={handleClaim}
+          onMatchFound={onCidAssigned}
           topK={3}
         />
       )}

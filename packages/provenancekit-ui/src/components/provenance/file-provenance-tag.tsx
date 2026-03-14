@@ -33,6 +33,14 @@ export interface FileProvenanceTagProps {
    * If omitted, falls back to a plain "No prior provenance" label.
    */
   onClaim?: (owned: boolean) => Promise<FileOwnershipClaimResult>;
+  /**
+   * Called when existing provenance is found (match score ≥ threshold).
+   * The host should use this CID as the inputCid for any subsequent provenance
+   * actions (e.g. the generate action that uses this file as input), so that
+   * the new action references the existing provenance chain rather than a
+   * disconnected raw IPFS CID.
+   */
+  onMatchFound?: (cid: string) => void;
   /** Max matches to request (default 3) */
   topK?: number;
   className?: string;
@@ -178,6 +186,7 @@ export function FileProvenanceTag({
   file,
   onViewDetail,
   onClaim,
+  onMatchFound,
   topK = 3,
   className,
 }: FileProvenanceTagProps) {
@@ -202,11 +211,15 @@ export function FileProvenanceTag({
         // bundle fetch is non-fatal
       }
       setState({ status: "found", result, topBundle });
+      // Notify the host so it can use the matched CID as inputCid for downstream
+      // provenance actions — the generate action will reference this existing chain
+      // rather than a disconnected raw IPFS upload.
+      onMatchFound?.(topCid);
     } catch {
       // silent — don't break the upload UX
       setState({ status: "error" });
     }
-  }, [pk, file, topK]);
+  }, [pk, file, topK, onMatchFound]);
 
   // Run once on mount
   useEffect(() => {

@@ -41,14 +41,20 @@ r.post("/activity", async (c) => {
 
   /* Validate early to return nice 422 errors */
   const parsed = ActivityPayload.safeParse(payload);
-  if (!parsed.success) throw ProvenanceKitError.fromZod(parsed.error);
+  if (!parsed.success) {
+    console.error("[activity] Payload validation failed:", JSON.stringify(parsed.error.flatten()));
+    throw ProvenanceKitError.fromZod(parsed.error);
+  }
 
   try {
     const result = await createActivity(form.file, payload, getAuthIdentity(c));
     return c.json(result, 201);
   } catch (err) {
     if (err instanceof ProvenanceKitError) throw err;
-    if (err instanceof ZodError) throw ProvenanceKitError.fromZod(err);
+    if (err instanceof ZodError) {
+      console.error("[activity] ZodError inside createActivity:", JSON.stringify(err.flatten()));
+      throw ProvenanceKitError.fromZod(err);
+    }
     throw err;
   }
 });

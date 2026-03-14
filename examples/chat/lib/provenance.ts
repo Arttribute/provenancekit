@@ -247,7 +247,11 @@ export async function recordChatProvenance(opts: {
       };
     });
   } catch (error) {
-    console.warn("[PK] recordChatProvenance failed:", error);
+    if (error instanceof Error && (error as any).details) {
+      console.warn("[PK] recordChatProvenance failed:", error.message, JSON.stringify((error as any).details));
+    } else {
+      console.warn("[PK] recordChatProvenance failed:", error);
+    }
     return null;
   }
 }
