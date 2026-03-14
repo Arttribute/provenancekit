@@ -154,7 +154,7 @@ export function ConversationSidebar() {
       {/* ── Header ──────────────────────────────────────────────────── */}
       <div className="flex h-14 items-center justify-between px-3 border-b">
         <Link href="/chat" className="flex items-center gap-2 min-w-0">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[28%] bg-primary text-primary-foreground text-xs font-bold">
             Pr
           </div>
           <span className="text-sm font-semibold truncate">Pr Chat</span>

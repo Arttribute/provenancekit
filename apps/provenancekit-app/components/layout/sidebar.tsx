@@ -208,7 +208,7 @@ function SidebarHeader() {
   return (
     <div className="flex h-14 items-center border-b px-4">
       <Link href="/dashboard" className="flex items-center gap-2 font-semibold">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground text-xs font-bold">
+        <div className="flex h-7 w-7 items-center justify-center rounded-[28%] bg-primary text-primary-foreground text-xs font-bold">
           Pr
         </div>
         <span className="text-sm">ProvenanceKit</span>

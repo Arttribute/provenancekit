@@ -80,8 +80,8 @@ export default function ChatHomePage() {
         <div className="w-full max-w-2xl space-y-8">
           {/* Greeting */}
           <div className="text-center space-y-2">
-            <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-primary text-primary-foreground font-bold text-lg">
-              PK
+            <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-[28%] bg-primary text-primary-foreground font-bold text-lg">
+              Pr
             </div>
             <h1 className="text-2xl font-semibold tracking-tight">
               {authenticated
