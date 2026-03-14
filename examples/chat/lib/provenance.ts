@@ -227,7 +227,7 @@ export async function recordChatProvenance(opts: {
             provider: opts.provider,
             model: opts.model,
             promptHash: hashPrompt(opts.prompt),
-            tokensUsed: opts.tokens,
+            tokensUsed: Number.isFinite(opts.tokens) ? opts.tokens : undefined,
           },
         },
         resourceType: "text",
