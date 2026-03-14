@@ -88,6 +88,23 @@ export async function POST(req: NextRequest) {
       onchain: result.onchain ?? null,
     });
   } catch (err) {
+    // If the file is already registered in PK (Duplicate error), the existing CID
+    // is still valid as an inputCid — return it rather than failing the claim.
+    // This can happen when the same file was uploaded in a previous session.
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const isDuplicate = errMsg.includes("Duplicate") || errMsg.includes("already exists");
+    if (isDuplicate) {
+      // Extract CID from the error details if available
+      const cidMatch = errMsg.match(/\b(Qm[a-zA-Z0-9]{44}|bafy[a-zA-Z0-9]+)\b/);
+      if (cidMatch) {
+        console.log(`[claim] File already registered, reusing CID: ${cidMatch[1]}`);
+        return NextResponse.json({
+          cid: cidMatch[1],
+          status: owned ? "claimed" : "referenced",
+          onchain: null,
+        });
+      }
+    }
     console.error("[claim] Failed to record provenance:", err);
     return NextResponse.json(
       { error: "Failed to record provenance" },

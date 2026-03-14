@@ -5,6 +5,15 @@
  * Uploads to Pinata/IPFS and returns a persistent gateway URL + CID.
  * Falls back to base64 data URL if PINATA_JWT is not configured (local dev).
  *
+ * NOTE: This route intentionally does NOT register the file in ProvenanceKit.
+ * Provenance registration happens downstream via the FileProvenanceTag component:
+ *   - If the file already has provenance (match ≥ 0.95): the matched CID is
+ *     used directly as inputCid — no re-upload or new action needed.
+ *   - If no prior provenance: FileOwnershipClaim asks the user, then calls
+ *     /api/pk-proxy/claim to register a new "create" or "reference" action.
+ * This two-step design ensures existing provenance chains are referenced rather
+ * than duplicated, which is where the compound provenance value comes from.
+ *
  * For text/* files, the text content is also returned so the LLM
  * can read the file contents inline.
  */
@@ -51,6 +60,8 @@ async function uploadToPinata(
 export async function POST(req: NextRequest) {
   const form = await req.formData();
   const file = form.get("file");
+  // userId is accepted but not used here — it's forwarded by FileProvenanceTag
+  // to /api/pk-proxy/claim when the user makes an ownership decision.
 
   if (!file || !(file instanceof File)) {
     return NextResponse.json({ error: "file required" }, { status: 400 });
