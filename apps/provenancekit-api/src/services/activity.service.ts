@@ -763,9 +763,9 @@ export async function createActivity(
       prompt: act.aiTool.prompt,
       systemPrompt: act.aiTool.systemPrompt,
       parameters: act.aiTool.parameters,
-      tokensUsed: act.aiTool.tokensUsed,
-      generationTime: act.aiTool.generationTime,
-      seed: act.aiTool.seed,
+      tokensUsed: act.aiTool.tokensUsed ?? undefined,
+      generationTime: act.aiTool.generationTime ?? undefined,
+      seed: act.aiTool.seed ?? undefined,
     });
 
     // Validate and attach tool attestation
