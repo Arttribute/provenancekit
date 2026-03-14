@@ -827,18 +827,22 @@ export async function createActivity(
     }
   }
 
-  // createAction, createResource, and initOwnershipState are independent DB writes —
-  // run them in parallel to cut the round-trip count from 3 → 1.
+  // createAction and createResource are independent — run them in parallel.
+  // initOwnershipState must run AFTER createResource because pk_ownership_state
+  // has a FK constraint on pk_resource(ref). Running it in parallel causes a
+  // FK violation when the INSERT into pk_ownership_state races the INSERT into
+  // pk_resource and wins.
   await Promise.all([
     dbStorage.createAction(action),
     dbStorage.createResource(resource),
-    dbStorage.initOwnershipState(cid, entityId).catch((err) => {
-      console.error(
-        "[PK] initOwnershipState failed (non-fatal — run 002_add_ownership.sql to fix):",
-        err instanceof Error ? err.message : err
-      );
-    }),
   ]);
+
+  await dbStorage.initOwnershipState(cid, entityId).catch((err) => {
+    console.error(
+      "[PK] initOwnershipState failed (non-fatal):",
+      err instanceof Error ? err.message : err
+    );
+  });
 
   // 10. Store embedding (non-fatal — similarity search is a secondary feature)
   // If the vector dimension doesn't match the DB column (e.g. pk_embedding was created

@@ -54,17 +54,19 @@ export default function ConversationPage({
     },
     enabled: !!userId,
     staleTime: 0,
-    // Poll every 4 s while any message is still recording provenance.
-    // Stops automatically once all messages reach "recorded" or "failed".
-    // On-chain provenance can take 20-30 s so a fixed 6 s timeout is not enough.
-    refetchInterval: (query) => {
-      const msgs = (query.state.data as { messages: ChatMessage[] } | undefined)?.messages ?? [];
-      return msgs.some((m) => m.provenanceStatus === "recording") ? 4000 : false;
-    },
-    refetchIntervalInBackground: false,
   });
 
   const dbMessages = historyData?.messages ?? [];
+
+  // Poll every 2 s while any message is in "recording" state.
+  // useEffect-based polling is more reliable than refetchInterval because
+  // it restarts cleanly whenever hasRecordingMessages transitions true→false→true.
+  const hasRecordingMessages = dbMessages.some((m) => m.provenanceStatus === "recording");
+  useEffect(() => {
+    if (!hasRecordingMessages) return;
+    const interval = setInterval(() => { refetchMessages(); }, 2000);
+    return () => clearInterval(interval);
+  }, [hasRecordingMessages, refetchMessages]);
 
   const {
     messages: streamMessages,
@@ -83,11 +85,11 @@ export default function ConversationPage({
     },
     initialMessages: [],
     onFinish: () => {
-      // Quick refetch so DB messages appear immediately.
-      // refetchInterval takes over from here — it polls every 4 s until
-      // all messages leave "recording" state (provenance + on-chain can take 20-30 s).
+      // Refetch immediately so DB messages (with provenanceStatus: "recording") appear.
+      // The useEffect polling loop above will keep refetching every 2 s until all
+      // messages leave "recording" state, then stop automatically.
+      refetchMessages();
       setTimeout(() => {
-        refetchMessages();
         queryClient.invalidateQueries({ queryKey: ["conversations", userId] });
         queryClient.invalidateQueries({ queryKey: ["conversation", id, userId] });
       }, 300);
