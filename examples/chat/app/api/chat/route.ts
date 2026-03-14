@@ -458,7 +458,8 @@ export async function POST(req: Request) {
           model,
           messages,
           text,
-          tokens: (usage?.promptTokens ?? 0) + (usage?.completionTokens ?? 0),
+          tokens: (Number.isFinite(usage?.promptTokens) ? usage!.promptTokens : 0) +
+                  (Number.isFinite(usage?.completionTokens) ? usage!.completionTokens : 0),
           sessionId,
           imageToolResult,
           conversationFirstCid: conversation?.provenance?.firstCid,

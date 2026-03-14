@@ -85,9 +85,9 @@ const AIToolSchema = z.object({
   prompt: z.string().optional(),
   systemPrompt: z.string().optional(),
   parameters: z.record(z.unknown()).optional(),
-  tokensUsed: z.number().optional(),
-  generationTime: z.number().optional(),
-  seed: z.number().optional(),
+  tokensUsed: z.number().nullish(),
+  generationTime: z.number().nullish(),
+  seed: z.number().nullish(),
 });
 
 /** Tool attestation evidence */
