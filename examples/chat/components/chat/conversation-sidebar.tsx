@@ -267,18 +267,6 @@ export function ConversationSidebar() {
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
               Provenance Explorer
             </Link>
-            <Link
-              href="/settings"
-              className={cn(
-                "flex items-center gap-2 rounded-md px-2 py-1.5 text-xs transition-colors",
-                pathname === "/settings"
-                  ? "bg-background border font-medium"
-                  : "hover:bg-muted/60 text-muted-foreground",
-              )}
-            >
-              <Settings className="h-3.5 w-3.5" />
-              Settings
-            </Link>
           </>
         )}
       </div>
@@ -317,6 +305,14 @@ export function ConversationSidebar() {
             {/* Profile popup menu */}
             {profileOpen && (
               <div className="absolute bottom-full left-0 right-0 mb-1 rounded-lg border bg-popover shadow-lg py-1 z-10">
+                <Link
+                  href="/settings"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-xs hover:bg-muted/60 transition-colors text-muted-foreground hover:text-foreground"
+                >
+                  <Settings className="h-3.5 w-3.5" />
+                  Settings
+                </Link>
                 <button
                   onClick={() => {
                     setProfileOpen(false);
