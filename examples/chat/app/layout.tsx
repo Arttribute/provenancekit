@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { PrivyProvider } from "@/components/providers/privy-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { ProvenanceKitProvider } from "@/components/providers/pk-provider";
+import "@provenancekit/ui/styles.css";
 import "./globals.css";
 import { Space_Grotesk } from "next/font/google";
 

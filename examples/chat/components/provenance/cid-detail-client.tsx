@@ -197,37 +197,33 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
             );
           })()}
 
-          {tab === "graph" && (() => {
-            const graphProps = sessionData ? buildSessionGraph(sessionData) : {};
-            return (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs text-muted-foreground">
-                    {sessionData
-                      ? "Complete session provenance graph — all actions, resources, and entities in this conversation."
-                      : "Interactive provenance graph. Click nodes to explore entities, actions, and resources."}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 shrink-0"
-                    onClick={() => setRefreshKey((k) => k + 1)}
-                    title="Retry"
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <div className="rounded-lg border overflow-hidden">
-                  <ProvenanceGraph
-                    key={refreshKey}
-                    cid={cid}
-                    height={500}
-                    {...graphProps}
-                  />
-                </div>
+          {tab === "graph" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-muted-foreground">
+                  Full provenance graph — traces every resource, action, and entity involved in
+                  creating this output, including inputs from prior sessions.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => setRefreshKey((k) => k + 1)}
+                  title="Retry"
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
               </div>
-            );
-          })()}
+              <div className="rounded-lg border overflow-hidden">
+                <ProvenanceGraph
+                  key={refreshKey}
+                  cid={cid}
+                  depth={20}
+                  height={600}
+                />
+              </div>
+            </div>
+          )}
 
           {tab === "session" && sessionId && (
             <div className="space-y-3">

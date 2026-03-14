@@ -10793,7 +10793,8 @@ import {
   Background,
   Controls,
   BackgroundVariant,
-  ReactFlowProvider
+  ReactFlowProvider,
+  MarkerType
 } from "@xyflow/react";
 
 // src/components/graph/graph-rf-nodes.tsx
@@ -10952,17 +10953,23 @@ var nodeTypes = {
 
 // src/components/graph/graph-rf-canvas.tsx
 import { jsx as jsx12, jsxs as jsxs9 } from "react/jsx-runtime";
+var NODE_WIDTH = 240;
+var NODE_HEIGHT = 110;
+var H_GAP = 80;
+var V_GAP = 30;
 function computeLayout(apiNodes, apiEdges) {
+  if (apiNodes.length === 0) return [];
   const incoming = new Set(apiEdges.map((e) => e.to));
   const roots = apiNodes.filter((n) => !incoming.has(n.id));
   const levels = /* @__PURE__ */ new Map();
-  const queue = roots.map((n) => ({ id: n.id, level: 0 }));
+  const seeds = roots.length > 0 ? roots : apiNodes.slice(0, 1);
+  const queue = seeds.map((n) => ({ id: n.id, level: 0 }));
   const seen = /* @__PURE__ */ new Set();
   while (queue.length) {
     const { id, level } = queue.shift();
     if (seen.has(id)) continue;
     seen.add(id);
-    levels.set(id, level);
+    if (!levels.has(id) || levels.get(id) < level) levels.set(id, level);
     apiEdges.filter((e) => e.from === id).forEach((e) => queue.push({ id: e.to, level: level + 1 }));
   }
   apiNodes.forEach((n) => {
@@ -10976,11 +10983,16 @@ function computeLayout(apiNodes, apiEdges) {
   });
   const nodes = [];
   byLevel.forEach((arr, level) => {
+    const columnHeight = arr.length * NODE_HEIGHT + (arr.length - 1) * V_GAP;
+    const startY = -columnHeight / 2;
     arr.forEach((n, idx) => {
       nodes.push({
         id: n.id,
         type: n.type,
-        position: { x: level * 300, y: idx * 140 },
+        position: {
+          x: level * (NODE_WIDTH + H_GAP),
+          y: startY + idx * (NODE_HEIGHT + V_GAP)
+        },
         data: { ...n.data, label: n.label }
       });
     });
@@ -11013,7 +11025,7 @@ function GraphRFCanvasInner({
       labelStyle: { fill: "#64748b", fontSize: 10 },
       labelBgStyle: { fill: "var(--pk-graph-node-bg, #fff)", fillOpacity: 0.85 },
       markerEnd: {
-        type: "arrowclosed",
+        type: MarkerType.ArrowClosed,
         color: edgeColors[e.type] ?? "#94a3b8"
       }
     })),
@@ -11037,9 +11049,14 @@ function GraphRFCanvasInner({
           edges: rfEdges,
           nodeTypes,
           fitView: true,
-          fitViewOptions: { padding: 0.2 },
-          minZoom: 0.2,
+          fitViewOptions: { padding: 0.25, includeHiddenNodes: false },
+          minZoom: 0.1,
           maxZoom: 4,
+          panOnScroll: true,
+          zoomOnScroll: true,
+          zoomOnPinch: true,
+          panOnDrag: true,
+          proOptions: { hideAttribution: true },
           onNodeClick: (_, node) => {
             if (onNodeClick) {
               const apiNode = apiNodes.find((n) => n.id === node.id);
@@ -12779,6 +12796,7 @@ function FileProvenanceTag({
   file,
   onViewDetail,
   onClaim,
+  onMatchFound,
   topK = 3,
   className
 }) {
@@ -12801,10 +12819,11 @@ function FileProvenanceTag({
       } catch {
       }
       setState({ status: "found", result, topBundle });
+      onMatchFound?.(topCid);
     } catch {
       setState({ status: "error" });
     }
-  }, [pk, file, topK]);
+  }, [pk, file, topK, onMatchFound]);
   useEffect7(() => {
     search();
   }, []);
