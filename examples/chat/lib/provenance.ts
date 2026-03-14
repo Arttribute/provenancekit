@@ -13,6 +13,7 @@
  */
 
 import { createHash } from "crypto";
+import { v5 as uuidv5 } from "uuid";
 import { getPKClientAsync } from "./pk-client";
 import type { AIProvider, ModelInfo } from "@/types";
 
@@ -109,25 +110,67 @@ export interface ProvenanceResult {
 }
 
 /*─────────────────────────────────────────────────────────────*\
- | Entity ID Cache                                              |
+ | Entity ID Strategy                                           |
  |                                                              |
- | Deduplicates entity creation across messages in a session.   |
- | Key: "role:name" — stable for the lifetime of the process.  |
- | On server restart, new IDs are created (semantically fine). |
+ | Human entities: registered via POST /entity at Privy login.  |
+ | The returned ID is stored as pkEntityId in MongoDB and flows  |
+ | directly into recordChatProvenance via humanEntityId param.  |
+ | deriveHumanEntityId() is a fallback for users who pre-date   |
+ | entity registration (their pkEntityId fills in on next login).|
+ |                                                              |
+ | AI entities: derived deterministically via UUID v5, scoped   |
+ | to PK_PROJECT_ID. Same model used by two different projects   |
+ | gets different entity IDs — the entity represents "gpt-4o    |
+ | in this project," not "gpt-4o globally." Passed as entity.id |
+ | in pk.file() so the activity service upserts inline — no     |
+ | separate POST /entity call needed.                            |
+ |                                                              |
+ | Historical note: before this change, human entity IDs were   |
+ | derived as uuidv5("human:{privyDid}", ENTITY_NAMESPACE) and  |
+ | earlier still as random UUIDs. Those records still exist in  |
+ | the database as accurate historical data. No new actions will |
+ | reference them. Leave them as-is.                            |
 \*─────────────────────────────────────────────────────────────*/
 
-const entityIdCache = new Map<string, string>();
+// Fixed namespace — must never change or all derived entity IDs will shift.
+const ENTITY_NAMESPACE = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 
-async function getOrCreateEntity(
-  pk: Awaited<ReturnType<typeof getPKClientAsync>>,
-  opts: Parameters<NonNullable<typeof pk>["entity"]>[0]
-): Promise<string> {
-  const cacheKey = `${opts.role}:${opts.name ?? ""}`;
-  const cached = entityIdCache.get(cacheKey);
-  if (cached) return cached;
-  const id = await pk!.entity(opts);
-  entityIdCache.set(cacheKey, id);
-  return id;
+/**
+ * Fallback human entity ID — only used when pkEntityId hasn't been stored yet
+ * (users who logged in before login-time entity registration was deployed).
+ * NOT project-scoped: a person's Privy DID is a globally unique identity.
+ */
+export function deriveHumanEntityId(privyDid: string): string {
+  return uuidv5(`human:${privyDid}`, ENTITY_NAMESPACE);
+}
+
+/**
+ * Project-scoped AI entity ID derived from provider+model.
+ * Including PK_PROJECT_ID ensures two different deployments using the same
+ * model (e.g. gpt-4o) register separate entities and don't share attribution.
+ */
+export function deriveAIEntityId(provider: string, model: string): string {
+  const projectId = process.env.PK_PROJECT_ID ?? "default";
+  return uuidv5(`${projectId}:ai:${provider}/${model}`, ENTITY_NAMESPACE);
+}
+
+/**
+ * Register a human entity with the ProvenanceKit API and return its entity ID.
+ *
+ * Called once per user at Privy login — the returned ID is persisted in MongoDB
+ * as pkEntityId. Upsert semantics on the API side: safe to call on every login.
+ * Returns null when PK is not configured.
+ */
+export async function registerHumanEntity(privyDid: string): Promise<string | null> {
+  const pk = await getPKClientAsync();
+  if (!pk) return null;
+
+  try {
+    return await withRetry(() => pk.entity({ role: "human", name: privyDid }));
+  } catch (error) {
+    console.warn("[PK] registerHumanEntity failed:", error);
+    return null;
+  }
 }
 
 /**
@@ -136,6 +179,12 @@ async function getOrCreateEntity(
  */
 export async function recordChatProvenance(opts: {
   userPrivyDid: string;
+  /**
+   * Pre-registered PK entity ID for the user — sourced from user.pkEntityId in MongoDB.
+   * Set at Privy login via registerHumanEntity(). Falls back to deriveHumanEntityId()
+   * for users who logged in before entity registration was deployed.
+   */
+  humanEntityId?: string;
   provider: SupportedProvider;
   model: string;
   prompt: Array<{ role: string; content: unknown }>;
@@ -150,14 +199,11 @@ export async function recordChatProvenance(opts: {
 
   try {
     return await withRetry(async () => {
-      // getOrCreateEntity caches by "role:name" — same user and same model
-      // always reuse the same entity ID across all messages in a session.
-      const humanEntityId = await getOrCreateEntity(pk, { role: "human", name: opts.userPrivyDid });
-      const agentEntityId = await getOrCreateEntity(pk, {
-        role: "ai",
-        name: `${opts.provider}/${opts.model}`,
-        aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
-      });
+      // Human: use the pre-registered entity ID from MongoDB (set at login).
+      // Falls back to a derived ID for users who pre-date login-time registration.
+      // AI: project-scoped deterministic ID — no API call, upserted inline by pk.file().
+      const humanEntityId = opts.humanEntityId ?? deriveHumanEntityId(opts.userPrivyDid);
+      const agentEntityId = deriveAIEntityId(opts.provider, opts.model);
 
       const promptText = JSON.stringify(opts.prompt.map((m) => ({ role: m.role, content: m.content })));
       const promptBlob = new Blob([promptText], { type: "application/json" });
@@ -263,20 +309,13 @@ export async function recordImageProvenance(opts: {
   try {
     return await withRetry(async () => {
       // DALL-E is a tool called by the conversation AI model, not a separate entity.
-      // Reuse the conversation model's entity ID if provided; fall back to creating one
-      // (deduplicated by name via cache) only when called outside a chat exchange context.
+      // Reuse the conversation model's entity ID if provided; fall back to deriving it
+      // deterministically — no API call needed.
       const performerEntityId =
         opts.agentEntityId ??
-        (await getOrCreateEntity(pk, {
-          role: "ai",
-          name: `${opts.provider}/${opts.model}`,
-          aiAgent: { model: { provider: opts.provider, model: opts.model }, autonomyLevel: "assistive" },
-        }));
+        deriveAIEntityId(opts.provider, opts.model);
 
-      // Use the conversation model's display name if we have its entity ID, otherwise dall-e-3
-      const performerName = opts.agentEntityId
-        ? `${opts.provider}/${opts.model}` // still label it by the base model for readability
-        : `${opts.provider}/${opts.model}`;
+      const performerName = `${opts.provider}/${opts.model}`;
 
       const result = await pk.file(uploadBlob, {
         entity: { id: performerEntityId, role: "ai", name: performerName },

@@ -43,12 +43,21 @@ export interface IUser {
   email?: string;
   name?: string;
   avatar?: string;
+  /** ProvenanceKit entity ID — registered on first Privy login, never changes. */
+  pkEntityId?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 const UserSchema = new Schema<IUser>(
-  { _id: String, privyDid: { type: String, required: true, unique: true, index: true }, email: String, name: String, avatar: String },
+  {
+    _id: String,
+    privyDid: { type: String, required: true, unique: true, index: true },
+    email: String,
+    name: String,
+    avatar: String,
+    pkEntityId: String,
+  },
   { timestamps: true }
 );
 

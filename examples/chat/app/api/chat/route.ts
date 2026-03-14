@@ -21,7 +21,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
-import { connectDB, ConversationModel, MessageModel } from "@/lib/db";
+import { connectDB, ConversationModel, MessageModel, UserModel } from "@/lib/db";
 import { getOpenAIClient } from "@/lib/openai-client";
 import { recordChatProvenance, recordImageProvenance, type SupportedProvider } from "@/lib/provenance";
 import type { IMessage } from "@/lib/db";
@@ -55,6 +55,8 @@ async function recordAndUpdateProvenance(opts: {
   assistantMsgId: string;
   conversationId: string;
   userId: string;
+  /** Pre-registered PK entity ID for the user — sourced from user.pkEntityId in MongoDB. */
+  humanEntityId: string | undefined;
   provider: SupportedProvider;
   model: string;
   messages: Array<{ role: string; content: unknown }>;
@@ -70,6 +72,7 @@ async function recordAndUpdateProvenance(opts: {
     assistantMsgId,
     conversationId,
     userId,
+    humanEntityId,
     provider,
     model,
     messages,
@@ -85,6 +88,7 @@ async function recordAndUpdateProvenance(opts: {
   // 1. Record text-response provenance
   const pkResult = await recordChatProvenance({
     userPrivyDid: userId,
+    humanEntityId,
     provider,
     model,
     prompt: messages,
@@ -224,6 +228,13 @@ export async function POST(req: Request) {
   const provider = (conversation?.provider ?? bodyProvider) as SupportedProvider;
   const model = (conversation as any)?.model ?? bodyModel;
   const sessionId = conversation?.provenance?.sessionId ?? null;
+
+  // Load the user's pre-registered PK entity ID (stored at login via /api/users/sync).
+  // One lightweight indexed read per request; falls back to undefined gracefully.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const userRecord = userId ? await UserModel.findOne({ privyDid: userId }, { pkEntityId: 1 }).lean() as any : null;
+  const humanEntityId: string | undefined = userRecord?.pkEntityId;
+
   const systemPrompt =
     conversation?.systemPrompt ??
     "You are a helpful AI assistant with access to image generation and text-to-speech tools. Be concise, accurate, and thoughtful. When users ask you to generate an image or create audio, use the appropriate tool.";
@@ -442,6 +453,7 @@ export async function POST(req: Request) {
           assistantMsgId: msgIds.assistant,
           conversationId,
           userId: userId ?? "anonymous",
+          humanEntityId,
           provider,
           model,
           messages,

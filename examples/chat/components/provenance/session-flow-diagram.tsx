@@ -105,9 +105,19 @@ function shortCid(cid: string): string {
   return cid.length > 20 ? `${cid.slice(0, 8)}…${cid.slice(-4)}` : cid;
 }
 
-function getAITool(action: ActionData): { provider: string; model: string } | null {
+/**
+ * Returns the aiTool only when it's a *different* model from the entity performing the action.
+ * e.g. gpt-4o calling dall-e-3 → returns {provider:"openai",model:"dall-e-3"}
+ * e.g. gpt-4o responding with aiTool=gpt-4o (self-metadata) → returns null (not a tool call)
+ */
+function getAITool(action: ActionData, entity?: EntityData): { provider: string; model: string } | null {
   const ai = action.extensions?.["ext:ai@1.0.0"] as { tool?: { provider: string; model: string } } | undefined;
-  return ai?.tool ?? null;
+  if (!ai?.tool) return null;
+  // Treat as a tool call only when the aiTool model differs from the entity's own model
+  const entityFullName = entity?.name ?? "";
+  const toolFullName = `${ai.tool.provider}/${ai.tool.model}`;
+  if (entityFullName === toolFullName) return null;
+  return ai.tool;
 }
 
 function ResourcePill({
@@ -161,7 +171,7 @@ function ActionRow({
   isLast: boolean;
 }) {
   const entity = entityMap.get(action.performedBy);
-  const tool = getAITool(action);
+  const tool = getAITool(action, entity);
   const isHuman = entity?.role === "human" || action.type === "provide";
   const outputs = action.outputs ?? [];
 
