@@ -102,15 +102,29 @@ function ProvenanceRecordingBadge() {
     <div
       title="Recording provenance…"
       aria-label="Recording provenance"
-      className={cn(
-        "flex items-center justify-center shrink-0",
-        "w-[18px] h-[18px]",
-        "bg-muted border border-border",
-        "animate-pulse"
-      )}
-      style={{ borderRadius: "28%" }}
+      className="flex items-center justify-center shrink-0 animate-pulse"
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: "28%",
+        background: "oklch(0.12 0 0)",
+        opacity: 0.42,
+        flexShrink: 0,
+      }}
     >
-      <span className="text-[8px] font-bold text-muted-foreground leading-none select-none">Pr</span>
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 800,
+          color: "#f8fafc",
+          lineHeight: 1,
+          letterSpacing: "-0.03em",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        Pr
+      </span>
     </div>
   );
 }
@@ -218,12 +232,14 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                 {provenanceStatus === "recording" && <ProvenanceRecordingBadge />}
                 {provenanceStatus === "failed" && <ProvenanceFailedBadge />}
                 {provenanceStatus === "recorded" && provenanceCid && (
-                  <ProvenanceBadge
-                    cid={provenanceCid}
-                    variant="inline"
-                    size="sm"
-                    onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
-                  />
+                  <span className="pk-badge-glow inline-flex">
+                    <ProvenanceBadge
+                      cid={provenanceCid}
+                      variant="inline"
+                      size="sm"
+                      onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
+                    />
+                  </span>
                 )}
               </>
             )}
@@ -238,12 +254,14 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                   <ProvenanceFailedBadge label="Image provenance recording failed" />
                 )}
                 {imageProv?.status === "recorded" && imageProv.cid && (
-                  <ProvenanceBadge
-                    cid={imageProv.cid}
-                    variant="inline"
-                    size="sm"
-                    onViewDetail={() => router.push(`/provenance/${imageProv.cid}`)}
-                  />
+                  <span className="pk-badge-glow inline-flex">
+                    <ProvenanceBadge
+                      cid={imageProv.cid}
+                      variant="inline"
+                      size="sm"
+                      onViewDetail={() => router.push(`/provenance/${imageProv.cid}`)}
+                    />
+                  </span>
                 )}
               </>
             )}

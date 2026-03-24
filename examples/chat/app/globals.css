@@ -19,7 +19,7 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
+  --border: oklch(0.893 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.546 0.215 262.88);
   --radius: 0.625rem;
@@ -93,10 +93,19 @@ body {
   --pk-surface-muted: var(--muted);
   --pk-foreground: var(--foreground);
   --pk-muted-foreground: var(--muted-foreground);
-  --pk-badge-bg: oklch(0.97 0.05 150); /* emerald tint for verified state */
-  --pk-badge-fg: oklch(0.3 0.1 150);
-  --pk-badge-border: oklch(0.8 0.1 150);
+  /* Badge: standard dark "Pr" — green glow is added via .pk-badge-glow wrapper */
+  --pk-badge-bg: oklch(0.12 0 0);
+  --pk-badge-fg: oklch(0.97 0 0);
   --pk-radius: var(--radius);
+  /* Graph canvas theming */
+  --pk-graph-bg: oklch(0.975 0 0);
+  --pk-graph-dot: oklch(0.83 0 0);
+  --pk-graph-node-bg: #ffffff;
+  --pk-graph-node-text: oklch(0.145 0 0);
+  --pk-graph-node-muted: oklch(0.46 0 0);
+  --pk-graph-control-bg: rgba(255,255,255,0.96);
+  --pk-graph-control-border: oklch(0.86 0 0);
+  --pk-graph-control-text: oklch(0.44 0 0);
 }
 
 .dark {
@@ -105,9 +114,22 @@ body {
   --pk-surface-muted: oklch(0.269 0 0);
   --pk-foreground: oklch(0.985 0 0);
   --pk-muted-foreground: oklch(0.708 0 0);
-  --pk-badge-bg: oklch(0.2 0.05 150);
-  --pk-badge-fg: oklch(0.8 0.1 150);
-  --pk-badge-border: oklch(0.4 0.1 150);
+  --pk-badge-bg: oklch(0.12 0 0);
+  --pk-badge-fg: oklch(0.97 0 0);
+  /* Graph dark mode */
+  --pk-graph-bg: oklch(0.155 0 0);
+  --pk-graph-dot: oklch(0.22 0 0);
+  --pk-graph-node-bg: oklch(0.21 0 0);
+  --pk-graph-node-text: oklch(0.92 0 0);
+  --pk-graph-node-muted: oklch(0.62 0 0);
+  --pk-graph-control-bg: oklch(0.2 0 0 / 0.96);
+  --pk-graph-control-border: oklch(1 0 0 / 12%);
+  --pk-graph-control-text: oklch(0.62 0 0);
+}
+
+/* Green glow wrapper — applied around ProvenanceBadge when provenance is verified */
+.pk-badge-glow {
+  filter: drop-shadow(0 0 4px rgba(34, 197, 94, 0.55)) drop-shadow(0 0 1.5px rgba(34, 197, 94, 0.3));
 }
 
 /* Prose styles for markdown message content */

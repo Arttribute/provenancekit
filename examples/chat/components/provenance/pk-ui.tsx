@@ -15,4 +15,5 @@ export {
   FileProvenanceTag,
   FileOwnershipClaim,
   ProvenanceSearch,
+  useProvenanceKit,
 } from "@provenancekit/ui";
