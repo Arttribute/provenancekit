@@ -1,5 +1,12 @@
 # @provenancekit/indexer
 
+## 0.1.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @provenancekit/storage@0.1.8
+
 ## 0.1.7
 
 ### Patch Changes
