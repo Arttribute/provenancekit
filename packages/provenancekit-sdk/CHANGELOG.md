@@ -1,5 +1,11 @@
 # @provenancekit/sdk
 
+## 0.1.11
+
+### Patch Changes
+
+- @provenancekit/privacy@0.1.8
+
 ## 0.1.10
 
 ### Patch Changes
