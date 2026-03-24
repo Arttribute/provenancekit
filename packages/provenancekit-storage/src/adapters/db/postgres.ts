@@ -33,7 +33,6 @@ import type {
 
 import type {
   IProvenanceStorage,
-  ITransactionalStorage,
   EntityFilter,
   ResourceFilter,
   ActionFilter,
@@ -90,9 +89,40 @@ export interface PostgresStorageConfig {
  | PostgreSQL Storage Implementation                                 |
 \*-----------------------------------------------------------------*/
 
-export class PostgresStorage
-  implements IProvenanceStorage, ITransactionalStorage
-{
+/**
+ * PostgreSQL provenance storage.
+ *
+ * **Transactions:** `transaction()` is only atomic when a `TransactionFn` is
+ * provided in the constructor config. Without it, the method runs operations
+ * directly with no BEGIN/COMMIT/ROLLBACK.
+ *
+ * To enable real transactions with node-postgres:
+ * ```ts
+ * const storage = new PostgresStorage({
+ *   query: (sql, params) => pool.query(sql, params).then(r => r.rows),
+ *   transaction: async (fn) => {
+ *     const client = await pool.connect();
+ *     try {
+ *       await client.query("BEGIN");
+ *       const result = await fn((sql, params) => client.query(sql, params).then(r => r.rows));
+ *       await client.query("COMMIT");
+ *       return result;
+ *     } catch (e) {
+ *       await client.query("ROLLBACK");
+ *       throw e;
+ *     } finally {
+ *       client.release();
+ *     }
+ *   },
+ * });
+ * ```
+ *
+ * Because atomicity depends on the caller-supplied `TransactionFn`,
+ * `PostgresStorage` does NOT implement `ITransactionalStorage`.
+ * Use `supportsTransactions(storage)` or check `storage instanceof PostgresStorage`
+ * and provide a `TransactionFn` if you need atomic multi-step operations.
+ */
+export class PostgresStorage implements IProvenanceStorage {
   private query: QueryFn;
   private txFn?: TransactionFn;
   private prefix: string;
@@ -794,18 +824,29 @@ export class PostgresStorage
    | Transaction Support
    --------------------------------------------------------------*/
 
+  /**
+   * Execute operations within a database transaction.
+   *
+   * **Only truly atomic when `transaction: TransactionFn` was supplied in the
+   * constructor.** Without it, this method runs operations directly (no
+   * BEGIN/COMMIT/ROLLBACK), which is semantically identical to calling each
+   * operation individually. See the class-level JSDoc for a setup example.
+   */
   async transaction<T>(
     fn: (storage: IProvenanceStorage) => Promise<T>
   ): Promise<T> {
     this.ensureInitialized();
 
     if (!this.txFn) {
-      // No transaction support - just run directly
+      // No TransactionFn configured — operations run without atomicity.
+      // This is intentional for read-only flows and simple single-operation
+      // writes, but callers that need ACID guarantees must supply txFn.
       return fn(this);
     }
 
     return this.txFn(async (txQuery) => {
-      // Create a new storage instance with the transaction query
+      // Create a child storage instance that uses the transaction's connection,
+      // ensuring all operations in fn() share the same BEGIN/COMMIT scope.
       const txStorage = new PostgresStorage({
         query: txQuery,
         tablePrefix: this.prefix,

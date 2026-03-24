@@ -27,7 +27,6 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
   const roots = apiNodes.filter((n) => !incoming.has(n.id));
 
   const levels = new Map<string, number>();
-  // Seed with roots at level 0; fall back to all nodes if no roots found
   const seeds = roots.length > 0 ? roots : apiNodes.slice(0, 1);
   const queue: { id: string; level: number }[] = seeds.map((n) => ({ id: n.id, level: 0 }));
   const seen = new Set<string>();
@@ -36,19 +35,16 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
     const { id, level } = queue.shift()!;
     if (seen.has(id)) continue;
     seen.add(id);
-    // Keep the deepest level to avoid collapsing long chains
     if (!levels.has(id) || levels.get(id)! < level) levels.set(id, level);
     apiEdges
       .filter((e) => e.from === id)
       .forEach((e) => queue.push({ id: e.to, level: level + 1 }));
   }
 
-  // Assign any disconnected nodes to level 0
   apiNodes.forEach((n) => {
     if (!levels.has(n.id)) levels.set(n.id, 0);
   });
 
-  // Group nodes by level
   const byLevel = new Map<number, ApiNode[]>();
   apiNodes.forEach((n) => {
     const l = levels.get(n.id) ?? 0;
@@ -58,7 +54,6 @@ function computeLayout(apiNodes: ApiNode[], apiEdges: ApiEdge[]): Node[] {
 
   const nodes: Node[] = [];
   byLevel.forEach((arr, level) => {
-    // Center the column vertically so all levels are aligned around y = 0
     const columnHeight = arr.length * NODE_HEIGHT + (arr.length - 1) * V_GAP;
     const startY = -columnHeight / 2;
     arr.forEach((n, idx) => {
@@ -85,11 +80,12 @@ interface GraphRFCanvasProps {
   className?: string;
 }
 
+// Edge colors: muted, desaturated — color is a subtle hint, not the dominant element
 const edgeColors: Record<string, string> = {
-  produces: "#3b82f6",
-  consumes: "#ef4444",
-  performedBy: "#f59e0b",
-  tool: "#a855f7",
+  produces: "#6b9fd4",   // muted blue
+  consumes: "#e08080",   // muted red
+  performedBy: "#c9a44e", // muted amber
+  tool: "#9b72c0",        // muted purple
 };
 
 function GraphRFCanvasInner({
@@ -99,26 +95,83 @@ function GraphRFCanvasInner({
   onNodeClick,
   className,
 }: GraphRFCanvasProps) {
-  const rfNodes = useMemo(() => computeLayout(apiNodes, apiEdges), [apiNodes, apiEdges]);
+  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
 
+  // BFS layout — recomputed only when graph data changes, NOT on hover
+  const layoutNodes = useMemo(() => computeLayout(apiNodes, apiEdges), [apiNodes, apiEdges]);
+
+  // Nodes directly connected to the hovered node (includes hovered node itself)
+  const connectedSet = useMemo<Set<string> | null>(() => {
+    if (!hoveredNodeId) return null;
+    const s = new Set<string>([hoveredNodeId]);
+    for (const e of apiEdges) {
+      if (e.from === hoveredNodeId) s.add(e.to);
+      if (e.to === hoveredNodeId) s.add(e.from);
+    }
+    return s;
+  }, [hoveredNodeId, apiEdges]);
+
+  // Annotate nodes with highlight / dim state for GitHub-style interaction.
+  // We set opacity + zIndex on the ReactFlow node's wrapper `style` (most reliable),
+  // AND pass flags in `data` so the node card can adjust its own shadow/border.
+  const rfNodes = useMemo(
+    () =>
+      layoutNodes.map((n) => {
+        const isDimmed = connectedSet !== null && !connectedSet.has(n.id);
+        const isHighlighted = connectedSet !== null && connectedSet.has(n.id);
+        return {
+          ...n,
+          // ReactFlow applies `style` to the outer node wrapper — affects card + handles
+          style: {
+            opacity: isDimmed ? 0.35 : 1,
+            zIndex: isHighlighted ? 10 : isDimmed ? 0 : 1,
+            transition: "opacity 0.15s ease",
+            pointerEvents: isDimmed ? ("none" as const) : ("all" as const),
+          },
+          data: {
+            ...n.data,
+            _highlighted: isHighlighted,
+            _dimmed: isDimmed,
+          },
+        };
+      }),
+    [layoutNodes, connectedSet]
+  );
+
+  // Edges: highlight those directly incident to the hovered node, dim the rest
   const rfEdges: Edge[] = useMemo(
     () =>
-      apiEdges.map((e, i) => ({
-        id: `${e.from}-${e.to}-${i}`,
-        source: e.from,
-        target: e.to,
-        label: e.type,
-        type: "smoothstep",
-        animated: e.type === "produces",
-        style: { stroke: edgeColors[e.type] ?? "#94a3b8", strokeWidth: 2 },
-        labelStyle: { fill: "#64748b", fontSize: 10 },
-        labelBgStyle: { fill: "var(--pk-graph-node-bg, #fff)", fillOpacity: 0.85 },
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          color: edgeColors[e.type] ?? "#94a3b8",
-        },
-      })),
-    [apiEdges]
+      apiEdges.map((e, i) => {
+        const baseColor = edgeColors[e.type] ?? "#94a3b8";
+        // An edge is "active" when no node is hovered, or when it touches the hovered node
+        const active = !hoveredNodeId || e.from === hoveredNodeId || e.to === hoveredNodeId;
+        return {
+          id: `${e.from}-${e.to}-${i}`,
+          source: e.from,
+          target: e.to,
+          label: e.type,
+          type: "smoothstep",
+          animated: e.type === "produces" && active,
+          style: {
+            stroke: active ? baseColor : "rgba(148,163,184,0.25)",
+            strokeWidth: active ? (hoveredNodeId ? 2 : 1.5) : 1,
+            transition: "stroke 0.15s ease, stroke-width 0.15s ease",
+          },
+          labelStyle: {
+            fill: active ? "#64748b" : "rgba(100,116,139,0.3)",
+            fontSize: 10,
+          },
+          labelBgStyle: {
+            fill: "var(--pk-graph-node-bg, #fff)",
+            fillOpacity: active ? 0.85 : 0.3,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            color: active ? baseColor : "rgba(148,163,184,0.25)",
+          },
+        };
+      }),
+    [apiEdges, hoveredNodeId]
   );
 
   return (
@@ -128,7 +181,7 @@ function GraphRFCanvasInner({
         height,
         borderRadius: 12,
         overflow: "hidden",
-        border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+        border: "1px solid var(--pk-graph-control-border, #dde1e7)",
         background: "var(--pk-graph-bg, #f8fafc)",
       }}
     >
@@ -145,6 +198,8 @@ function GraphRFCanvasInner({
         zoomOnPinch
         panOnDrag
         proOptions={{ hideAttribution: true }}
+        onNodeMouseEnter={(_, node) => setHoveredNodeId(node.id)}
+        onNodeMouseLeave={() => setHoveredNodeId(null)}
         onNodeClick={(_, node) => {
           if (onNodeClick) {
             const apiNode = apiNodes.find((n) => n.id === node.id);
@@ -156,14 +211,15 @@ function GraphRFCanvasInner({
           variant={BackgroundVariant.Dots}
           gap={24}
           size={1.5}
-          color="var(--pk-graph-dot, #cbd5e1)"
+          color="var(--pk-graph-dot, #c8d0db)"
         />
         <Controls
           style={{
-            background: "var(--pk-graph-control-bg, rgba(255,255,255,0.92))",
-            border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+            background: "var(--pk-graph-control-bg, rgba(255,255,255,0.96))",
+            border: "1px solid var(--pk-graph-control-border, #dde1e7)",
             borderRadius: 8,
-            color: "var(--pk-graph-control-text, #64748b)",
+            color: "var(--pk-graph-control-text, #5a6578)",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
           }}
         />
       </ReactFlow>
@@ -182,7 +238,7 @@ export function GraphRFCanvas(props: GraphRFCanvasProps) {
           height: props.height ?? 500,
           borderRadius: 12,
           background: "var(--pk-graph-bg, #f8fafc)",
-          border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+          border: "1px solid var(--pk-graph-control-border, #dde1e7)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",

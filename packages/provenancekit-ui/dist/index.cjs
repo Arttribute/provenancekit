@@ -10898,8 +10898,10 @@ function formatDate2(iso) {
 }
 function NodeCard({
   accentColor,
-  accentBg,
-  borderColor,
+  icon,
+  typeLabel,
+  highlighted,
+  dimmed,
   children
 }) {
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
@@ -10909,112 +10911,170 @@ function NodeCard({
         minWidth: 200,
         maxWidth: 260,
         background: "var(--pk-graph-node-bg, #fff)",
-        border: `1px solid ${borderColor}`,
-        borderRadius: 12,
+        // Neutral border unless highlighted — then we use a slightly stronger neutral, not colored
+        border: `1px solid ${highlighted ? "rgba(0,0,0,0.18)" : "rgba(0,0,0,0.09)"}`,
+        borderRadius: 10,
         overflow: "hidden",
-        boxShadow: "0 2px 12px rgba(0,0,0,0.08)"
+        // Subtle shadow, slightly stronger when highlighted
+        // Opacity is managed at the ReactFlow node wrapper level, not here
+        boxShadow: highlighted ? "0 4px 20px rgba(0,0,0,0.14)" : "0 1px 6px rgba(0,0,0,0.06)",
+        transition: "box-shadow 0.15s ease, border-color 0.15s ease"
       },
       children: [
         /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { height: 3, background: accentColor } }),
-        /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
-          "div",
-          {
-            style: {
-              background: accentBg,
-              padding: "8px 12px 6px"
-            },
-            children
-          }
-        )
+        /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { padding: "9px 12px 10px" }, children: [
+          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 7 }, children: [
+            icon,
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+              "span",
+              {
+                style: {
+                  fontWeight: 600,
+                  fontSize: 11,
+                  color: "var(--pk-graph-node-text, #111)",
+                  letterSpacing: "0.02em",
+                  textTransform: "uppercase"
+                },
+                children: typeLabel
+              }
+            )
+          ] }),
+          children
+        ] })
       ]
     }
   );
 }
 function ResourceNode({ data }) {
   const cid = data.cid ?? data.address?.ref;
+  const highlighted = !!data._highlighted;
+  const dimmed = !!data._dimmed;
+  const accentColor = "#3b82f6";
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "target", position: import_react10.Position.Left, style: { background: "#3b82f6" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "target",
+        position: import_react10.Position.Left,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
       NodeCard,
       {
-        accentColor: "#3b82f6",
-        accentBg: "rgba(59,130,246,0.08)",
-        borderColor: "rgba(59,130,246,0.3)",
+        accentColor,
+        icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Database, { size: 12, color: accentColor, strokeWidth: 2 }),
+        typeLabel: "Resource",
+        highlighted,
+        dimmed,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Database, { size: 13, color: "#3b82f6", strokeWidth: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { fontWeight: 600, fontSize: 12, color: "var(--pk-graph-node-text, #111)" }, children: "Resource" })
-          ] }),
-          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 3, color: "var(--pk-graph-node-text, #111)" }, children: String(data.label) }),
+          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 12, fontWeight: 500, color: "var(--pk-graph-node-text, #111)", marginBottom: 4, lineHeight: 1.35 }, children: String(data.label) }),
           cid && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontFamily: "monospace", fontSize: 10, color: "var(--pk-graph-node-muted, #666)", wordBreak: "break-all" }, children: formatCid2(String(cid)) }),
           data.type && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 2 }, children: String(data.type) }),
           data.size && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)" }, children: formatBytes2(Number(data.size)) }),
-          data.locations?.[0]?.provider && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 2 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.MapPin, { size: 9 }),
+          data.locations?.[0]?.provider && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 3 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.MapPin, { size: 9, color: "currentColor" }),
             String(data.locations[0].provider)
           ] })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "source", position: import_react10.Position.Right, style: { background: "#3b82f6" } })
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "source",
+        position: import_react10.Position.Right,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    )
   ] });
 }
 function ActionNode({ data }) {
   const aiExt = data["ext:ai@1.0.0"];
+  const highlighted = !!data._highlighted;
+  const dimmed = !!data._dimmed;
+  const accentColor = "#10b981";
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "target", position: import_react10.Position.Left, style: { background: "#22c55e" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "target",
+        position: import_react10.Position.Left,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
       NodeCard,
       {
-        accentColor: "#22c55e",
-        accentBg: "rgba(34,197,94,0.08)",
-        borderColor: "rgba(34,197,94,0.3)",
+        accentColor,
+        icon: /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Zap, { size: 12, color: accentColor, strokeWidth: 2 }),
+        typeLabel: "Action",
+        highlighted,
+        dimmed,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Zap, { size: 13, color: "#22c55e", strokeWidth: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { fontWeight: 600, fontSize: 12, color: "var(--pk-graph-node-text, #111)" }, children: "Action" })
-          ] }),
-          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 3, color: "var(--pk-graph-node-text, #111)" }, children: String(data.label) }),
-          data.type && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginBottom: 2 }, children: formatActionType2(String(data.type)) }),
+          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 12, fontWeight: 500, color: "var(--pk-graph-node-text, #111)", marginBottom: 4, lineHeight: 1.35 }, children: String(data.label) }),
+          data.type && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginBottom: 3 }, children: formatActionType2(String(data.type)) }),
           data.timestamp && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--pk-graph-node-muted, #666)" }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Clock, { size: 9 }),
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Clock, { size: 9, color: "currentColor" }),
             formatDate2(String(data.timestamp))
           ] }),
-          aiExt && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "#a855f7", marginTop: 2 }, children: [
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Bot, { size: 9 }),
+          aiExt && /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 3, fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 3 }, children: [
+            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Bot, { size: 9, color: "currentColor" }),
             aiExt.provider,
-            " ",
+            " \xB7 ",
             aiExt.model
           ] })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "source", position: import_react10.Position.Right, style: { background: "#22c55e" } })
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "source",
+        position: import_react10.Position.Right,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    )
   ] });
 }
 function EntityNode({ data }) {
   const isAI = data.role === "ai";
+  const highlighted = !!data._highlighted;
+  const dimmed = !!data._dimmed;
+  const accentColor = "#f59e0b";
   return /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(import_jsx_runtime11.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "target", position: import_react10.Position.Left, style: { background: "#f59e0b" } }),
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "target",
+        position: import_react10.Position.Left,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    ),
     /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)(
       NodeCard,
       {
-        accentColor: "#f59e0b",
-        accentBg: "rgba(245,158,11,0.08)",
-        borderColor: "rgba(245,158,11,0.3)",
+        accentColor,
+        icon: isAI ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Bot, { size: 12, color: accentColor, strokeWidth: 2 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.User, { size: 12, color: accentColor, strokeWidth: 2 }),
+        typeLabel: "Entity",
+        highlighted,
+        dimmed,
         children: [
-          /* @__PURE__ */ (0, import_jsx_runtime11.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 7, marginBottom: 6 }, children: [
-            isAI ? /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.Bot, { size: 13, color: "#f59e0b", strokeWidth: 2 }) : /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_lucide_react6.User, { size: 13, color: "#f59e0b", strokeWidth: 2 }),
-            /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("span", { style: { fontWeight: 600, fontSize: 12, color: "var(--pk-graph-node-text, #111)" }, children: "Entity" })
-          ] }),
-          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 11, fontWeight: 500, marginBottom: 3, color: "var(--pk-graph-node-text, #111)" }, children: String(data.label) }),
-          data.name && data.name !== data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-text, #111)", fontWeight: 500 }, children: String(data.name) }),
-          data.role && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)", textTransform: "capitalize", marginTop: 2 }, children: String(data.role) }),
-          data.id && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontFamily: "monospace", fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 2, wordBreak: "break-all" }, children: formatCid2(String(data.id), 8, 4) })
+          data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 12, fontWeight: 500, color: "var(--pk-graph-node-text, #111)", marginBottom: 4, lineHeight: 1.35 }, children: String(data.label) }),
+          data.name && data.name !== data.label && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, fontWeight: 500, color: "var(--pk-graph-node-text, #111)", marginBottom: 2 }, children: String(data.name) }),
+          data.role && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontSize: 10, color: "var(--pk-graph-node-muted, #666)", textTransform: "capitalize" }, children: String(data.role) }),
+          data.id && /* @__PURE__ */ (0, import_jsx_runtime11.jsx)("div", { style: { fontFamily: "monospace", fontSize: 10, color: "var(--pk-graph-node-muted, #666)", marginTop: 3, wordBreak: "break-all" }, children: formatCid2(String(data.id), 8, 4) })
         ]
       }
     ),
-    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(import_react10.Handle, { type: "source", position: import_react10.Position.Right, style: { background: "#f59e0b" } })
+    /* @__PURE__ */ (0, import_jsx_runtime11.jsx)(
+      import_react10.Handle,
+      {
+        type: "source",
+        position: import_react10.Position.Right,
+        style: { background: "rgba(0,0,0,0.25)" }
+      }
+    )
   ] });
 }
 var nodeTypes = {
@@ -11072,10 +11132,14 @@ function computeLayout(apiNodes, apiEdges) {
   return nodes;
 }
 var edgeColors = {
-  produces: "#3b82f6",
-  consumes: "#ef4444",
-  performedBy: "#f59e0b",
-  tool: "#a855f7"
+  produces: "#6b9fd4",
+  // muted blue
+  consumes: "#e08080",
+  // muted red
+  performedBy: "#c9a44e",
+  // muted amber
+  tool: "#9b72c0"
+  // muted purple
 };
 function GraphRFCanvasInner({
   nodes: apiNodes,
@@ -11084,24 +11148,70 @@ function GraphRFCanvasInner({
   onNodeClick,
   className
 }) {
-  const rfNodes = (0, import_react11.useMemo)(() => computeLayout(apiNodes, apiEdges), [apiNodes, apiEdges]);
+  const [hoveredNodeId, setHoveredNodeId] = (0, import_react11.useState)(null);
+  const layoutNodes = (0, import_react11.useMemo)(() => computeLayout(apiNodes, apiEdges), [apiNodes, apiEdges]);
+  const connectedSet = (0, import_react11.useMemo)(() => {
+    if (!hoveredNodeId) return null;
+    const s = /* @__PURE__ */ new Set([hoveredNodeId]);
+    for (const e of apiEdges) {
+      if (e.from === hoveredNodeId) s.add(e.to);
+      if (e.to === hoveredNodeId) s.add(e.from);
+    }
+    return s;
+  }, [hoveredNodeId, apiEdges]);
+  const rfNodes = (0, import_react11.useMemo)(
+    () => layoutNodes.map((n) => {
+      const isDimmed = connectedSet !== null && !connectedSet.has(n.id);
+      const isHighlighted = connectedSet !== null && connectedSet.has(n.id);
+      return {
+        ...n,
+        // ReactFlow applies `style` to the outer node wrapper — affects card + handles
+        style: {
+          opacity: isDimmed ? 0.35 : 1,
+          zIndex: isHighlighted ? 10 : isDimmed ? 0 : 1,
+          transition: "opacity 0.15s ease",
+          pointerEvents: isDimmed ? "none" : "all"
+        },
+        data: {
+          ...n.data,
+          _highlighted: isHighlighted,
+          _dimmed: isDimmed
+        }
+      };
+    }),
+    [layoutNodes, connectedSet]
+  );
   const rfEdges = (0, import_react11.useMemo)(
-    () => apiEdges.map((e, i) => ({
-      id: `${e.from}-${e.to}-${i}`,
-      source: e.from,
-      target: e.to,
-      label: e.type,
-      type: "smoothstep",
-      animated: e.type === "produces",
-      style: { stroke: edgeColors[e.type] ?? "#94a3b8", strokeWidth: 2 },
-      labelStyle: { fill: "#64748b", fontSize: 10 },
-      labelBgStyle: { fill: "var(--pk-graph-node-bg, #fff)", fillOpacity: 0.85 },
-      markerEnd: {
-        type: import_react12.MarkerType.ArrowClosed,
-        color: edgeColors[e.type] ?? "#94a3b8"
-      }
-    })),
-    [apiEdges]
+    () => apiEdges.map((e, i) => {
+      const baseColor = edgeColors[e.type] ?? "#94a3b8";
+      const active = !hoveredNodeId || e.from === hoveredNodeId || e.to === hoveredNodeId;
+      return {
+        id: `${e.from}-${e.to}-${i}`,
+        source: e.from,
+        target: e.to,
+        label: e.type,
+        type: "smoothstep",
+        animated: e.type === "produces" && active,
+        style: {
+          stroke: active ? baseColor : "rgba(148,163,184,0.25)",
+          strokeWidth: active ? hoveredNodeId ? 2 : 1.5 : 1,
+          transition: "stroke 0.15s ease, stroke-width 0.15s ease"
+        },
+        labelStyle: {
+          fill: active ? "#64748b" : "rgba(100,116,139,0.3)",
+          fontSize: 10
+        },
+        labelBgStyle: {
+          fill: "var(--pk-graph-node-bg, #fff)",
+          fillOpacity: active ? 0.85 : 0.3
+        },
+        markerEnd: {
+          type: import_react12.MarkerType.ArrowClosed,
+          color: active ? baseColor : "rgba(148,163,184,0.25)"
+        }
+      };
+    }),
+    [apiEdges, hoveredNodeId]
   );
   return /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
     "div",
@@ -11111,7 +11221,7 @@ function GraphRFCanvasInner({
         height,
         borderRadius: 12,
         overflow: "hidden",
-        border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+        border: "1px solid var(--pk-graph-control-border, #dde1e7)",
         background: "var(--pk-graph-bg, #f8fafc)"
       },
       children: /* @__PURE__ */ (0, import_jsx_runtime12.jsxs)(
@@ -11129,6 +11239,8 @@ function GraphRFCanvasInner({
           zoomOnPinch: true,
           panOnDrag: true,
           proOptions: { hideAttribution: true },
+          onNodeMouseEnter: (_, node) => setHoveredNodeId(node.id),
+          onNodeMouseLeave: () => setHoveredNodeId(null),
           onNodeClick: (_, node) => {
             if (onNodeClick) {
               const apiNode = apiNodes.find((n) => n.id === node.id);
@@ -11142,17 +11254,18 @@ function GraphRFCanvasInner({
                 variant: import_react12.BackgroundVariant.Dots,
                 gap: 24,
                 size: 1.5,
-                color: "var(--pk-graph-dot, #cbd5e1)"
+                color: "var(--pk-graph-dot, #c8d0db)"
               }
             ),
             /* @__PURE__ */ (0, import_jsx_runtime12.jsx)(
               import_react12.Controls,
               {
                 style: {
-                  background: "var(--pk-graph-control-bg, rgba(255,255,255,0.92))",
-                  border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+                  background: "var(--pk-graph-control-bg, rgba(255,255,255,0.96))",
+                  border: "1px solid var(--pk-graph-control-border, #dde1e7)",
                   borderRadius: 8,
-                  color: "var(--pk-graph-control-text, #64748b)"
+                  color: "var(--pk-graph-control-text, #5a6578)",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
                 }
               }
             )
@@ -11175,7 +11288,7 @@ function GraphRFCanvas(props) {
           height: props.height ?? 500,
           borderRadius: 12,
           background: "var(--pk-graph-bg, #f8fafc)",
-          border: "1px solid var(--pk-graph-control-border, #e2e8f0)",
+          border: "1px solid var(--pk-graph-control-border, #dde1e7)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center"

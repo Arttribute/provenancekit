@@ -100,12 +100,12 @@ function ActionItem({
       {/* Timeline dot */}
       <div
         className={cn(
-          "absolute left-0 top-2 flex h-3.5 w-3.5 items-center justify-center rounded-full border",
+          "absolute left-0 top-2 flex h-3.5 w-3.5 items-center justify-center rounded-full",
           isImageGenerate
-            ? "border-violet-400 bg-violet-50 dark:bg-violet-950"
+            ? "border border-violet-300 bg-violet-50 dark:bg-violet-950 dark:border-violet-700"
             : isAIGenerate
-            ? "border-primary/60 bg-primary/10"
-            : "border-border bg-background"
+            ? "border border-primary/50 bg-primary/8 dark:bg-primary/15"
+            : "border border-border bg-muted"
         )}
       >
         {isImageGenerate ? (
@@ -113,7 +113,7 @@ function ActionItem({
         ) : isAIGenerate ? (
           <Bot className="h-2 w-2 text-primary" />
         ) : (
-          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground" />
+          <div className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50" />
         )}
       </div>
 
@@ -121,7 +121,7 @@ function ActionItem({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full text-left rounded-lg border border-border bg-background px-3 py-2 hover:bg-muted/30 transition-colors"
+        className="w-full text-left rounded-lg border border-border bg-card px-3 py-2 hover:bg-muted/25 hover:shadow-sm transition-all"
       >
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -134,7 +134,7 @@ function ActionItem({
               </span>
             )}
             {isLatest && (
-              <span className="shrink-0 rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300">
+              <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-400">
                 latest
               </span>
             )}
@@ -232,9 +232,9 @@ function ActionItem({
 
 function StatPill({ label, value }: { label: string; value: number }) {
   return (
-    <div className="flex flex-col items-center rounded-lg border border-border bg-muted/30 px-3 py-2 min-w-0">
-      <span className="text-base font-semibold tabular-nums">{value}</span>
-      <span className="text-[10px] text-muted-foreground">{label}</span>
+    <div className="flex flex-col items-center rounded-lg border bg-card px-3 py-2.5 min-w-0">
+      <span className="text-sm font-bold tabular-nums">{value}</span>
+      <span className="text-[10px] text-muted-foreground mt-0.5">{label}</span>
     </div>
   );
 }
@@ -311,8 +311,24 @@ export function ProvenanceSheet({ open, onClose, conversation }: ProvenanceSheet
         >
           {/* Header */}
           <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center gap-2.5">
+              {/* "Pr" squircle — matches the badge */}
+              <div
+                aria-hidden
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: "28%",
+                  background: "oklch(0.12 0 0)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  boxShadow: "0 0 5px rgba(34,197,94,0.4), 0 0 2px rgba(34,197,94,0.25)",
+                }}
+              >
+                <span style={{ fontSize: 9, fontWeight: 800, color: "#f8fafc", lineHeight: 1, letterSpacing: "-0.03em" }}>Pr</span>
+              </div>
               <Dialog.Title className="text-sm font-semibold">
                 Session Provenance
               </Dialog.Title>

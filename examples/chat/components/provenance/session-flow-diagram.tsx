@@ -14,7 +14,7 @@
  */
 
 import { useState, useEffect } from "react";
-import { FileText, Image as ImageIcon, ArrowDown, User, Bot, Wrench, ExternalLink, Loader2 } from "lucide-react";
+import { FileText, Image as ImageIcon, User, Bot, Wrench, ExternalLink, Loader2 } from "lucide-react";
 
 interface CidRef { ref: string; size?: number; scheme?: string }
 interface ActionData {
@@ -170,6 +170,7 @@ function ActionRow({
   ipfsGateway: string;
   isLast: boolean;
 }) {
+  const [hovered, setHovered] = useState(false);
   const entity = entityMap.get(action.performedBy);
   const tool = getAITool(action, entity);
   const isHuman = entity?.role === "human" || action.type === "provide";
@@ -188,22 +189,28 @@ function ActionRow({
     <div className="relative">
       {/* Connector line from above */}
       {!isHuman && (
-        <div className="flex items-center gap-2 mb-1.5 pl-1">
-          <div className="flex flex-col items-center">
-            <div className="w-px h-4 bg-border" />
-            <ArrowDown className="h-3 w-3 text-muted-foreground/50 -mt-0.5" />
-          </div>
+        <div className="flex ml-4 mb-1">
+          <div className="w-px h-4 bg-border" />
         </div>
       )}
 
       {/* Action card */}
       <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ transition: "box-shadow 0.12s ease, border-color 0.12s ease" }}
         className={`rounded-lg border px-3 py-2.5 ${
           isHuman
-            ? "border-blue-200 bg-blue-50/50 dark:border-blue-900/50 dark:bg-blue-950/20"
+            ? hovered
+              ? "border-blue-300 bg-blue-50/70 shadow-sm dark:border-blue-800 dark:bg-blue-950/30"
+              : "border-blue-200 bg-blue-50/40 dark:border-blue-900/60 dark:bg-blue-950/15"
             : tool
-            ? "border-amber-200 bg-amber-50/50 dark:border-amber-900/50 dark:bg-amber-950/20"
-            : "border-green-200 bg-green-50/50 dark:border-green-900/50 dark:bg-green-950/20"
+            ? hovered
+              ? "border-amber-300 bg-amber-50/70 shadow-sm dark:border-amber-700 dark:bg-amber-950/30"
+              : "border-amber-200 bg-amber-50/40 dark:border-amber-900/60 dark:bg-amber-950/15"
+            : hovered
+            ? "border-emerald-300 bg-emerald-50/70 shadow-sm dark:border-emerald-700 dark:bg-emerald-950/30"
+            : "border-emerald-200 bg-emerald-50/40 dark:border-emerald-900/60 dark:bg-emerald-950/15"
         }`}
       >
         {/* Header: entity + action type */}
@@ -213,13 +220,13 @@ function ActionRow({
           ) : tool ? (
             <Wrench className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           ) : (
-            <Bot className="h-3.5 w-3.5 text-green-500 shrink-0" />
+            <Bot className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
           )}
-          <span className="text-xs font-medium">{entityName}</span>
-          <span className="text-xs text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">{action.type}</span>
+          <span className="text-xs font-semibold">{entityName}</span>
+          <span className="text-[10px] text-muted-foreground">·</span>
+          <span className="text-[10px] text-muted-foreground">{action.type}</span>
           {tool && !isHuman && (
-            <span className="ml-auto text-[10px] text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-1.5 py-0.5 rounded-full">
+            <span className="ml-auto text-[9px] font-medium text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 border border-amber-200 dark:border-amber-800 px-1.5 py-0.5 rounded-full">
               tool
             </span>
           )}
@@ -242,8 +249,8 @@ function ActionRow({
 
       {/* Bottom connector */}
       {!isLast && (
-        <div className="flex items-center gap-2 mt-1.5 pl-1">
-          <div className="w-px h-2 bg-border ml-[3px]" />
+        <div className="flex ml-4 mt-1">
+          <div className="w-px h-2 bg-border" />
         </div>
       )}
     </div>
@@ -266,9 +273,11 @@ function TurnCard({
   const allActions = [turn.userAction, ...turn.aiActions];
 
   return (
-    <div className="rounded-xl border bg-card/30 p-3 space-y-0">
-      <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider mb-2.5">
+    <div className="rounded-xl border bg-card p-3">
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
+        <span className="w-4 h-px bg-border inline-block" />
         Turn {turnIndex + 1}
+        <span className="flex-1 h-px bg-border inline-block" />
       </p>
       {allActions.map((action, i) => (
         <ActionRow
@@ -350,23 +359,22 @@ export function SessionFlowDiagram({
   return (
     <div className="space-y-4">
       {/* Entity legend */}
-      <div className="rounded-lg border bg-card px-3 py-2 flex flex-wrap gap-3 text-xs">
-        <span className="text-muted-foreground font-medium">Participants:</span>
+      <div className="rounded-lg border bg-card px-3 py-2.5 flex flex-wrap items-center gap-3 text-xs">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Participants</span>
         {uniqueEntities.map((e) => (
-          <span key={e.id} className="flex items-center gap-1">
+          <span key={e.id} className="flex items-center gap-1 bg-muted/50 rounded-full px-2 py-0.5 border">
             {e.role === "human" ? (
-              <User className="h-3 w-3 text-blue-500" />
+              <User className="h-2.5 w-2.5 text-blue-500" />
             ) : (
-              <Bot className="h-3 w-3 text-green-500" />
+              <Bot className="h-2.5 w-2.5 text-emerald-500" />
             )}
-            <span className="text-foreground">
+            <span className="text-foreground font-medium">
               {e.name?.includes("/") ? e.name.split("/").pop() : e.name ?? e.role}
             </span>
-            <span className="text-muted-foreground">({e.role})</span>
           </span>
         ))}
-        <span className="ml-auto text-muted-foreground">
-          {session.summary.actions} actions · {session.summary.resources} resources
+        <span className="ml-auto text-[10px] text-muted-foreground tabular-nums">
+          {session.summary.actions}a · {session.summary.resources}r
         </span>
       </div>
 

@@ -26,7 +26,6 @@ import type {
 
 import type {
   IProvenanceStorage,
-  ITransactionalStorage,
   EntityFilter,
   ResourceFilter,
   ActionFilter,
@@ -100,9 +99,20 @@ export interface MongoDBStorageConfig {
  | MongoDB Storage Implementation                                    |
 \*-----------------------------------------------------------------*/
 
-export class MongoDBStorage
-  implements IProvenanceStorage, ITransactionalStorage
-{
+/**
+ * MongoDB provenance storage.
+ *
+ * **Transactions:** MongoDB multi-document transactions require a replica set
+ * (or sharded cluster). The `transaction()` helper runs the callback without
+ * session/transaction isolation on standalone instances. It is provided as a
+ * convenience shim for code that is written against `ITransactionalStorage` but
+ * deployed against MongoDB — callers must be aware that atomicity is NOT
+ * guaranteed on standalone deployments.
+ *
+ * Because atomicity cannot be guaranteed unconditionally, `MongoDBStorage`
+ * does NOT declare `ITransactionalStorage` in its `implements` list.
+ */
+export class MongoDBStorage implements IProvenanceStorage {
   private db: MongoDb;
   private prefix: string;
   private autoIndex: boolean;

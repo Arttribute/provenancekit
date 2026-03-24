@@ -24,6 +24,9 @@ const { mockGetContext } = vi.hoisted(() => ({
   mockGetContext: vi.fn(),
 }));
 
+// Prevent main() from binding a real HTTP port in the test process
+vi.mock("@hono/node-server", () => ({ serve: vi.fn() }));
+
 // Mock context — replaces Supabase + Pinata with in-memory adapters
 vi.mock("../context.js", () => ({
   getContext: mockGetContext,
@@ -37,6 +40,7 @@ vi.mock("../embedding/service.js", () => ({
     vector: vi.fn().mockResolvedValue(new Array(512).fill(0)),
     store: vi.fn().mockResolvedValue(undefined),
     storeEncrypted: vi.fn().mockResolvedValue(undefined),
+    warmup: vi.fn(),
   })),
 }));
 
@@ -85,13 +89,30 @@ describe("ProvenanceKit API", () => {
     app = createApp({ authProviders: [] });
   });
 
-  // ─── Health ───────────────────────────────────────────────────────────────
+  // ─── Health & OpenAPI ─────────────────────────────────────────────────────
 
   describe("GET /", () => {
     it("returns ok", async () => {
       const res = await app.request("/");
       expect(res.status).toBe(200);
       expect(await res.text()).toBe("ok");
+    });
+
+    it("GET /openapi.json returns valid OpenAPI spec", async () => {
+      const res = await app.request("/openapi.json");
+      expect(res.status).toBe(200);
+      const spec = await res.json() as Record<string, unknown>;
+      expect(spec.openapi).toBe("3.1.0");
+      expect(typeof (spec.info as Record<string, unknown>).title).toBe("string");
+      expect(spec.paths).toBeDefined();
+    });
+
+    it("GET /docs returns Scalar UI HTML", async () => {
+      const res = await app.request("/docs");
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/html");
+      const html = await res.text();
+      expect(html).toContain("/openapi.json");
     });
   });
 

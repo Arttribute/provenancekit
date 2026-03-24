@@ -341,6 +341,16 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}attribution_entity ON ${t.attribution}(e
 CREATE INDEX IF NOT EXISTS idx_${prefix}resource_extensions ON ${t.resource} USING GIN (extensions);
 CREATE INDEX IF NOT EXISTS idx_${prefix}action_extensions ON ${t.action} USING GIN (extensions);\n\n`;
 
+    // Ownership state table — tracks current owner per resource
+    const ownershipState = `${prefix}ownership_state`;
+    sql += `CREATE TABLE IF NOT EXISTS ${ownershipState} (
+  resource_ref      TEXT PRIMARY KEY REFERENCES ${t.resource}(ref) ON DELETE CASCADE,
+  current_owner_id  TEXT NOT NULL REFERENCES ${t.entity}(id),
+  last_transfer_id  TEXT REFERENCES ${t.action}(id),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);\n\n`;
+    sql += `CREATE INDEX IF NOT EXISTS idx_${prefix}ownership_current_owner ON ${ownershipState}(current_owner_id);\n\n`;
+
     if (vectors) {
       sql += `CREATE EXTENSION IF NOT EXISTS vector;
 

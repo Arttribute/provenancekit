@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { getModelInfo } from "@/lib/provenance";
-import { ProvenanceSearch } from "@/components/provenance/pk-ui";
+import { FileSearchPanel } from "@/components/provenance/file-search-panel";
 import type { Conversation, AIProvider } from "@/types";
 
 const PROVIDER_COLORS: Record<AIProvider | string, string> = {
@@ -118,15 +118,40 @@ export default function ProvenanceExplorerPage() {
           </p>
         </div>
 
-        {/* Search */}
-        <div className="rounded-lg border bg-card p-4 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-            Search by CID or file
+        {/* CID lookup */}
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            Lookup by CID
           </p>
-          <ProvenanceSearch
-            mode="both"
-            onResult={({ cid }) => router.push(`/provenance/${cid}`)}
-          />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const val = (e.currentTarget.elements.namedItem("cid") as HTMLInputElement).value.trim();
+              if (val) router.push(`/provenance/${val}`);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              name="cid"
+              type="text"
+              placeholder="bafy…"
+              className="flex-1 rounded-lg border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/25"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors"
+            >
+              Go
+            </button>
+          </form>
+        </div>
+
+        {/* File search */}
+        <div className="rounded-xl border bg-card p-4 space-y-3">
+          <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+            Search by file
+          </p>
+          <FileSearchPanel />
         </div>
 
         {/* Stats row */}
