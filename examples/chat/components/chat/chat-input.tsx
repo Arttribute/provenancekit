@@ -8,12 +8,14 @@ import {
   type KeyboardEvent,
   type ChangeEvent,
 } from "react";
-import { Send, Loader2, Paperclip, Mic, MicOff, X, ImageIcon, FileText } from "lucide-react";
+import { Send, Loader2, Paperclip, Mic, MicOff, X, ImageIcon, FileText, ShieldCheck, ShieldOff } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { FileProvenanceTag } from "@/components/provenance/pk-ui";
+import { useProvenanceKit } from "@/components/provenance/pk-ui";
+import { ProvenanceFileDialog } from "@/components/provenance/file-search-panel";
 import { cn } from "@/lib/utils";
 import type { FileAttachment } from "@/types";
+import type { Match } from "@provenancekit/sdk";
 
 interface ChatInputProps {
   value: string;
@@ -82,7 +84,7 @@ export function ChatInput({
         const res = await fetch("/api/media/upload", { method: "POST", body: form });
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
-        // Store original File object so FileProvenanceTag can run background provenance search.
+        // Store original File object so AttachmentProvenance can run background provenance search.
         // cid is set when Pinata is configured; textContent is set for text/* files.
         newAttachments.push({
           url: data.url,
@@ -204,6 +206,151 @@ export function ChatInput({
   );
 }
 
+/** Compact provenance indicator for an attachment chip.
+ *  Runs a background search on mount; shows a small status row.
+ *  On match → clickable badge that opens the ProvenanceFileDialog.
+ *  On no match → inline claim prompt (Yes / No buttons). */
+function AttachmentProvenance({
+  file,
+  onMatchFound,
+  onCidAssigned,
+  userId,
+}: {
+  file: File;
+  onMatchFound?: (cid: string) => void;
+  onCidAssigned?: (cid: string) => void;
+  userId?: string;
+}) {
+  const { pk } = useProvenanceKit();
+  const [status, setStatus] = useState<"loading" | "found" | "not-found" | "error">("loading");
+  const [topMatch, setTopMatch] = useState<Match | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimDone, setClaimDone] = useState<"claimed" | "referenced" | null>(null);
+
+  useEffect(() => {
+    if (!pk) return;
+    const isImage = file.type.startsWith("image/");
+    const url = isImage ? URL.createObjectURL(file) : null;
+    setPreviewUrl(url);
+
+    pk.uploadAndMatch(file, { topK: 3 })
+      .then((result) => {
+        if (!result.matches?.length || result.verdict === "no-match") {
+          setStatus("not-found");
+        } else {
+          setTopMatch(result.matches[0]);
+          setStatus("found");
+          onMatchFound?.(result.matches[0].cid);
+        }
+      })
+      .catch(() => setStatus("error"));
+
+    return () => { if (url) URL.revokeObjectURL(url); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleClaim(owned: boolean) {
+    setClaiming(true);
+    try {
+      const form = new FormData();
+      form.append("file", file, file.name);
+      form.append("owned", String(owned));
+      form.append("userId", userId ?? "anonymous");
+      form.append("mimeType", file.type);
+      const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
+      if (!res.ok) throw new Error("Claim failed");
+      const data = await res.json();
+      onCidAssigned?.(data.cid);
+      setClaimDone(data.status as "claimed" | "referenced");
+    } catch { /* non-fatal */ }
+    finally { setClaiming(false); }
+  }
+
+  if (!pk || status === "error") return null;
+
+  if (status === "loading") {
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
+        <span className="text-[10px] text-muted-foreground">Checking provenance…</span>
+      </div>
+    );
+  }
+
+  if (status === "found" && topMatch) {
+    const pct = Math.round(topMatch.score * 100);
+    const isHigh = pct >= 95;
+    return (
+      <>
+        <button
+          type="button"
+          onClick={() => setDialogOpen(true)}
+          className={cn(
+            "flex items-center gap-1 mt-1 rounded px-1 py-0.5 text-[10px] font-medium transition-colors",
+            isHigh
+              ? "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              : "text-amber-700 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+          )}
+        >
+          <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
+          {pct}% match · View details →
+        </button>
+        <ProvenanceFileDialog
+          open={dialogOpen}
+          onClose={() => setDialogOpen(false)}
+          match={topMatch}
+          file={file}
+          previewUrl={previewUrl}
+        />
+      </>
+    );
+  }
+
+  if (status === "not-found") {
+    if (claimDone) {
+      return (
+        <div className="flex items-center gap-1 mt-1">
+          <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+            {claimDone === "claimed" ? "Claimed as your work" : "Recorded as external"}
+          </span>
+        </div>
+      );
+    }
+    return (
+      <div className="flex items-center gap-1 mt-1">
+        <ShieldOff className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+        <span className="text-[10px] text-muted-foreground">New file — yours?</span>
+        {claiming ? (
+          <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground ml-1" />
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => handleClaim(true)}
+              className="text-[10px] font-medium text-primary hover:underline ml-1"
+            >
+              Yes
+            </button>
+            <span className="text-[10px] text-muted-foreground">/</span>
+            <button
+              type="button"
+              onClick={() => handleClaim(false)}
+              className="text-[10px] font-medium text-muted-foreground hover:underline"
+            >
+              No
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return null;
+}
+
 function AttachmentChip({
   attachment,
   onRemove,
@@ -214,30 +361,13 @@ function AttachmentChip({
   attachment: FileAttachment;
   onRemove: () => void;
   onViewProvenance: (cid: string) => void;
-  /** Called when the user claims the file — updates the CID in parent state */
   onCidAssigned?: (cid: string) => void;
   userId?: string;
 }) {
   const isImage = attachment.mimeType.startsWith("image/");
 
-  // Claim callback — calls /api/pk-proxy/claim and returns the CID
-  async function handleClaim(owned: boolean) {
-    if (!attachment.file) throw new Error("No file available");
-    const form = new FormData();
-    form.append("file", attachment.file, attachment.name);
-    form.append("owned", String(owned));
-    form.append("userId", userId ?? "anonymous");
-    form.append("mimeType", attachment.mimeType);
-    const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
-    if (!res.ok) throw new Error("Claim failed");
-    const data = await res.json();
-    onCidAssigned?.(data.cid);
-    return { cid: data.cid as string, status: data.status as "claimed" | "referenced" };
-  }
-
   return (
     <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs max-w-[220px]">
-      {/* File name row */}
       <div className="flex items-center gap-1.5">
         {isImage
           ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
@@ -248,18 +378,12 @@ function AttachmentChip({
           <X className="h-3 w-3" />
         </button>
       </div>
-      {/* Provenance tag — background search fires on mount.
-          - Match found: onMatchFound updates the attachment CID to the existing
-            PK record so the generate action references the right provenance chain.
-          - No match: FileOwnershipClaim asks the user, then onClaim registers
-            the file in PK and calls onCidAssigned with the new CID. */}
       {attachment.file && (
-        <FileProvenanceTag
+        <AttachmentProvenance
           file={attachment.file}
-          onViewDetail={onViewProvenance}
-          onClaim={handleClaim}
           onMatchFound={onCidAssigned}
-          topK={3}
+          onCidAssigned={onCidAssigned}
+          userId={userId}
         />
       )}
     </div>
