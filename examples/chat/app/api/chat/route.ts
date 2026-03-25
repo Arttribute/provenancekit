@@ -116,7 +116,7 @@ async function recordAndUpdateProvenance(opts: {
   async function prefetchBundle(cid: string): Promise<Record<string, unknown> | undefined> {
     if (!pkClient) return undefined;
     try {
-      const bundle = await pkClient.bundle(cid) as Record<string, unknown>;
+      const bundle = await pkClient.bundle(cid) as unknown as Record<string, unknown>;
       cacheBundle(cid, bundle); // warm pk-proxy cache for browser fetch fallback
       return bundle;
     } catch {

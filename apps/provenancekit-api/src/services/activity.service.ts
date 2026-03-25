@@ -23,6 +23,7 @@
  * - @provenancekit/privacy: Encrypted uploads
  */
 
+import { createHash } from "crypto";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -71,6 +72,30 @@ import type { AuthIdentity } from "../middleware/auth.js";
 \*─────────────────────────────────────────────────────────────*/
 
 const embedder = new EmbeddingService();
+
+/*─────────────────────────────────────────────────────────────*\
+ | Content hash → CID cache                                     |
+ |                                                              |
+ | Avoids re-uploading identical file bytes across retries.     |
+ | When the retry logic re-submits a file that was already      |
+ | accepted in a previous attempt, we detect the duplicate in   |
+ | microseconds rather than spending 500-2000ms re-uploading to |
+ | IPFS before the DB duplicate check fires.                    |
+ |                                                              |
+ | Key:   SHA-256 hex of raw file bytes                         |
+ | Value: IPFS CID returned by the storage layer                |
+ |                                                              |
+ | Uses globalThis so the cache survives module re-evaluations  |
+ | during development hot-reloads and Cloud Run revision warm-  |
+ | up, while still being scoped to a single Node.js process.    |
+\*─────────────────────────────────────────────────────────────*/
+declare global {
+  // eslint-disable-next-line no-var
+  var _pkContentCidCache: Map<string, string> | undefined;
+}
+const contentCidCache: Map<string, string> = (global._pkContentCidCache ??= new Map());
+// Evict oldest entries when the cache grows beyond this size (~5k entries × ~100 bytes ≈ 500KB)
+const CONTENT_CACHE_MAX = 5000;
 
 /*─────────────────────────────────────────────────────────────*\
  | Request Schemas                                              |
@@ -581,6 +606,35 @@ export async function createActivity(
   const mime = file.type || "application/octet-stream";
   const kind = (resourceType ?? inferKindFromMime(mime) ?? "other") as ResourceKind;
 
+  // 4a. Fast duplicate pre-check using content hash (skips IPFS upload entirely).
+  //
+  // SHA-256 is computed locally in microseconds. If we've seen these exact bytes
+  // in this process before, we can return 409 without uploading to IPFS — saving
+  // 500-2000ms of network latency. This is the common path for retried requests
+  // where the first attempt's file upload succeeded but the response was lost.
+  //
+  // Unencrypted only: encrypted uploads use a fresh random key every time, so
+  // the same plaintext bytes produce a different ciphertext + CID each call.
+  // contentSha256 is kept in scope so the cache can be populated after upload.
+  const contentSha256 = !encrypt
+    ? createHash("sha256").update(bytes).digest("hex")
+    : null;
+
+  if (contentSha256) {
+    const cachedCid = contentCidCache.get(contentSha256);
+    if (cachedCid) {
+      // Double-check DB — if the resource was somehow deleted, the cache is stale
+      const existing = await dbStorage.getResource(cachedCid);
+      if (existing) {
+        throw new ProvenanceKitError("Duplicate", "Resource with identical CID already exists", {
+          recovery: "Use the existing CID instead of uploading again",
+          details: { cid: cachedCid, similarity: 1 },
+        });
+      }
+      contentCidCache.delete(contentSha256); // stale — fall through to upload
+    }
+  }
+
   // 5+7. Upload to IPFS and generate embedding in parallel.
   // Both operations only need `bytes` + `mime` (already in memory), so there's no
   // dependency between them. On Cloud Run, IPFS upload (~500-2000ms network) and
@@ -626,6 +680,17 @@ export async function createActivity(
   }
 
   const embedding: number[] | null = embeddingRaw;
+
+  // Populate the content cache now that we have the CID.
+  // Future requests with identical bytes (e.g. retries) will short-circuit before upload.
+  if (contentSha256) {
+    if (contentCidCache.size >= CONTENT_CACHE_MAX) {
+      // Evict the oldest entry (Map iteration order is insertion order)
+      const firstKey = contentCidCache.keys().next().value;
+      if (firstKey !== undefined) contentCidCache.delete(firstKey);
+    }
+    contentCidCache.set(contentSha256, cid);
+  }
 
   // 6. Check for exact duplicate (needs CID from upload above)
   const existing = await dbStorage.getResource(cid);

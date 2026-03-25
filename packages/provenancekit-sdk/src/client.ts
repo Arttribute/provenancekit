@@ -37,6 +37,46 @@ import type {
 } from "./types";
 
 /**
+ * Compute a cache key for a file() call: SHA-256 of the file bytes combined
+ * with the entity ID and action context so different callers recording the
+ * same content each get their own action, while retries from the same caller
+ * skip the redundant round-trip.
+ *
+ * Uses Web Crypto (crypto.subtle), available in Node.js 15+ and all modern
+ * browsers without any imports.
+ */
+async function fileCallKey(
+  file: Blob | File | Buffer | Uint8Array,
+  opts: FileOpts
+): Promise<string> {
+  // Normalise to Uint8Array
+  let bytes: Uint8Array;
+  if (file instanceof Blob) {
+    bytes = new Uint8Array(await file.arrayBuffer());
+  } else if (typeof Buffer !== "undefined" && file instanceof Buffer) {
+    bytes = new Uint8Array(file.buffer, file.byteOffset, file.byteLength);
+  } else {
+    bytes = file as Uint8Array;
+  }
+
+  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const hex = Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  // Include entity ID + action type + input CIDs so different callers or
+  // different action contexts with the same bytes stay separate cache entries.
+  const ctx = [
+    opts.entity.id ?? "",
+    opts.action?.type ?? "create",
+    (opts.action?.inputCids ?? []).join(","),
+    opts.sessionId ?? "",
+  ].join("::");
+
+  return `${hex}::${ctx}`;
+}
+
+/**
  * Merge server-side (pgvector) and client-side (encrypted) search results.
  * Deduplicates by CID, ranks by score, and returns the top-K.
  */
@@ -182,10 +222,38 @@ export interface ProvenanceKitOptions extends ApiClientOptions {
    * handles the `Cache-Control` + ETag headers the server already sends.
    */
   bundleCacheTtl?: number;
+
+  /**
+   * Client-side file deduplication cache TTL in seconds.
+   *
+   * When > 0, `file()` caches successful results keyed by
+   * `sha256(bytes) + entityId + actionType + inputCids`. A subsequent call
+   * with identical bytes from the same entity returns the cached `FileResult`
+   * without making a network request.
+   *
+   * This primarily helps in two situations:
+   *   1. **Retry loops** — if the server processed the request but the
+   *      response was lost, the retry gets an instant cache hit instead of
+   *      re-uploading the full file and waiting for the API to detect the
+   *      duplicate.
+   *   2. **Accidental double-calls** — e.g. the same content submitted twice
+   *      by application code.
+   *
+   * Cache entries are scoped to the `ProvenanceKit` instance so different
+   * API keys or projects never share cached results.
+   *
+   * Default: 300 (5 minutes). Set to 0 to disable.
+   */
+  fileDeduplicationTtl?: number;
 }
 
 interface BundleCacheEntry {
   value: ProvenanceBundle;
+  expiresAt: number;
+}
+
+interface FileCacheEntry {
+  result: FileResult;
   expiresAt: number;
 }
 
@@ -197,6 +265,8 @@ export class ProvenanceKit {
   private readonly chainAdapter?: IChainAdapter;
   private readonly bundleCache: Map<string, BundleCacheEntry> | null;
   private readonly bundleCacheTtlMs: number;
+  private readonly fileCache: Map<string, FileCacheEntry> | null;
+  private readonly fileCacheTtlMs: number;
   readonly unclaimed = "ent:unclaimed";
 
   constructor(opts: ProvenanceKitOptions = {}) {
@@ -207,6 +277,8 @@ export class ProvenanceKit {
     this.chainAdapter = opts.chain;
     this.bundleCacheTtlMs = (opts.bundleCacheTtl ?? 0) * 1000;
     this.bundleCache = this.bundleCacheTtlMs > 0 ? new Map() : null;
+    this.fileCacheTtlMs = (opts.fileDeduplicationTtl ?? 300) * 1000;
+    this.fileCache = this.fileCacheTtlMs > 0 ? new Map() : null;
 
     if (this.signingKey && !this.signingEntityId) {
       throw new Error("signingEntityId is required when signingKey is set");
@@ -267,6 +339,18 @@ export class ProvenanceKit {
     file: Blob | File | Buffer | Uint8Array,
     opts: FileOpts
   ): Promise<FileResult> {
+    // Check client-side deduplication cache before making any network call.
+    // Cache key = sha256(bytes) + entityId + actionType + inputCids + sessionId,
+    // so different entities or action contexts never share a cached result.
+    let cacheKey: string | null = null;
+    if (this.fileCache) {
+      cacheKey = await fileCallKey(file, opts);
+      const cached = this.fileCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return cached.result;
+      }
+    }
+
     // Auto-sign if signing key is configured and no proof already provided
     let finalOpts = opts;
     if (this.signingKey && !opts.action?.actionProof) {
@@ -319,11 +403,14 @@ export class ProvenanceKit {
         }
       }
 
+      if (this.fileCache && cacheKey) {
+        this.fileCache.set(cacheKey, { result, expiresAt: Date.now() + this.fileCacheTtlMs });
+      }
       return result;
     } catch (e) {
       if (e instanceof ProvenanceKitError && e.code === "Duplicate") {
         const d = e.details as DuplicateDetails;
-        return {
+        const result: FileResult = {
           cid: d.cid,
           duplicate: d,
           matched: {
@@ -332,6 +419,12 @@ export class ProvenanceKit {
             type: opts.resourceType ?? "unknown",
           },
         };
+        // Cache the duplicate result too — future retries with the same bytes
+        // return instantly without any network call.
+        if (this.fileCache && cacheKey) {
+          this.fileCache.set(cacheKey, { result, expiresAt: Date.now() + this.fileCacheTtlMs });
+        }
+        return result;
       }
       throw e;
     }
