@@ -123,10 +123,9 @@ function GraphRFCanvasInner({
           ...n,
           // ReactFlow applies `style` to the outer node wrapper — affects card + handles
           style: {
-            opacity: isDimmed ? 0.35 : 1,
+            opacity: isDimmed ? 0.2 : 1,
             zIndex: isHighlighted ? 10 : isDimmed ? 0 : 1,
-            transition: "opacity 0.15s ease",
-            pointerEvents: isDimmed ? ("none" as const) : ("all" as const),
+            transition: "opacity 0.18s ease",
           },
           data: {
             ...n.data,
@@ -151,7 +150,6 @@ function GraphRFCanvasInner({
           target: e.to,
           label: e.type,
           type: "smoothstep",
-          animated: e.type === "produces" && active,
           style: {
             stroke: active ? baseColor : "rgba(148,163,184,0.25)",
             strokeWidth: active ? (hoveredNodeId ? 2 : 1.5) : 1,
