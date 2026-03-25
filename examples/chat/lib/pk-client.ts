@@ -78,6 +78,8 @@ export async function getPKClientAsync(): Promise<ProvenanceKit | null> {
   _pkClient = new ProvenanceKit({
     apiKey: process.env.PK_API_KEY,
     projectId: process.env.PK_PROJECT_ID,
+    bundleCacheTtl: 300,       // 5 min — bundles are immutable (CID-addressed)
+    fileDeduplicationTtl: 300, // 5 min — skip redundant uploads on retries
     ...(chain ? { chain } : {}),
   });
 
@@ -96,6 +98,8 @@ export function getPKClient(): ProvenanceKit | null {
   _pkClient = new ProvenanceKit({
     apiKey: process.env.PK_API_KEY,
     projectId: process.env.PK_PROJECT_ID,
+    bundleCacheTtl: 300,
+    fileDeduplicationTtl: 300,
   });
 
   // Warm up the chain adapter in the background — future calls will use it
