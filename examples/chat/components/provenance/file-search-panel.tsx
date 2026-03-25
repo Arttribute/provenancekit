@@ -396,6 +396,8 @@ function ProvenanceFileDialog({
   );
 }
 
+export { ProvenanceFileDialog };
+
 // ── File Search Panel ──────────────────────────────────────────────────────────
 
 export function FileSearchPanel() {
