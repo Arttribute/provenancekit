@@ -87,7 +87,12 @@ async function recordAndUpdateProvenance(opts: {
     attachments,
   } = opts;
 
+  const t0 = Date.now();
+  const hasImage = !!imageToolResult;
+  console.log(`[pk:chat] recordAndUpdateProvenance START msgId=${assistantMsgId} hasImage=${hasImage} provider=${provider} model=${model}`);
+
   // 1. Record text-response provenance
+  const t1 = Date.now();
   const pkResult = await recordChatProvenance({
     userPrivyDid: userId,
     humanEntityId,
@@ -106,8 +111,11 @@ async function recordAndUpdateProvenance(opts: {
       { _id: assistantMsgId },
       { $set: { provenanceStatus: "failed" } }
     );
+    console.log(`[pk:chat] pk_not_configured — marked failed ms=${Date.now()-t0}`);
     return;
   }
+
+  console.log(`[pk:chat] text_provenance_done cid=${pkResult.cid.slice(0,16)}… ms=${Date.now()-t1}`);
 
   // Helper: silently pre-fetch a bundle from the PK API.
   // Stores result in the pk-proxy server cache AND returns it for inline DB storage.
@@ -115,11 +123,14 @@ async function recordAndUpdateProvenance(opts: {
   const pkClient = await getPKClientAsync();
   async function prefetchBundle(cid: string): Promise<Record<string, unknown> | undefined> {
     if (!pkClient) return undefined;
+    const tb = Date.now();
     try {
       const bundle = await pkClient.bundle(cid) as unknown as Record<string, unknown>;
       cacheBundle(cid, bundle); // warm pk-proxy cache for browser fetch fallback
+      console.log(`[pk:chat] bundle_prefetch HIT cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`);
       return bundle;
-    } catch {
+    } catch (err) {
+      console.warn(`[pk:chat] bundle_prefetch FAILED cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`, err instanceof Error ? err.message : err);
       return undefined;
     }
   }
@@ -129,6 +140,8 @@ async function recordAndUpdateProvenance(opts: {
   if (imageToolResult) {
     const imageResult = imageToolResult.result as { imageUrl: string; prompt: string };
 
+    const t2 = Date.now();
+    console.log(`[pk:chat] parallel_start text_bundle_prefetch + image_provenance`);
     const [bundleData, imagePkResult] = await Promise.all([
       prefetchBundle(pkResult.cid),
       recordImageProvenance({
@@ -143,6 +156,7 @@ async function recordAndUpdateProvenance(opts: {
         agentEntityId: pkResult.agentEntityId,
       }),
     ]);
+    console.log(`[pk:chat] parallel_done ms=${Date.now()-t2} image_cid=${imagePkResult?.cid?.slice(0,16) ?? "null"}…`);
 
     // Pre-fetch image bundle (text bundle was already fetched in parallel above)
     const imageBundleData = imagePkResult ? await prefetchBundle(imagePkResult.cid) : undefined;
@@ -150,6 +164,7 @@ async function recordAndUpdateProvenance(opts: {
     // Replace the expiring OpenAI URL with a persistent Pinata/IPFS gateway URL.
     const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
 
+    const tdb = Date.now();
     await MessageModel.updateOne(
       { _id: assistantMsgId },
       {
@@ -176,10 +191,13 @@ async function recordAndUpdateProvenance(opts: {
         },
       }
     );
+    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} bundle=${!!bundleData} imageBundle=${!!imageBundleData}`);
+    console.log(`[pk:chat] recordAndUpdateProvenance DONE (image) total_ms=${Date.now()-t0}`);
   } else {
     // Text-only: pre-fetch bundle then write a single update
     const bundleData = await prefetchBundle(pkResult.cid);
 
+    const tdb = Date.now();
     await MessageModel.updateOne(
       { _id: assistantMsgId },
       {
@@ -195,6 +213,8 @@ async function recordAndUpdateProvenance(opts: {
         },
       }
     );
+    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} bundle=${!!bundleData}`);
+    console.log(`[pk:chat] recordAndUpdateProvenance DONE (text-only) total_ms=${Date.now()-t0}`);
   }
 
   // 3. Update conversation provenance fields

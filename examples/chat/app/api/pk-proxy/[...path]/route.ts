@@ -70,12 +70,14 @@ async function proxyRequest(req: NextRequest, { params }: Params, method: string
     fetchOpts.duplex = "half"; // required for streaming request body in Node.js
   }
 
+  const t0 = Date.now();
   try {
     const response = await fetch(targetUrl, fetchOpts as RequestInit);
     const data = await response.json();
+    console.log(`[pk:proxy] ${method} /${pathStr} → ${response.status} ms=${Date.now()-t0}`);
     return NextResponse.json(data, { status: response.status });
   } catch (err) {
-    console.error("[pk-proxy] Upstream error:", err);
+    console.error(`[pk:proxy] ${method} /${pathStr} UPSTREAM ERROR ms=${Date.now()-t0}`, err);
     return NextResponse.json({ error: "PK API unavailable" }, { status: 502 });
   }
 }

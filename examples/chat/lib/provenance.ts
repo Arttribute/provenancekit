@@ -197,6 +197,9 @@ export async function recordChatProvenance(opts: {
   const pk = await getPKClientAsync();
   if (!pk) return null;
 
+  const t0 = Date.now();
+  console.log(`[pk:provenance] recordChatProvenance START provider=${opts.provider} model=${opts.model}`);
+
   try {
     return await withRetry(async () => {
       // Human: use the pre-registered entity ID from MongoDB (set at login).
@@ -207,17 +210,22 @@ export async function recordChatProvenance(opts: {
 
       const promptText = JSON.stringify(opts.prompt.map((m) => ({ role: m.role, content: m.content })));
       const promptBlob = new Blob([promptText], { type: "application/json" });
+
+      const t1 = Date.now();
       const promptResult = await pk.file(promptBlob, {
         entity: { id: humanEntityId, role: "human", name: opts.userPrivyDid },
         action: { type: "provide" },
         resourceType: "text",
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
+      console.log(`[pk:provenance] prompt_upload done cid=${promptResult.cid.slice(0,16)}… ms=${Date.now()-t1}`);
 
       // Include attachment CIDs as additional inputs to the response action
       const attachmentCids = (opts.attachments ?? []).filter((a) => a.cid).map((a) => a.cid!);
 
       const responseBlob = new Blob([opts.response], { type: "text/plain" });
+
+      const t2 = Date.now();
       const responseResult = await pk.file(responseBlob, {
         entity: { id: agentEntityId, role: "ai", name: `${opts.provider}/${opts.model}` },
         action: {
@@ -233,11 +241,13 @@ export async function recordChatProvenance(opts: {
         resourceType: "text",
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
+      console.log(`[pk:provenance] response_upload done cid=${responseResult.cid.slice(0,16)}… ms=${Date.now()-t2}`);
 
       if (responseResult.onchain) {
-        console.log(`[PK] On-chain recorded: txHash=${responseResult.onchain.txHash} chain=${responseResult.onchain.chainName}`);
+        console.log(`[pk:provenance] on_chain txHash=${responseResult.onchain.txHash} chain=${responseResult.onchain.chainName}`);
       }
 
+      console.log(`[pk:provenance] recordChatProvenance DONE total_ms=${Date.now()-t0}`);
       return {
         cid: responseResult.cid,
         actionId: responseResult.actionId,
@@ -248,9 +258,9 @@ export async function recordChatProvenance(opts: {
     });
   } catch (error) {
     if (error instanceof Error && (error as any).details) {
-      console.warn("[PK] recordChatProvenance failed:", error.message, JSON.stringify((error as any).details));
+      console.warn(`[pk:provenance] recordChatProvenance FAILED ms=${Date.now()-t0}`, error.message, JSON.stringify((error as any).details));
     } else {
-      console.warn("[PK] recordChatProvenance failed:", error);
+      console.warn(`[pk:provenance] recordChatProvenance FAILED ms=${Date.now()-t0}`, error);
     }
     return null;
   }
@@ -310,6 +320,10 @@ export async function recordImageProvenance(opts: {
     uploadBlob = new Blob([metadata], { type: "application/json" });
   }
 
+  const t0 = Date.now();
+  const blobKind = opts.imageBlob && opts.imageBlob.size > 0 ? "image" : "metadata-json";
+  console.log(`[pk:provenance] recordImageProvenance START model=${opts.model} blob=${blobKind} size=${uploadBlob.size}B`);
+
   try {
     return await withRetry(async () => {
       // DALL-E is a tool called by the conversation AI model, not a separate entity.
@@ -321,6 +335,7 @@ export async function recordImageProvenance(opts: {
 
       const performerName = `${opts.provider}/${opts.model}`;
 
+      const t1 = Date.now();
       const result = await pk.file(uploadBlob, {
         entity: { id: performerEntityId, role: "ai", name: performerName },
         action: {
@@ -336,15 +351,17 @@ export async function recordImageProvenance(opts: {
         resourceType: "image",
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
+      console.log(`[pk:provenance] image_upload done cid=${result.cid.slice(0,16)}… ms=${Date.now()-t1}`);
 
       if (result.onchain) {
-        console.log(`[PK] Image on-chain: txHash=${result.onchain.txHash} chain=${result.onchain.chainName}`);
+        console.log(`[pk:provenance] image_on_chain txHash=${result.onchain.txHash} chain=${result.onchain.chainName}`);
       }
 
+      console.log(`[pk:provenance] recordImageProvenance DONE total_ms=${Date.now()-t0}`);
       return { cid: result.cid, actionId: result.actionId, onchain: result.onchain };
     });
   } catch (error) {
-    console.warn("[PK] recordImageProvenance failed:", error);
+    console.warn(`[pk:provenance] recordImageProvenance FAILED ms=${Date.now()-t0}`, error);
     return null;
   }
 }
