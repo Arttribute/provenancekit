@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getCachedBundle } from "@/lib/bundle-cache";
 
 /**
  * Secure proxy to the ProvenanceKit API.
@@ -13,6 +14,10 @@ import { NextRequest, NextResponse } from "next/server";
  * Supports both JSON and multipart/form-data (required for pk.uploadAndMatch
  * file provenance search). The Content-Type header is forwarded as-is to
  * preserve the multipart boundary.
+ *
+ * Bundle cache: GET /bundle/{cid} responses are served from lib/bundle-cache
+ * when available. The background recording task pre-populates the cache so
+ * the first browser request hits memory rather than the upstream PK API.
  */
 
 const PK_API_BASE = process.env.PK_API_URL ?? "https://api.provenancekit.com";
@@ -30,6 +35,19 @@ async function proxyRequest(req: NextRequest, { params }: Params, method: string
   const pathStr = path.join("/");
   const search = req.nextUrl.search;
   const targetUrl = `${PK_API_BASE}/${pathStr}${search}`;
+
+  // Serve bundle GET requests from the server-side cache when available.
+  // The background recording task pre-populates this cache so the first
+  // browser request hits cache rather than the upstream API.
+  if (method === "GET" && pathStr.startsWith("bundle/") && !search) {
+    const cid = pathStr.slice("bundle/".length);
+    const cached = getCachedBundle(cid);
+    if (cached) {
+      return NextResponse.json(cached, {
+        headers: { "X-PK-Cache": "HIT", "Cache-Control": "private, max-age=600" },
+      });
+    }
+  }
 
   // Forward content-type as-is — critical for multipart/form-data where the
   // boundary parameter must be preserved exactly.

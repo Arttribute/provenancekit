@@ -64,7 +64,7 @@ export default function ConversationPage({
   const hasRecordingMessages = dbMessages.some((m) => m.provenanceStatus === "recording");
   useEffect(() => {
     if (!hasRecordingMessages) return;
-    const interval = setInterval(() => { refetchMessages(); }, 2000);
+    const interval = setInterval(() => { refetchMessages(); }, 500);
     return () => clearInterval(interval);
   }, [hasRecordingMessages, refetchMessages]);
 

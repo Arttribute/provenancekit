@@ -130,9 +130,9 @@ export interface IMessage {
   finishReason?: string;
   /** "recording" while async provenance write is in-flight; "recorded" on success; "failed" on error */
   provenanceStatus?: "recording" | "recorded" | "failed";
-  provenance?: { cid: string; actionId?: string; promptCid?: string; sessionId?: string };
+  provenance?: { cid: string; actionId?: string; promptCid?: string; sessionId?: string; bundle?: Record<string, unknown> };
   /** Separate provenance record for a DALL-E generated image in this message */
-  imageProvenance?: { cid: string; actionId?: string; status: "recording" | "recorded" | "failed" };
+  imageProvenance?: { cid: string; actionId?: string; status: "recording" | "recorded" | "failed"; bundle?: Record<string, unknown> };
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -156,8 +156,8 @@ const MessageSchema = new Schema<IMessage>(
     usage: { promptTokens: Number, completionTokens: Number, totalTokens: Number },
     finishReason: String,
     provenanceStatus: { type: String, enum: ["recording", "recorded", "failed"] },
-    provenance: { cid: String, actionId: String, promptCid: String, sessionId: String },
-    imageProvenance: { cid: String, actionId: String, status: String },
+    provenance: { cid: String, actionId: String, promptCid: String, sessionId: String, bundle: Schema.Types.Mixed },
+    imageProvenance: { cid: String, actionId: String, status: String, bundle: Schema.Types.Mixed },
   },
   { timestamps: true }
 );
