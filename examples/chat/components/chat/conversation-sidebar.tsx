@@ -223,7 +223,6 @@ export function ConversationSidebar() {
                               : "hover:bg-muted/60",
                           )}
                         >
-                          <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
                           <span className="truncate flex-1 text-xs">
                             {conv.title}
                           </span>
