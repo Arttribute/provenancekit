@@ -118,11 +118,14 @@ export interface ChatMessage {
     actionId?: string;
     promptCid?: string;
     sessionId?: string;
+    /** Pre-fetched bundle data — when present, badge renders instantly with no extra fetch */
+    bundle?: Record<string, unknown>;
   };
   /** Separate provenance record for a DALL-E generated image in this message */
   imageProvenance?: {
     cid: string;
     actionId?: string;
     status: "recording" | "recorded" | "failed";
+    bundle?: Record<string, unknown>;
   };
 }

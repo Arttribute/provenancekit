@@ -6,6 +6,7 @@ import remarkGfm from "remark-gfm";
 import { Bot, User, Copy, Check, Image as ImageIcon, Volume2, Wrench, AlertCircle } from "lucide-react";
 import { useState, useRef } from "react";
 import { ProvenanceBadge } from "@/components/provenance/pk-ui";
+import type { ProvenanceBundle } from "@provenancekit/sdk";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -235,6 +236,7 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                   <span className="pk-badge-glow inline-flex">
                     <ProvenanceBadge
                       cid={provenanceCid}
+                      bundle={message.provenance?.bundle as ProvenanceBundle | undefined}
                       variant="inline"
                       size="sm"
                       onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
@@ -257,6 +259,7 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                   <span className="pk-badge-glow inline-flex">
                     <ProvenanceBadge
                       cid={imageProv.cid}
+                      bundle={imageProv.bundle as ProvenanceBundle | undefined}
                       variant="inline"
                       size="sm"
                       onViewDetail={() => router.push(`/provenance/${imageProv.cid}`)}

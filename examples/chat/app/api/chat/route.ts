@@ -24,6 +24,8 @@ import { v4 as uuidv4 } from "uuid";
 import { connectDB, ConversationModel, MessageModel, UserModel } from "@/lib/db";
 import { getOpenAIClient } from "@/lib/openai-client";
 import { recordChatProvenance, recordImageProvenance, type SupportedProvider } from "@/lib/provenance";
+import { getPKClientAsync } from "@/lib/pk-client";
+import { cacheBundle } from "@/lib/bundle-cache";
 import type { IMessage } from "@/lib/db";
 
 // ─── Provider factory ─────────────────────────────────────────────────────────
@@ -107,12 +109,47 @@ async function recordAndUpdateProvenance(opts: {
     return;
   }
 
-  // 2. If there is a generated image, record its provenance separately
-  let imagePkResult = null;
+  // Helper: silently pre-fetch a bundle from the PK API.
+  // Stores result in the pk-proxy server cache AND returns it for inline DB storage.
+  // Non-fatal — if this fails, the client falls back to its own fetch.
+  const pkClient = await getPKClientAsync();
+  async function prefetchBundle(cid: string): Promise<Record<string, unknown> | undefined> {
+    if (!pkClient) return undefined;
+    try {
+      const bundle = await pkClient.bundle(cid) as Record<string, unknown>;
+      cacheBundle(cid, bundle); // warm pk-proxy cache for browser fetch fallback
+      return bundle;
+    } catch {
+      return undefined;
+    }
+  }
+
+  // 2. If there is a generated image, record its provenance separately.
+  //    Run text-bundle pre-fetch in parallel with image recording so neither waits on the other.
   if (imageToolResult) {
     const imageResult = imageToolResult.result as { imageUrl: string; prompt: string };
 
-    // Mark image provenance as recording first
+    const [bundleData, imagePkResult] = await Promise.all([
+      prefetchBundle(pkResult.cid),
+      recordImageProvenance({
+        userPrivyDid: userId,
+        provider,
+        model: "dall-e-3",
+        prompt: imageResult.prompt,
+        imageUrl: imageResult.imageUrl,
+        imageBlob: imageToolResult.blob,
+        inputCids: [pkResult.promptCid ?? pkResult.cid],
+        sessionId,
+        agentEntityId: pkResult.agentEntityId,
+      }),
+    ]);
+
+    // Pre-fetch image bundle (text bundle was already fetched in parallel above)
+    const imageBundleData = imagePkResult ? await prefetchBundle(imagePkResult.cid) : undefined;
+
+    // Replace the expiring OpenAI URL with a persistent Pinata/IPFS gateway URL.
+    const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
+
     await MessageModel.updateOne(
       { _id: assistantMsgId },
       {
@@ -122,52 +159,27 @@ async function recordAndUpdateProvenance(opts: {
             actionId: pkResult.actionId,
             promptCid: pkResult.promptCid,
             sessionId: sessionId ?? undefined,
+            ...(bundleData ? { bundle: bundleData } : {}),
           },
           provenanceStatus: "recorded",
-          "imageProvenance.status": "recording",
+          ...(imagePkResult
+            ? {
+                imageUrl: `${ipfsGateway}/${imagePkResult.cid}`,
+                imageProvenance: {
+                  cid: imagePkResult.cid,
+                  actionId: imagePkResult.actionId,
+                  status: "recorded",
+                  ...(imageBundleData ? { bundle: imageBundleData } : {}),
+                },
+              }
+            : { "imageProvenance.status": "failed" }),
         },
       }
     );
-
-    imagePkResult = await recordImageProvenance({
-      userPrivyDid: userId,
-      provider,
-      model: "dall-e-3",
-      prompt: imageResult.prompt,
-      imageUrl: imageResult.imageUrl,
-      imageBlob: imageToolResult.blob, // pre-downloaded binary for IPFS + embeddings
-      inputCids: [pkResult.promptCid ?? pkResult.cid],
-      sessionId,
-      agentEntityId: pkResult.agentEntityId, // reuse conversation entity — no duplicate dall-e entity
-    });
-
-    if (imagePkResult) {
-      // Replace the expiring OpenAI URL with a persistent Pinata/IPFS gateway URL.
-      // The image binary was already uploaded to IPFS inside recordImageProvenance,
-      // so imagePkResult.cid IS the content-addressed permanent identifier.
-      const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
-      const persistentImageUrl = `${ipfsGateway}/${imagePkResult.cid}`;
-      await MessageModel.updateOne(
-        { _id: assistantMsgId },
-        {
-          $set: {
-            imageUrl: persistentImageUrl,
-            imageProvenance: {
-              cid: imagePkResult.cid,
-              actionId: imagePkResult.actionId,
-              status: "recorded",
-            },
-          },
-        }
-      );
-    } else {
-      await MessageModel.updateOne(
-        { _id: assistantMsgId },
-        { $set: { "imageProvenance.status": "failed" } }
-      );
-    }
   } else {
-    // Text-only: set provenance + mark recorded in one update
+    // Text-only: pre-fetch bundle then write a single update
+    const bundleData = await prefetchBundle(pkResult.cid);
+
     await MessageModel.updateOne(
       { _id: assistantMsgId },
       {
@@ -177,6 +189,7 @@ async function recordAndUpdateProvenance(opts: {
             actionId: pkResult.actionId,
             promptCid: pkResult.promptCid,
             sessionId: sessionId ?? undefined,
+            ...(bundleData ? { bundle: bundleData } : {}),
           },
           provenanceStatus: "recorded",
         },
