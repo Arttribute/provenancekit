@@ -49,17 +49,21 @@ async function fileCallKey(
   file: Blob | File | Buffer | Uint8Array,
   opts: FileOpts
 ): Promise<string> {
-  // Normalise to Uint8Array
-  let bytes: Uint8Array;
+  // Normalise to a plain ArrayBuffer so crypto.subtle.digest is satisfied.
+  // TypeScript 5.x types Uint8Array.buffer as ArrayBufferLike (which includes
+  // SharedArrayBuffer), but BufferSource requires a plain ArrayBuffer.
+  // Calling .slice() on the underlying buffer returns a fresh ArrayBuffer copy.
+  let ab: ArrayBuffer;
   if (file instanceof Blob) {
-    bytes = new Uint8Array(await file.arrayBuffer());
+    ab = await file.arrayBuffer();
   } else if (typeof Buffer !== "undefined" && file instanceof Buffer) {
-    bytes = new Uint8Array(file.buffer, file.byteOffset, file.byteLength);
+    ab = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength) as ArrayBuffer;
   } else {
-    bytes = file as Uint8Array;
+    const u8 = file as Uint8Array;
+    ab = u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer;
   }
 
-  const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", ab);
   const hex = Array.from(new Uint8Array(hashBuffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
