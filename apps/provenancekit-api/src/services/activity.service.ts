@@ -502,6 +502,8 @@ export async function createActivity(
   body: unknown,
   authIdentity?: AuthIdentity
 ): Promise<ActivityResult> {
+  const t0 = Date.now();
+  console.log(`[pk:activity] START size=${file.size}B name=${file.name}`);
   const { dbStorage, ipfsGateway } = getContext();
   // Resolve per-project file storage adapters (uses project's own IPFS credentials
   // if configured, otherwise falls back to platform-level defaults).
@@ -539,6 +541,7 @@ export async function createActivity(
   // Run entity registration and flag check in parallel — they're independent DB operations.
   const { registerOrUpdateEntity } = await import("./entity.service.js");
   const db = getDb();
+  const t_entity = Date.now();
   const [{ entity: resolvedEntity }, flagRow] = await Promise.all([
     registerOrUpdateEntity({
       id: entityId,
@@ -557,6 +560,7 @@ export async function createActivity(
           .then((rows) => rows[0] ?? null)
       : Promise.resolve(null),
   ]);
+  console.log(`[pk:activity] entity_resolved id=${entityId} ms=${Date.now()-t_entity}`);
 
   // 2a. Entity flag check (suspended/banned entities cannot create activities)
   if (flagRow) {
@@ -599,12 +603,15 @@ export async function createActivity(
   }
 
   // 3. Validate input existence
+  const t_inputs = Date.now();
   claims.inputs = await validateInputs(act.inputCids, dbStorage);
+  console.log(`[pk:activity] inputs_validated count=${act.inputCids.length} status=${claims.inputs.status} ms=${Date.now()-t_inputs}`);
 
   // 4. Read file and determine type
   const bytes = Buffer.from(await file.arrayBuffer());
   const mime = file.type || "application/octet-stream";
   const kind = (resourceType ?? inferKindFromMime(mime) ?? "other") as ResourceKind;
+  console.log(`[pk:activity] file_read size=${bytes.length}B mime=${mime} kind=${kind}`);
 
   // 4a. Fast duplicate pre-check using content hash (skips IPFS upload entirely).
   //
@@ -626,12 +633,15 @@ export async function createActivity(
       // Double-check DB — if the resource was somehow deleted, the cache is stale
       const existing = await dbStorage.getResource(cachedCid);
       if (existing) {
+        console.log(`[pk:activity] content_cache HIT → 409 cid=${cachedCid.slice(0,16)}… ms=${Date.now()-t0}`);
         throw new ProvenanceKitError("Duplicate", "Resource with identical CID already exists", {
           recovery: "Use the existing CID instead of uploading again",
           details: { cid: cachedCid, similarity: 1 },
         });
       }
       contentCidCache.delete(contentSha256); // stale — fall through to upload
+    } else {
+      console.log(`[pk:activity] content_cache MISS — will upload`);
     }
   }
 
@@ -645,6 +655,7 @@ export async function createActivity(
     encryptionKey = getContext().generateKey();
   }
 
+  const t_upload = Date.now();
   const [uploadResult, embeddingRaw] = await Promise.all([
     // 5. Upload
     encrypt && encryptionKey
@@ -663,6 +674,7 @@ export async function createActivity(
       return null;
     }),
   ]);
+  console.log(`[pk:activity] upload+embedding done ms=${Date.now()-t_upload}`);
 
   // Unpack upload result
   let cid: string;
@@ -693,13 +705,16 @@ export async function createActivity(
   }
 
   // 6. Check for exact duplicate (needs CID from upload above)
+  const t_dedup = Date.now();
   const existing = await dbStorage.getResource(cid);
   if (existing) {
+    console.log(`[pk:activity] db_dedup HIT → 409 cid=${cid.slice(0,16)}… ms=${Date.now()-t_dedup}`);
     throw new ProvenanceKitError("Duplicate", "Resource with identical CID already exists", {
       recovery: "Use the existing CID instead of uploading again",
       details: { cid, similarity: 1 },
     });
   }
+  console.log(`[pk:activity] db_dedup MISS (new resource) cid=${cid.slice(0,16)}… ms=${Date.now()-t_dedup}`);
 
   if (!encrypted && embedding) {
     // Near-duplicate detection: binary content only.
@@ -897,10 +912,12 @@ export async function createActivity(
   // has a FK constraint on pk_resource(ref). Running it in parallel causes a
   // FK violation when the INSERT into pk_ownership_state races the INSERT into
   // pk_resource and wins.
+  const t_db = Date.now();
   await Promise.all([
     dbStorage.createAction(action),
     dbStorage.createResource(resource),
   ]);
+  console.log(`[pk:activity] db_write action+resource ms=${Date.now()-t_db}`);
 
   await dbStorage.initOwnershipState(cid, entityId).catch((err) => {
     console.error(
@@ -1037,6 +1054,7 @@ export async function createActivity(
     }
   }
 
+  console.log(`[pk:activity] DONE cid=${cid.slice(0,16)}… actionId=${actionId} kind=${kind} encrypted=${encrypted} total_ms=${Date.now()-t0}`);
   return {
     cid,
     actionId,
