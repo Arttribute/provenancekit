@@ -130,6 +130,45 @@ function ProvenanceRecordingBadge() {
   );
 }
 
+/**
+ * Non-interactive "Pr" squircle — used as loadingSlot for ProvenanceBadge.
+ * Shown during the brief moment after "recorded" status is set but before the
+ * bundle has been fetched. Looks like the real badge but is not yet clickable.
+ */
+function ProvenanceLoadingSquircle() {
+  return (
+    <div
+      title="Loading provenance…"
+      aria-label="Loading provenance information"
+      className="flex items-center justify-center shrink-0"
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: "28%",
+        background: "oklch(0.12 0 0)",
+        opacity: 0.6,
+        flexShrink: 0,
+        cursor: "wait",
+        boxShadow: "0 2px 10px rgba(0,0,0,0.3), 0 0 0 1.5px rgba(255,255,255,0.12)",
+      }}
+    >
+      <span
+        style={{
+          fontSize: 9,
+          fontWeight: 800,
+          color: "#f8fafc",
+          lineHeight: 1,
+          letterSpacing: "-0.03em",
+          userSelect: "none",
+          pointerEvents: "none",
+        }}
+      >
+        Pr
+      </span>
+    </div>
+  );
+}
+
 /** Squircle "Pr" badge in red — shown when provenance recording failed */
 function ProvenanceFailedBadge({ label = "Provenance recording failed" }: { label?: string }) {
   return (
@@ -240,6 +279,7 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                       variant="inline"
                       size="sm"
                       onViewDetail={() => router.push(`/provenance/${provenanceCid}`)}
+                      loadingSlot={<ProvenanceLoadingSquircle />}
                     />
                   </span>
                 )}
@@ -263,6 +303,7 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
                       variant="inline"
                       size="sm"
                       onViewDetail={() => router.push(`/provenance/${imageProv.cid}`)}
+                      loadingSlot={<ProvenanceLoadingSquircle />}
                     />
                   </span>
                 )}
