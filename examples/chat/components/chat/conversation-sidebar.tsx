@@ -57,6 +57,8 @@ function groupByDate(conversations: Conversation[]) {
   return groups.filter((g) => g.items.length > 0);
 }
 
+const CACHED_USER_ID_KEY = "pk-chat-userId";
+
 export function ConversationSidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -67,6 +69,25 @@ export function ConversationSidebar() {
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const debouncedSearch = useDebounce(search, 250);
+
+  // Cache userId in localStorage so we can start fetching before Privy initializes
+  const [cachedUserId, setCachedUserId] = useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem(CACHED_USER_ID_KEY);
+  });
+
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(CACHED_USER_ID_KEY, user.id);
+      setCachedUserId(user.id);
+    } else if (ready && !authenticated) {
+      localStorage.removeItem(CACHED_USER_ID_KEY);
+      setCachedUserId(null);
+    }
+  }, [user?.id, ready, authenticated]);
+
+  // Use cached userId while Privy is still initializing so the query fires immediately
+  const effectiveUserId = user?.id ?? (!ready ? cachedUserId : null);
 
   // Close profile menu when clicking outside
   useEffect(() => {
@@ -82,16 +103,16 @@ export function ConversationSidebar() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const { data: conversations = [] } = useQuery<Conversation[]>({
-    queryKey: ["conversations", user?.id, debouncedSearch],
+  const { data: conversations = [], isLoading: conversationsLoading } = useQuery<Conversation[]>({
+    queryKey: ["conversations", effectiveUserId, debouncedSearch],
     queryFn: async () => {
-      if (!user?.id) return [];
-      const params = new URLSearchParams({ userId: user.id });
+      if (!effectiveUserId) return [];
+      const params = new URLSearchParams({ userId: effectiveUserId });
       if (debouncedSearch) params.set("search", debouncedSearch);
       const res = await fetch(`/api/conversations?${params}`);
       return res.json();
     },
-    enabled: !!user?.id,
+    enabled: !!effectiveUserId,
   });
 
   const newConversation = useMutation({
@@ -114,7 +135,7 @@ export function ConversationSidebar() {
       return res.json() as Promise<Conversation>;
     },
     onSuccess: (conv) => {
-      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      qc.invalidateQueries({ queryKey: ["conversations", effectiveUserId] });
       router.push(`/chat/${conv._id}`);
     },
   });
@@ -130,7 +151,7 @@ export function ConversationSidebar() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user?.id }),
       });
-      qc.invalidateQueries({ queryKey: ["conversations", user?.id] });
+      qc.invalidateQueries({ queryKey: ["conversations", effectiveUserId] });
       if (pathname === `/chat/${id}`) router.push("/chat");
     } finally {
       setDeletingId(null);
@@ -186,7 +207,18 @@ export function ConversationSidebar() {
 
       {/* ── Conversation list ──────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto py-2">
-        {!authenticated ? (
+        {conversationsLoading && effectiveUserId ? (
+          // Skeleton while fetching for authenticated user
+          <div className="px-2 space-y-1">
+            {[80, 65, 90, 55, 75].map((w, i) => (
+              <div
+                key={i}
+                className="h-7 rounded-md bg-muted/50 animate-pulse"
+                style={{ width: `${w}%` }}
+              />
+            ))}
+          </div>
+        ) : !authenticated && ready ? (
           // Not logged in — teaser content
           <div className="px-4 py-10 text-center space-y-3">
             <div className="flex h-10 w-10 mx-auto items-center justify-center rounded-full bg-muted">
