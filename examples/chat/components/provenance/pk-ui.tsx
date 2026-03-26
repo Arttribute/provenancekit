@@ -16,4 +16,7 @@ export {
   FileOwnershipClaim,
   ProvenanceSearch,
   useProvenanceKit,
+  ShareModal,
+  type ShareConfig,
+  type RedactionConfig,
 } from "@provenancekit/ui";

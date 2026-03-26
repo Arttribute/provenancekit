@@ -115,9 +115,9 @@ var Point = class _Point {
   Y;
   Z;
   T;
-  constructor(X2, Y, Z, T) {
+  constructor(X3, Y, Z, T) {
     const max = B256;
-    this.X = assertRange(X2, 0n, max);
+    this.X = assertRange(X3, 0n, max);
     this.Y = assertRange(Y, 0n, max);
     this.Z = assertRange(Z, 1n, max);
     this.T = assertRange(T, 0n, max);
@@ -168,8 +168,8 @@ var Point = class _Point {
     const p = this;
     if (p.is0())
       return err("bad point: ZERO");
-    const { X: X2, Y, Z, T } = p;
-    const X22 = M(X2 * X2);
+    const { X: X3, Y, Z, T } = p;
+    const X22 = M(X3 * X3);
     const Y2 = M(Y * Y);
     const Z2 = M(Z * Z);
     const Z4 = M(Z2 * Z2);
@@ -178,7 +178,7 @@ var Point = class _Point {
     const right = M(Z4 + M(d * M(X22 * Y2)));
     if (left !== right)
       return err("bad point: equation left != right (1)");
-    const XY = M(X2 * Y);
+    const XY = M(X3 * Y);
     const ZT = M(Z * T);
     if (XY !== ZT)
       return err("bad point: equation left != right (2)");
@@ -187,9 +187,9 @@ var Point = class _Point {
   /** Equality check: compare points P&Q. */
   equals(other) {
     const { X: X1, Y: Y1, Z: Z1 } = this;
-    const { X: X2, Y: Y2, Z: Z2 } = apoint(other);
+    const { X: X22, Y: Y2, Z: Z2 } = apoint(other);
     const X1Z2 = M(X1 * Z2);
-    const X2Z1 = M(X2 * Z1);
+    const X2Z1 = M(X22 * Z1);
     const Y1Z2 = M(Y1 * Z2);
     const Y2Z1 = M(Y2 * Z1);
     return X1Z2 === X2Z1 && Y1Z2 === Y2Z1;
@@ -223,14 +223,14 @@ var Point = class _Point {
   /** Point addition. Complete formula. Cost: `8M + 1*k + 8add + 1*2`. */
   add(other) {
     const { X: X1, Y: Y1, Z: Z1, T: T1 } = this;
-    const { X: X2, Y: Y2, Z: Z2, T: T2 } = apoint(other);
+    const { X: X22, Y: Y2, Z: Z2, T: T2 } = apoint(other);
     const a = _a;
     const d = _d;
-    const A = M(X1 * X2);
+    const A = M(X1 * X22);
     const B = M(Y1 * Y2);
     const C2 = M(T1 * d * T2);
     const D = M(Z1 * Z2);
-    const E = M((X1 + Y1) * (X2 + Y2) - A - B);
+    const E = M((X1 + Y1) * (X22 + Y2) - A - B);
     const F = M(D - C2);
     const G3 = M(D + C2);
     const H2 = M(B - a * A);
@@ -273,13 +273,13 @@ var Point = class _Point {
   }
   /** Convert point to 2d xy affine point. (X, Y, Z) ∋ (x=X/Z, y=Y/Z) */
   toAffine() {
-    const { X: X2, Y, Z } = this;
+    const { X: X3, Y, Z } = this;
     if (this.equals(I))
       return { x: 0n, y: 1n };
     const iz = invert(Z, P);
     if (M(Z * iz) !== 1n)
       err("invalid inverse");
-    const x = M(X2 * iz);
+    const x = M(X3 * iz);
     const y = M(Y * iz);
     return { x, y };
   }
@@ -3647,13 +3647,13 @@ function weierstrassN(params, extraOpts = {}) {
     return _splitEndoScalar(k, endo.basises, Fn.ORDER);
   }
   const toAffineMemo = memoized((p, iz) => {
-    const { X: X2, Y, Z } = p;
+    const { X: X3, Y, Z } = p;
     if (Fp.eql(Z, Fp.ONE))
-      return { x: X2, y: Y };
+      return { x: X3, y: Y };
     const is0 = p.is0();
     if (iz == null)
       iz = is0 ? Fp.ONE : Fp.inv(Z);
-    const x = Fp.mul(X2, iz);
+    const x = Fp.mul(X3, iz);
     const y = Fp.mul(Y, iz);
     const zz = Fp.mul(Z, iz);
     if (is0)
@@ -3685,8 +3685,8 @@ function weierstrassN(params, extraOpts = {}) {
   }
   class Point2 {
     /** Does NOT validate if the point is valid. Use `.assertValidity()`. */
-    constructor(X2, Y, Z) {
-      this.X = acoord("x", X2);
+    constructor(X3, Y, Z) {
+      this.X = acoord("x", X3);
       this.Y = acoord("y", Y, true);
       this.Z = acoord("z", Z);
       Object.freeze(this);
@@ -3746,8 +3746,8 @@ function weierstrassN(params, extraOpts = {}) {
     equals(other) {
       aprjpoint(other);
       const { X: X1, Y: Y1, Z: Z1 } = this;
-      const { X: X2, Y: Y2, Z: Z2 } = other;
-      const U1 = Fp.eql(Fp.mul(X1, Z2), Fp.mul(X2, Z1));
+      const { X: X22, Y: Y2, Z: Z2 } = other;
+      const U1 = Fp.eql(Fp.mul(X1, Z2), Fp.mul(X22, Z1));
       const U2 = Fp.eql(Fp.mul(Y1, Z2), Fp.mul(Y2, Z1));
       return U1 && U2;
     }
@@ -3804,20 +3804,20 @@ function weierstrassN(params, extraOpts = {}) {
     add(other) {
       aprjpoint(other);
       const { X: X1, Y: Y1, Z: Z1 } = this;
-      const { X: X2, Y: Y2, Z: Z2 } = other;
+      const { X: X22, Y: Y2, Z: Z2 } = other;
       let X3 = Fp.ZERO, Y3 = Fp.ZERO, Z3 = Fp.ZERO;
       const a = CURVE.a;
       const b3 = Fp.mul(CURVE.b, _3n2);
-      let t0 = Fp.mul(X1, X2);
+      let t0 = Fp.mul(X1, X22);
       let t1 = Fp.mul(Y1, Y2);
       let t2 = Fp.mul(Z1, Z2);
       let t3 = Fp.add(X1, Y1);
-      let t4 = Fp.add(X2, Y2);
+      let t4 = Fp.add(X22, Y2);
       t3 = Fp.mul(t3, t4);
       t4 = Fp.add(t0, t1);
       t3 = Fp.sub(t3, t4);
       t4 = Fp.add(X1, Z1);
-      let t5 = Fp.add(X2, Z2);
+      let t5 = Fp.add(X22, Z2);
       t4 = Fp.mul(t4, t5);
       t5 = Fp.add(t0, t2);
       t4 = Fp.sub(t4, t5);
@@ -9433,6 +9433,26 @@ function resolveKey(key) {
   if (key instanceof Uint8Array) return key;
   return fromBase64(key);
 }
+async function fileCallKey(file, opts) {
+  let ab;
+  if (file instanceof Blob) {
+    ab = await file.arrayBuffer();
+  } else if (typeof Buffer !== "undefined" && file instanceof Buffer) {
+    ab = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+  } else {
+    const u82 = file;
+    ab = u82.buffer.slice(u82.byteOffset, u82.byteOffset + u82.byteLength);
+  }
+  const hashBuffer = await crypto.subtle.digest("SHA-256", ab);
+  const hex = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const ctx = [
+    opts.entity.id ?? "",
+    opts.action?.type ?? "create",
+    (opts.action?.inputCids ?? []).join(","),
+    opts.sessionId ?? ""
+  ].join("::");
+  return `${hex}::${ctx}`;
+}
 function mergeResults(server, encrypted, topK) {
   const seen = /* @__PURE__ */ new Set();
   const all = [];
@@ -9458,6 +9478,10 @@ var ProvenanceKit = class {
   signingKey;
   signingEntityId;
   chainAdapter;
+  bundleCache;
+  bundleCacheTtlMs;
+  fileCache;
+  fileCacheTtlMs;
   unclaimed = "ent:unclaimed";
   constructor(opts = {}) {
     this.api = new Api(opts);
@@ -9465,9 +9489,27 @@ var ProvenanceKit = class {
     this.signingKey = opts.signingKey;
     this.signingEntityId = opts.signingEntityId;
     this.chainAdapter = opts.chain;
+    this.bundleCacheTtlMs = (opts.bundleCacheTtl ?? 0) * 1e3;
+    this.bundleCache = this.bundleCacheTtlMs > 0 ? /* @__PURE__ */ new Map() : null;
+    this.fileCacheTtlMs = (opts.fileDeduplicationTtl ?? 300) * 1e3;
+    this.fileCache = this.fileCacheTtlMs > 0 ? /* @__PURE__ */ new Map() : null;
     if (this.signingKey && !this.signingEntityId) {
       throw new Error("signingEntityId is required when signingKey is set");
     }
+  }
+  getCachedBundle(cid) {
+    if (!this.bundleCache) return null;
+    const entry = this.bundleCache.get(cid);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.bundleCache.delete(cid);
+      return null;
+    }
+    return entry.value;
+  }
+  setCachedBundle(cid, bundle) {
+    if (!this.bundleCache) return;
+    this.bundleCache.set(cid, { value: bundle, expiresAt: Date.now() + this.bundleCacheTtlMs });
   }
   form(file, json) {
     const f = new FormData();
@@ -9477,13 +9519,28 @@ var ProvenanceKit = class {
     f.append("json", JSON.stringify(payload));
     return f;
   }
-  uploadAndMatch(file, o = {}) {
+  async uploadAndMatch(file, o = {}) {
     const qs = `topK=${o.topK ?? 5}&min=${o.min ?? 0}${o.type ? `&type=${o.type}` : ""}`;
     const form = new FormData();
     form.append("file", asBlob(file), file.name ?? "file.bin");
-    return this.api.postForm(`/search/file?${qs}`, form);
+    const raw = await this.api.postForm(`/search/file?${qs}`, form);
+    if (Array.isArray(raw)) {
+      const matches = raw;
+      const topScore = matches[0]?.score ?? 0;
+      const verdict = matches.length === 0 ? "no-match" : topScore >= 0.95 ? "auto" : "review";
+      return { verdict, matches };
+    }
+    return raw;
   }
   async file(file, opts) {
+    let cacheKey = null;
+    if (this.fileCache) {
+      cacheKey = await fileCallKey(file, opts);
+      const cached = this.fileCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiresAt) {
+        return cached.result;
+      }
+    }
     let finalOpts = opts;
     if (this.signingKey && !opts.action?.actionProof) {
       const entityId = opts.entity.id ?? this.signingEntityId;
@@ -9522,11 +9579,14 @@ var ProvenanceKit = class {
         } catch {
         }
       }
+      if (this.fileCache && cacheKey) {
+        this.fileCache.set(cacheKey, { result, expiresAt: Date.now() + this.fileCacheTtlMs });
+      }
       return result;
     } catch (e) {
       if (e instanceof ProvenanceKitError && e.code === "Duplicate") {
         const d = e.details;
-        return {
+        const result = {
           cid: d.cid,
           duplicate: d,
           matched: {
@@ -9535,6 +9595,10 @@ var ProvenanceKit = class {
             type: opts.resourceType ?? "unknown"
           }
         };
+        if (this.fileCache && cacheKey) {
+          this.fileCache.set(cacheKey, { result, expiresAt: Date.now() + this.fileCacheTtlMs });
+        }
+        return result;
       }
       throw e;
     }
@@ -9636,15 +9700,23 @@ var ProvenanceKit = class {
    * Get the full provenance bundle for a resource.
    * Includes resource, actions, entities, attributions, and lineage.
    */
-  bundle(cid) {
-    return this.api.get(`/bundle/${cid}`);
+  async bundle(cid) {
+    const cached = this.getCachedBundle(cid);
+    if (cached) return cached;
+    const bundle = await this.api.get(`/bundle/${cid}`);
+    this.setCachedBundle(cid, bundle);
+    return bundle;
   }
   /**
    * Get the provenance chain for a resource.
    * Returns the same data as bundle() - alias for compatibility.
    */
-  provenance(cid) {
-    return this.api.get(`/provenance/${cid}`);
+  async provenance(cid) {
+    const cached = this.getCachedBundle(cid);
+    if (cached) return cached;
+    const bundle = await this.api.get(`/provenance/${cid}`);
+    this.setCachedBundle(cid, bundle);
+    return bundle;
   }
   /**
    * Find resources similar to the given resource.
@@ -11095,10 +11167,9 @@ function GraphRFCanvasInner({
         ...n,
         // ReactFlow applies `style` to the outer node wrapper — affects card + handles
         style: {
-          opacity: isDimmed ? 0.35 : 1,
+          opacity: isDimmed ? 0.2 : 1,
           zIndex: isHighlighted ? 10 : isDimmed ? 0 : 1,
-          transition: "opacity 0.15s ease",
-          pointerEvents: isDimmed ? "none" : "all"
+          transition: "opacity 0.18s ease"
         },
         data: {
           ...n.data,
@@ -11119,7 +11190,6 @@ function GraphRFCanvasInner({
         target: e.to,
         label: e.type,
         type: "smoothstep",
-        animated: e.type === "produces" && active,
         style: {
           stroke: active ? baseColor : "rgba(148,163,184,0.25)",
           strokeWidth: active ? hoveredNodeId ? 2 : 1.5 : 1,
@@ -12715,27 +12785,1192 @@ function ContribExtensionView({ extension, className }) {
   ] });
 }
 
+// src/components/share/redacted-item.tsx
+import { EyeOff } from "lucide-react";
+import { jsx as jsx30, jsxs as jsxs26 } from "react/jsx-runtime";
+function RedactedItem({ label = "REDACTED", reason, commitment, variant = "block" }) {
+  if (variant === "inline") {
+    return /* @__PURE__ */ jsxs26(
+      "span",
+      {
+        style: {
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+          fontSize: 11,
+          fontWeight: 600,
+          color: "#64748b",
+          background: "repeating-linear-gradient(45deg, #f1f5f9 0px, #f1f5f9 4px, #e2e8f0 4px, #e2e8f0 8px)",
+          border: "1px solid #cbd5e1",
+          borderRadius: 5,
+          padding: "2px 7px",
+          fontFamily: "monospace",
+          letterSpacing: "0.04em"
+        },
+        title: reason ? `Redacted: ${reason}` : "Content redacted by the author",
+        children: [
+          /* @__PURE__ */ jsx30(EyeOff, { size: 9 }),
+          label
+        ]
+      }
+    );
+  }
+  return /* @__PURE__ */ jsxs26(
+    "div",
+    {
+      style: {
+        background: "repeating-linear-gradient(45deg, #f8fafc 0px, #f8fafc 6px, #f1f5f9 6px, #f1f5f9 12px)",
+        border: "1.5px dashed #cbd5e1",
+        borderRadius: 10,
+        padding: "14px 16px",
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 12
+      },
+      children: [
+        /* @__PURE__ */ jsx30(
+          "div",
+          {
+            style: {
+              width: 34,
+              height: 34,
+              borderRadius: 8,
+              background: "#f1f5f9",
+              border: "1px solid #e2e8f0",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0
+            },
+            children: /* @__PURE__ */ jsx30(EyeOff, { size: 15, color: "#94a3b8", strokeWidth: 2 })
+          }
+        ),
+        /* @__PURE__ */ jsxs26("div", { style: { flex: 1, minWidth: 0 }, children: [
+          /* @__PURE__ */ jsx30(
+            "div",
+            {
+              style: {
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#94a3b8",
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                fontFamily: "monospace",
+                marginBottom: reason || commitment ? 4 : 0
+              },
+              children: label
+            }
+          ),
+          reason && /* @__PURE__ */ jsx30("div", { style: { fontSize: 12, color: "#64748b", fontStyle: "italic", marginBottom: commitment ? 4 : 0 }, children: reason }),
+          commitment && /* @__PURE__ */ jsxs26(
+            "div",
+            {
+              style: {
+                display: "flex",
+                alignItems: "center",
+                gap: 5,
+                fontSize: 10,
+                color: "#94a3b8",
+                fontFamily: "monospace",
+                marginTop: 2
+              },
+              title: "SHA-256 commitment from the SD document \u2014 proves this item exists in the original provenance record",
+              children: [
+                /* @__PURE__ */ jsx30("span", { style: { color: "#cbd5e1" }, children: "commitment:" }),
+                /* @__PURE__ */ jsx30("span", { style: { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }, children: commitment })
+              ]
+            }
+          )
+        ] })
+      ]
+    }
+  );
+}
+
+// src/components/share/provenance-document.tsx
+import { useState as useState12 } from "react";
+import {
+  Calendar,
+  Users as Users2,
+  Zap as Zap6,
+  Database as Database3,
+  Share2 as Share22,
+  ChevronDown as ChevronDown2,
+  ChevronUp as ChevronUp2,
+  ExternalLink as ExternalLink4,
+  Eye as Eye2
+} from "lucide-react";
+import { Fragment as Fragment5, jsx as jsx31, jsxs as jsxs27 } from "react/jsx-runtime";
+function Section({
+  title,
+  icon,
+  count,
+  children,
+  defaultOpen = true
+}) {
+  const [open, setOpen] = useState12(defaultOpen);
+  return /* @__PURE__ */ jsxs27(
+    "div",
+    {
+      style: {
+        border: "1px solid #e2e8f0",
+        borderRadius: 14,
+        overflow: "hidden",
+        background: "#fff"
+      },
+      children: [
+        /* @__PURE__ */ jsxs27(
+          "button",
+          {
+            type: "button",
+            onClick: () => setOpen((o) => !o),
+            style: {
+              width: "100%",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "14px 18px",
+              background: "transparent",
+              border: "none",
+              cursor: "pointer",
+              textAlign: "left"
+            },
+            children: [
+              /* @__PURE__ */ jsx31("span", { style: { color: "#64748b" }, children: icon }),
+              /* @__PURE__ */ jsx31("span", { style: { flex: 1, fontSize: 13, fontWeight: 600, color: "#111827" }, children: title }),
+              /* @__PURE__ */ jsx31(
+                "span",
+                {
+                  style: {
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: "#64748b",
+                    background: "#f1f5f9",
+                    borderRadius: 10,
+                    padding: "2px 8px",
+                    marginRight: 8
+                  },
+                  children: count
+                }
+              ),
+              open ? /* @__PURE__ */ jsx31(ChevronUp2, { size: 14, color: "#94a3b8" }) : /* @__PURE__ */ jsx31(ChevronDown2, { size: 14, color: "#94a3b8" })
+            ]
+          }
+        ),
+        open && /* @__PURE__ */ jsx31(
+          "div",
+          {
+            style: {
+              borderTop: "1px solid #f1f5f9",
+              padding: "14px 18px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 10
+            },
+            children
+          }
+        )
+      ]
+    }
+  );
+}
+function RedactionNotice({
+  count,
+  committedTotal
+}) {
+  if (count === 0) return null;
+  return /* @__PURE__ */ jsxs27(
+    "div",
+    {
+      style: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 10,
+        padding: "10px 14px",
+        background: "#fafafa",
+        border: "1px solid #e2e8f0",
+        borderRadius: 10,
+        fontSize: 12,
+        color: "#475569"
+      },
+      children: [
+        /* @__PURE__ */ jsx31(Eye2, { size: 14, color: "#94a3b8", style: { marginTop: 1, flexShrink: 0 } }),
+        /* @__PURE__ */ jsxs27("span", { children: [
+          count === 1 ? "1 item in this provenance record has been redacted by the author." : `${count} items in this provenance record have been redacted by the author.`,
+          " ",
+          committedTotal !== void 0 && /* @__PURE__ */ jsxs27(Fragment5, { children: [
+            "The author cryptographically committed to",
+            " ",
+            /* @__PURE__ */ jsxs27("strong", { style: { color: "#374151" }, children: [
+              committedTotal,
+              " total items"
+            ] }),
+            " \u2014 each redacted item shows its SHA-256 commitment digest, proving it exists in the original record.",
+            " "
+          ] }),
+          "Redacted items appear as",
+          " ",
+          /* @__PURE__ */ jsx31(
+            "span",
+            {
+              style: {
+                fontFamily: "monospace",
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#64748b",
+                background: "#f1f5f9",
+                border: "1px solid #e2e8f0",
+                borderRadius: 4,
+                padding: "1px 5px"
+              },
+              children: "REDACTED"
+            }
+          ),
+          " ",
+          "blocks."
+        ] })
+      ]
+    }
+  );
+}
+function ProvenanceDocument({ share, graphHeight = 520 }) {
+  const data = share.session ?? share.bundle;
+  const actions = data?.actions ?? [];
+  const resources = data?.resources ?? [];
+  const entities = data?.entities ?? [];
+  const attributions = data?.attributions ?? [];
+  const isRedacted = (item) => item._redacted === true;
+  const redactedMap = new Map(
+    (share.redactedItems ?? []).map((ri) => [ri.key, ri])
+  );
+  const committedTotal = share.sdDocument?.digests.length;
+  function getRedactedDescriptor(type, id) {
+    return redactedMap.get(`${type}:${id}`);
+  }
+  return /* @__PURE__ */ jsxs27("div", { style: { fontFamily: "system-ui, -apple-system, sans-serif", color: "#111827" }, children: [
+    /* @__PURE__ */ jsxs27(
+      "div",
+      {
+        style: {
+          background: "linear-gradient(135deg, #0f172a 0%, #1e293b 100%)",
+          borderRadius: 16,
+          padding: "28px 32px",
+          marginBottom: 24,
+          color: "#fff"
+        },
+        children: [
+          /* @__PURE__ */ jsxs27("div", { style: { display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 16 }, children: [
+            /* @__PURE__ */ jsx31(
+              "div",
+              {
+                style: {
+                  width: 44,
+                  height: 44,
+                  borderRadius: "28%",
+                  background: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0
+                },
+                children: /* @__PURE__ */ jsx31("span", { style: { fontSize: 15, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }, children: "Pr" })
+              }
+            ),
+            /* @__PURE__ */ jsxs27("div", { style: { flex: 1, minWidth: 0 }, children: [
+              /* @__PURE__ */ jsx31("div", { style: { fontSize: 11, fontWeight: 600, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }, children: "Provenance Record" }),
+              /* @__PURE__ */ jsx31("h1", { style: { fontSize: 20, fontWeight: 700, margin: 0, color: "#fff", lineHeight: 1.3 }, children: share.title ?? "Untitled Provenance Record" }),
+              share.description && /* @__PURE__ */ jsx31("p", { style: { fontSize: 13, color: "#94a3b8", margin: "6px 0 0", lineHeight: 1.5 }, children: share.description })
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxs27("div", { style: { display: "flex", flexWrap: "wrap", gap: 16, borderTop: "1px solid rgba(255,255,255,0.1)", paddingTop: 14 }, children: [
+            /* @__PURE__ */ jsx31(MetaChip, { icon: /* @__PURE__ */ jsx31(Calendar, { size: 11 }), label: new Date(share.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) }),
+            /* @__PURE__ */ jsx31(MetaChip, { icon: /* @__PURE__ */ jsx31(Zap6, { size: 11 }), label: `${actions.length} action${actions.length !== 1 ? "s" : ""}` }),
+            /* @__PURE__ */ jsx31(MetaChip, { icon: /* @__PURE__ */ jsx31(Database3, { size: 11 }), label: `${resources.length} resource${resources.length !== 1 ? "s" : ""}` }),
+            /* @__PURE__ */ jsx31(MetaChip, { icon: /* @__PURE__ */ jsx31(Users2, { size: 11 }), label: `${entities.length} entit${entities.length !== 1 ? "ies" : "y"}` }),
+            share.redactionCount > 0 && /* @__PURE__ */ jsx31(
+              MetaChip,
+              {
+                icon: /* @__PURE__ */ jsx31(Eye2, { size: 11 }),
+                label: `${share.redactionCount} redacted`,
+                muted: true
+              }
+            ),
+            share.cid && /* @__PURE__ */ jsx31(
+              MetaChip,
+              {
+                icon: /* @__PURE__ */ jsx31(Share22, { size: 11 }),
+                label: `CID: ${share.cid.slice(0, 10)}\u2026`,
+                mono: true
+              }
+            )
+          ] })
+        ]
+      }
+    ),
+    share.redactionCount > 0 && /* @__PURE__ */ jsx31("div", { style: { marginBottom: 16 }, children: /* @__PURE__ */ jsx31(RedactionNotice, { count: share.redactionCount, committedTotal }) }),
+    /* @__PURE__ */ jsxs27("div", { style: { display: "flex", flexDirection: "column", gap: 12 }, children: [
+      actions.length > 0 && /* @__PURE__ */ jsx31(Section, { title: "Actions", icon: /* @__PURE__ */ jsx31(Zap6, { size: 15 }), count: actions.length, children: actions.map((action, i) => {
+        const id = action.id ?? String(i);
+        if (isRedacted(action)) {
+          const desc = getRedactedDescriptor("action", id);
+          return /* @__PURE__ */ jsx31(
+            RedactedItem,
+            {
+              label: desc?.label ?? action._redactedLabel,
+              reason: desc?.reason ?? action._redactedReason,
+              commitment: desc?.commitment
+            },
+            id
+          );
+        }
+        return /* @__PURE__ */ jsx31(ActionCard, { action }, id);
+      }) }),
+      resources.length > 0 && /* @__PURE__ */ jsx31(
+        Section,
+        {
+          title: "Resources",
+          icon: /* @__PURE__ */ jsx31(Database3, { size: 15 }),
+          count: resources.length,
+          defaultOpen: actions.length === 0,
+          children: resources.map((resource, i) => {
+            const ref = resource.address?.ref ?? String(i);
+            if (isRedacted(resource)) {
+              const desc = getRedactedDescriptor("resource", ref);
+              return /* @__PURE__ */ jsx31(
+                RedactedItem,
+                {
+                  label: desc?.label ?? resource._redactedLabel,
+                  reason: desc?.reason ?? resource._redactedReason,
+                  commitment: desc?.commitment
+                },
+                ref
+              );
+            }
+            return /* @__PURE__ */ jsx31(ResourceCard, { resource }, ref);
+          })
+        }
+      ),
+      entities.length > 0 && /* @__PURE__ */ jsx31(Section, { title: "Entities", icon: /* @__PURE__ */ jsx31(Users2, { size: 15 }), count: entities.length, defaultOpen: false, children: entities.map((entity, i) => {
+        const id = entity.id ?? String(i);
+        if (isRedacted(entity)) {
+          const desc = getRedactedDescriptor("entity", id);
+          return /* @__PURE__ */ jsx31(
+            RedactedItem,
+            {
+              label: desc?.label ?? entity._redactedLabel,
+              reason: desc?.reason ?? entity._redactedReason,
+              commitment: desc?.commitment
+            },
+            id
+          );
+        }
+        return /* @__PURE__ */ jsx31(EntityCard, { entity }, id);
+      }) }),
+      attributions.length > 0 && /* @__PURE__ */ jsx31(
+        Section,
+        {
+          title: "Attribution",
+          icon: /* @__PURE__ */ jsx31(Users2, { size: 15 }),
+          count: attributions.length,
+          defaultOpen: false,
+          children: /* @__PURE__ */ jsx31(AttributionList, { attributions, entities: entities.filter((e) => !isRedacted(e)) })
+        }
+      ),
+      (share.cid || share.session && resources.length > 0) && /* @__PURE__ */ jsxs27(
+        "div",
+        {
+          style: {
+            border: "1px solid #e2e8f0",
+            borderRadius: 14,
+            overflow: "hidden",
+            background: "#fff"
+          },
+          children: [
+            /* @__PURE__ */ jsxs27(
+              "div",
+              {
+                style: {
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "14px 18px",
+                  borderBottom: "1px solid #f1f5f9"
+                },
+                children: [
+                  /* @__PURE__ */ jsx31(ExternalLink4, { size: 15, color: "#64748b" }),
+                  /* @__PURE__ */ jsx31("span", { style: { fontSize: 13, fontWeight: 600, color: "#111827" }, children: "Provenance Graph" })
+                ]
+              }
+            ),
+            /* @__PURE__ */ jsx31("div", { style: { height: graphHeight }, children: share.cid ? /* @__PURE__ */ jsx31(ProvenanceGraph, { cid: share.cid, depth: 20, height: graphHeight }) : /* @__PURE__ */ jsx31(
+              "div",
+              {
+                style: {
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#94a3b8",
+                  fontSize: 13
+                },
+                children: "Graph available when a resource CID is linked to this share."
+              }
+            ) })
+          ]
+        }
+      )
+    ] })
+  ] });
+}
+function MetaChip({
+  icon,
+  label,
+  muted = false,
+  mono = false
+}) {
+  return /* @__PURE__ */ jsxs27(
+    "div",
+    {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        fontSize: 11,
+        fontWeight: 500,
+        color: muted ? "#64748b" : "#94a3b8",
+        fontFamily: mono ? "monospace" : "inherit"
+      },
+      children: [
+        icon,
+        label
+      ]
+    }
+  );
+}
+
+// src/components/share/share-modal.tsx
+import { useState as useState13, useCallback as useCallback7 } from "react";
+import {
+  X as X2,
+  Link as Link2,
+  Eye as Eye3,
+  EyeOff as EyeOff2,
+  ChevronDown as ChevronDown3,
+  ChevronUp as ChevronUp3,
+  Check as Check2,
+  Loader2,
+  Zap as Zap7,
+  Database as Database4,
+  Users as Users3,
+  AlertCircle as AlertCircle2
+} from "lucide-react";
+import { jsx as jsx32, jsxs as jsxs28 } from "react/jsx-runtime";
+function formatActionType5(t) {
+  return t.replace(/^ext:/, "").replace(/@[\d.]+$/, "").replace(/-/g, " ");
+}
+function truncate(s, len = 36) {
+  return s.length > len ? `${s.slice(0, len)}\u2026` : s;
+}
+function ItemRow({
+  id,
+  type,
+  label,
+  sublabel,
+  redacted,
+  redactionReason,
+  redactionLabel,
+  onToggle,
+  onReasonChange,
+  onLabelChange
+}) {
+  const [expanded, setExpanded] = useState13(false);
+  const typeColor = type === "action" ? "#22c55e" : type === "resource" ? "#3b82f6" : "#a855f7";
+  const TypeIcon = type === "action" ? Zap7 : type === "resource" ? Database4 : Users3;
+  return /* @__PURE__ */ jsxs28(
+    "div",
+    {
+      style: {
+        border: `1px solid ${redacted ? "#e2e8f0" : "transparent"}`,
+        borderRadius: 10,
+        background: redacted ? "#fafafa" : "transparent",
+        overflow: "hidden",
+        transition: "background 0.15s, border-color 0.15s"
+      },
+      children: [
+        /* @__PURE__ */ jsxs28(
+          "div",
+          {
+            style: {
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              padding: "10px 12px"
+            },
+            children: [
+              /* @__PURE__ */ jsx32(
+                "div",
+                {
+                  style: {
+                    width: 28,
+                    height: 28,
+                    borderRadius: 7,
+                    background: `rgba(${type === "action" ? "34,197,94" : type === "resource" ? "59,130,246" : "168,85,247"}, 0.1)`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0
+                  },
+                  children: /* @__PURE__ */ jsx32(TypeIcon, { size: 13, color: typeColor })
+                }
+              ),
+              /* @__PURE__ */ jsxs28("div", { style: { flex: 1, minWidth: 0 }, children: [
+                /* @__PURE__ */ jsx32("div", { style: { fontSize: 12, fontWeight: 600, color: redacted ? "#94a3b8" : "#111827", textDecoration: redacted ? "line-through" : "none" }, children: truncate(label) }),
+                sublabel && /* @__PURE__ */ jsx32("div", { style: { fontSize: 10, color: "#94a3b8", fontFamily: "monospace", marginTop: 1 }, children: truncate(sublabel, 28) })
+              ] }),
+              /* @__PURE__ */ jsxs28("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+                /* @__PURE__ */ jsx32(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: () => onToggle(id, type),
+                    title: redacted ? "Show this item" : "Redact this item",
+                    style: {
+                      width: 30,
+                      height: 30,
+                      borderRadius: 7,
+                      border: `1px solid ${redacted ? "#fca5a5" : "#e2e8f0"}`,
+                      background: redacted ? "#fef2f2" : "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      transition: "all 0.15s"
+                    },
+                    children: redacted ? /* @__PURE__ */ jsx32(EyeOff2, { size: 13, color: "#ef4444" }) : /* @__PURE__ */ jsx32(Eye3, { size: 13, color: "#94a3b8" })
+                  }
+                ),
+                redacted && /* @__PURE__ */ jsx32(
+                  "button",
+                  {
+                    type: "button",
+                    onClick: () => setExpanded((e) => !e),
+                    style: {
+                      width: 30,
+                      height: 30,
+                      borderRadius: 7,
+                      border: "1px solid #e2e8f0",
+                      background: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer"
+                    },
+                    children: expanded ? /* @__PURE__ */ jsx32(ChevronUp3, { size: 12, color: "#64748b" }) : /* @__PURE__ */ jsx32(ChevronDown3, { size: 12, color: "#64748b" })
+                  }
+                )
+              ] })
+            ]
+          }
+        ),
+        redacted && expanded && /* @__PURE__ */ jsxs28(
+          "div",
+          {
+            style: {
+              padding: "0 12px 12px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              borderTop: "1px solid #f1f5f9",
+              paddingTop: 10
+            },
+            children: [
+              /* @__PURE__ */ jsxs28("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b" }, children: [
+                "Display label",
+                /* @__PURE__ */ jsx32(
+                  "input",
+                  {
+                    type: "text",
+                    value: redactionLabel,
+                    onChange: (e) => onLabelChange(id, e.target.value),
+                    placeholder: "REDACTED",
+                    style: {
+                      display: "block",
+                      width: "100%",
+                      marginTop: 4,
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 7,
+                      outline: "none",
+                      fontFamily: "monospace",
+                      color: "#111827",
+                      background: "#fff",
+                      boxSizing: "border-box"
+                    }
+                  }
+                )
+              ] }),
+              /* @__PURE__ */ jsxs28("label", { style: { fontSize: 11, fontWeight: 600, color: "#64748b" }, children: [
+                "Reason (shown to viewers)",
+                /* @__PURE__ */ jsx32(
+                  "input",
+                  {
+                    type: "text",
+                    value: redactionReason,
+                    onChange: (e) => onReasonChange(id, e.target.value),
+                    placeholder: "e.g. Proprietary system prompt",
+                    style: {
+                      display: "block",
+                      width: "100%",
+                      marginTop: 4,
+                      padding: "6px 10px",
+                      fontSize: 12,
+                      border: "1px solid #e2e8f0",
+                      borderRadius: 7,
+                      outline: "none",
+                      color: "#111827",
+                      background: "#fff",
+                      boxSizing: "border-box"
+                    }
+                  }
+                )
+              ] })
+            ]
+          }
+        )
+      ]
+    }
+  );
+}
+function ShareModal({
+  open,
+  onClose,
+  actions = [],
+  resources = [],
+  entities = [],
+  onCreateShare
+}) {
+  const [title, setTitle] = useState13("");
+  const [description, setDescription] = useState13("");
+  const [redactedIds, setRedactedIds] = useState13(/* @__PURE__ */ new Set());
+  const [reasons, setReasons] = useState13({});
+  const [labels, setLabels] = useState13({});
+  const [loading, setLoading] = useState13(false);
+  const [shareUrl, setShareUrl] = useState13(null);
+  const [error, setError] = useState13(null);
+  const [copied, setCopied] = useState13(false);
+  const [section, setSection] = useState13("actions");
+  const toggleRedact = useCallback7((id) => {
+    setRedactedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+  const setReason = useCallback7((id, reason) => {
+    setReasons((prev) => ({ ...prev, [id]: reason }));
+  }, []);
+  const setLabel = useCallback7((id, label) => {
+    setLabels((prev) => ({ ...prev, [id]: label }));
+  }, []);
+  const handleCreate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const redactions = [...redactedIds].map((targetId, i) => {
+        const isAction = actions.some((a) => a.id === targetId);
+        const isResource = resources.some((r) => r.address?.ref === targetId);
+        const type = isAction ? "action" : isResource ? "resource" : "entity";
+        return {
+          id: `r-${i}`,
+          type,
+          targetId,
+          reason: reasons[targetId] ?? "",
+          label: labels[targetId] ?? "REDACTED"
+        };
+      });
+      const url = await onCreateShare({ title, description, redactions });
+      setShareUrl(url);
+    } catch (err2) {
+      setError(err2 instanceof Error ? err2.message : "Failed to create share");
+    } finally {
+      setLoading(false);
+    }
+  };
+  const handleCopy = async () => {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2e3);
+    } catch {
+    }
+  };
+  if (!open) return null;
+  const TABS = [
+    { key: "actions", label: "Actions", count: actions.length },
+    { key: "resources", label: "Resources", count: resources.length },
+    { key: "entities", label: "Entities", count: entities.length }
+  ];
+  const totalRedacted = redactedIds.size;
+  return (
+    // Backdrop
+    /* @__PURE__ */ jsx32(
+      "div",
+      {
+        style: {
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0,0,0,0.5)",
+          zIndex: 1e3,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 20
+        },
+        onClick: (e) => {
+          if (e.target === e.currentTarget) onClose();
+        },
+        children: /* @__PURE__ */ jsxs28(
+          "div",
+          {
+            style: {
+              background: "#fff",
+              borderRadius: 16,
+              width: "100%",
+              maxWidth: 560,
+              maxHeight: "90vh",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              boxShadow: "0 25px 60px rgba(0,0,0,0.2)"
+            },
+            children: [
+              /* @__PURE__ */ jsxs28(
+                "div",
+                {
+                  style: {
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "18px 20px",
+                    borderBottom: "1px solid #f1f5f9",
+                    flexShrink: 0
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx32(
+                      "div",
+                      {
+                        style: {
+                          width: 32,
+                          height: 32,
+                          borderRadius: "28%",
+                          background: "#0f172a",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center"
+                        },
+                        children: /* @__PURE__ */ jsx32(Link2, { size: 14, color: "#fff" })
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs28("div", { style: { flex: 1 }, children: [
+                      /* @__PURE__ */ jsx32("div", { style: { fontSize: 14, fontWeight: 700, color: "#111827" }, children: "Share Provenance" }),
+                      /* @__PURE__ */ jsx32("div", { style: { fontSize: 11, color: "#94a3b8" }, children: "Generate a public link \u2014 choose what to show or redact" })
+                    ] }),
+                    /* @__PURE__ */ jsx32(
+                      "button",
+                      {
+                        type: "button",
+                        onClick: onClose,
+                        style: {
+                          width: 28,
+                          height: 28,
+                          borderRadius: 7,
+                          border: "1px solid #e2e8f0",
+                          background: "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer"
+                        },
+                        children: /* @__PURE__ */ jsx32(X2, { size: 13, color: "#64748b" })
+                      }
+                    )
+                  ]
+                }
+              ),
+              /* @__PURE__ */ jsx32("div", { style: { flex: 1, overflowY: "auto", padding: "18px 20px" }, children: shareUrl ? (
+                /* ── Success state ── */
+                /* @__PURE__ */ jsxs28("div", { style: { textAlign: "center", padding: "20px 0" }, children: [
+                  /* @__PURE__ */ jsx32(
+                    "div",
+                    {
+                      style: {
+                        width: 52,
+                        height: 52,
+                        borderRadius: 14,
+                        background: "rgba(34,197,94,0.1)",
+                        border: "1px solid rgba(34,197,94,0.2)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        margin: "0 auto 14px"
+                      },
+                      children: /* @__PURE__ */ jsx32(Check2, { size: 22, color: "#22c55e" })
+                    }
+                  ),
+                  /* @__PURE__ */ jsx32("div", { style: { fontSize: 15, fontWeight: 700, color: "#111827", marginBottom: 6 }, children: "Share created!" }),
+                  /* @__PURE__ */ jsx32("div", { style: { fontSize: 12, color: "#64748b", marginBottom: 20 }, children: totalRedacted > 0 ? `${totalRedacted} item${totalRedacted !== 1 ? "s are" : " is"} redacted. Viewers will see [REDACTED] blocks for those.` : "All provenance items are visible to anyone with the link." }),
+                  /* @__PURE__ */ jsxs28(
+                    "div",
+                    {
+                      style: {
+                        display: "flex",
+                        gap: 8,
+                        padding: "10px 14px",
+                        background: "#f8fafc",
+                        border: "1px solid #e2e8f0",
+                        borderRadius: 10,
+                        marginBottom: 12
+                      },
+                      children: [
+                        /* @__PURE__ */ jsx32(
+                          "span",
+                          {
+                            style: {
+                              flex: 1,
+                              fontSize: 12,
+                              color: "#475569",
+                              fontFamily: "monospace",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                              textAlign: "left"
+                            },
+                            children: shareUrl
+                          }
+                        ),
+                        /* @__PURE__ */ jsxs28(
+                          "button",
+                          {
+                            type: "button",
+                            onClick: handleCopy,
+                            style: {
+                              padding: "4px 12px",
+                              borderRadius: 7,
+                              border: "none",
+                              background: copied ? "#22c55e" : "#111827",
+                              color: "#fff",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              flexShrink: 0,
+                              display: "flex",
+                              alignItems: "center",
+                              gap: 4,
+                              transition: "background 0.15s"
+                            },
+                            children: [
+                              copied ? /* @__PURE__ */ jsx32(Check2, { size: 11 }) : /* @__PURE__ */ jsx32(Link2, { size: 11 }),
+                              copied ? "Copied!" : "Copy"
+                            ]
+                          }
+                        )
+                      ]
+                    }
+                  )
+                ] })
+              ) : (
+                /* ── Config state ── */
+                /* @__PURE__ */ jsxs28("div", { style: { display: "flex", flexDirection: "column", gap: 16 }, children: [
+                  /* @__PURE__ */ jsxs28("label", { style: { display: "flex", flexDirection: "column", gap: 5 }, children: [
+                    /* @__PURE__ */ jsx32("span", { style: { fontSize: 11, fontWeight: 600, color: "#64748b" }, children: "Title (optional)" }),
+                    /* @__PURE__ */ jsx32(
+                      "input",
+                      {
+                        type: "text",
+                        value: title,
+                        onChange: (e) => setTitle(e.target.value),
+                        placeholder: "e.g. AI-assisted research summary",
+                        style: {
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 9,
+                          outline: "none",
+                          color: "#111827",
+                          background: "#fff"
+                        }
+                      }
+                    )
+                  ] }),
+                  /* @__PURE__ */ jsxs28("label", { style: { display: "flex", flexDirection: "column", gap: 5 }, children: [
+                    /* @__PURE__ */ jsx32("span", { style: { fontSize: 11, fontWeight: 600, color: "#64748b" }, children: "Description (optional)" }),
+                    /* @__PURE__ */ jsx32(
+                      "textarea",
+                      {
+                        value: description,
+                        onChange: (e) => setDescription(e.target.value),
+                        placeholder: "Describe the context of this provenance record\u2026",
+                        rows: 2,
+                        style: {
+                          padding: "8px 12px",
+                          fontSize: 13,
+                          border: "1px solid #e2e8f0",
+                          borderRadius: 9,
+                          outline: "none",
+                          color: "#111827",
+                          background: "#fff",
+                          resize: "vertical",
+                          fontFamily: "inherit"
+                        }
+                      }
+                    )
+                  ] }),
+                  /* @__PURE__ */ jsxs28("div", { children: [
+                    /* @__PURE__ */ jsxs28("div", { style: { fontSize: 11, fontWeight: 600, color: "#64748b", marginBottom: 8 }, children: [
+                      "Selective disclosure",
+                      totalRedacted > 0 && /* @__PURE__ */ jsxs28(
+                        "span",
+                        {
+                          style: {
+                            marginLeft: 8,
+                            fontSize: 10,
+                            fontWeight: 700,
+                            color: "#ef4444",
+                            background: "#fef2f2",
+                            border: "1px solid #fca5a5",
+                            borderRadius: 8,
+                            padding: "1px 6px"
+                          },
+                          children: [
+                            totalRedacted,
+                            " redacted"
+                          ]
+                        }
+                      )
+                    ] }),
+                    /* @__PURE__ */ jsx32(
+                      "div",
+                      {
+                        style: {
+                          display: "flex",
+                          gap: 4,
+                          marginBottom: 10,
+                          background: "#f8fafc",
+                          borderRadius: 10,
+                          padding: 4,
+                          border: "1px solid #f1f5f9"
+                        },
+                        children: TABS.filter((t) => t.count > 0).map((tab) => /* @__PURE__ */ jsxs28(
+                          "button",
+                          {
+                            type: "button",
+                            onClick: () => setSection(tab.key),
+                            style: {
+                              flex: 1,
+                              padding: "5px 8px",
+                              borderRadius: 7,
+                              border: "none",
+                              fontSize: 11,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              background: section === tab.key ? "#fff" : "transparent",
+                              color: section === tab.key ? "#111827" : "#64748b",
+                              boxShadow: section === tab.key ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+                              transition: "all 0.15s"
+                            },
+                            children: [
+                              tab.label,
+                              /* @__PURE__ */ jsx32(
+                                "span",
+                                {
+                                  style: {
+                                    marginLeft: 5,
+                                    fontSize: 10,
+                                    color: "#94a3b8"
+                                  },
+                                  children: tab.count
+                                }
+                              )
+                            ]
+                          },
+                          tab.key
+                        ))
+                      }
+                    ),
+                    /* @__PURE__ */ jsxs28("div", { style: { display: "flex", flexDirection: "column", gap: 4 }, children: [
+                      section === "actions" && actions.map((action) => /* @__PURE__ */ jsx32(
+                        ItemRow,
+                        {
+                          id: action.id ?? "",
+                          type: "action",
+                          label: formatActionType5(action.type ?? "action"),
+                          sublabel: action.timestamp ? new Date(action.timestamp).toLocaleString() : void 0,
+                          redacted: redactedIds.has(action.id ?? ""),
+                          redactionReason: reasons[action.id ?? ""] ?? "",
+                          redactionLabel: labels[action.id ?? ""] ?? "",
+                          onToggle: (id) => toggleRedact(id),
+                          onReasonChange: setReason,
+                          onLabelChange: setLabel
+                        },
+                        action.id
+                      )),
+                      section === "resources" && resources.map((resource) => {
+                        const ref = resource.address?.ref ?? "";
+                        return /* @__PURE__ */ jsx32(
+                          ItemRow,
+                          {
+                            id: ref,
+                            type: "resource",
+                            label: resource.type ?? "resource",
+                            sublabel: ref,
+                            redacted: redactedIds.has(ref),
+                            redactionReason: reasons[ref] ?? "",
+                            redactionLabel: labels[ref] ?? "",
+                            onToggle: (id) => toggleRedact(id),
+                            onReasonChange: setReason,
+                            onLabelChange: setLabel
+                          },
+                          ref
+                        );
+                      }),
+                      section === "entities" && entities.map((entity) => /* @__PURE__ */ jsx32(
+                        ItemRow,
+                        {
+                          id: entity.id ?? "",
+                          type: "entity",
+                          label: entity.name ?? entity.role ?? "entity",
+                          sublabel: entity.id,
+                          redacted: redactedIds.has(entity.id ?? ""),
+                          redactionReason: reasons[entity.id ?? ""] ?? "",
+                          redactionLabel: labels[entity.id ?? ""] ?? "",
+                          onToggle: (id) => toggleRedact(id),
+                          onReasonChange: setReason,
+                          onLabelChange: setLabel
+                        },
+                        entity.id
+                      )),
+                      section === "actions" && actions.length === 0 || section === "resources" && resources.length === 0 || section === "entities" && entities.length === 0 ? /* @__PURE__ */ jsxs28("div", { style: { fontSize: 12, color: "#94a3b8", textAlign: "center", padding: "16px 0" }, children: [
+                        "No ",
+                        section,
+                        " in this provenance record."
+                      ] }) : null
+                    ] })
+                  ] }),
+                  error && /* @__PURE__ */ jsxs28(
+                    "div",
+                    {
+                      style: {
+                        display: "flex",
+                        gap: 8,
+                        padding: "10px 12px",
+                        background: "#fef2f2",
+                        border: "1px solid #fca5a5",
+                        borderRadius: 9,
+                        fontSize: 12,
+                        color: "#dc2626"
+                      },
+                      children: [
+                        /* @__PURE__ */ jsx32(AlertCircle2, { size: 14, style: { flexShrink: 0, marginTop: 1 } }),
+                        error
+                      ]
+                    }
+                  )
+                ] })
+              ) }),
+              !shareUrl && /* @__PURE__ */ jsxs28(
+                "div",
+                {
+                  style: {
+                    padding: "14px 20px",
+                    borderTop: "1px solid #f1f5f9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexShrink: 0
+                  },
+                  children: [
+                    /* @__PURE__ */ jsx32("span", { style: { fontSize: 11, color: "#94a3b8" }, children: totalRedacted === 0 ? "All items visible" : `${totalRedacted} item${totalRedacted !== 1 ? "s" : ""} will be redacted` }),
+                    /* @__PURE__ */ jsxs28("div", { style: { display: "flex", gap: 8 }, children: [
+                      /* @__PURE__ */ jsx32(
+                        "button",
+                        {
+                          type: "button",
+                          onClick: onClose,
+                          style: {
+                            padding: "8px 16px",
+                            borderRadius: 9,
+                            border: "1px solid #e2e8f0",
+                            background: "transparent",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#64748b",
+                            cursor: "pointer"
+                          },
+                          children: "Cancel"
+                        }
+                      ),
+                      /* @__PURE__ */ jsxs28(
+                        "button",
+                        {
+                          type: "button",
+                          onClick: handleCreate,
+                          disabled: loading,
+                          style: {
+                            padding: "8px 18px",
+                            borderRadius: 9,
+                            border: "none",
+                            background: "#111827",
+                            fontSize: 12,
+                            fontWeight: 600,
+                            color: "#fff",
+                            cursor: loading ? "not-allowed" : "pointer",
+                            opacity: loading ? 0.7 : 1,
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 6
+                          },
+                          children: [
+                            loading ? /* @__PURE__ */ jsx32(Loader2, { size: 12, style: { animation: "spin 1s linear infinite" } }) : /* @__PURE__ */ jsx32(Link2, { size: 12 }),
+                            loading ? "Creating\u2026" : "Create share link"
+                          ]
+                        }
+                      )
+                    ] })
+                  ]
+                }
+              )
+            ]
+          }
+        )
+      }
+    )
+  );
+}
+
 // src/components/provenance/file-provenance-tag.tsx
-import { useEffect as useEffect7, useState as useState13, useCallback as useCallback7 } from "react";
+import { useEffect as useEffect7, useState as useState15, useCallback as useCallback8 } from "react";
 import {
   ShieldCheck as ShieldCheck2,
   ShieldOff as ShieldOff2,
-  ChevronDown as ChevronDown2,
-  ChevronUp as ChevronUp2,
-  Loader2 as Loader22,
+  ChevronDown as ChevronDown4,
+  ChevronUp as ChevronUp4,
+  Loader2 as Loader23,
   User as User4,
   Bot as Bot7,
   FileImage,
   Tag,
-  Calendar
+  Calendar as Calendar2
 } from "lucide-react";
 
 // src/components/provenance/file-ownership-claim.tsx
-import { useState as useState12 } from "react";
-import { UserCheck, ExternalLink as ExternalLink4, Loader2, CheckCircle as CheckCircle3, AlertCircle as AlertCircle2 } from "lucide-react";
-import { jsx as jsx30, jsxs as jsxs26 } from "react/jsx-runtime";
+import { useState as useState14 } from "react";
+import { UserCheck, ExternalLink as ExternalLink5, Loader2 as Loader22, CheckCircle as CheckCircle3, AlertCircle as AlertCircle3 } from "lucide-react";
+import { jsx as jsx33, jsxs as jsxs29 } from "react/jsx-runtime";
 function FileOwnershipClaim({ onClaim, className }) {
-  const [claimState, setClaimState] = useState12("idle");
+  const [claimState, setClaimState] = useState14("idle");
   async function handleClaim(owned) {
     setClaimState("claiming");
     try {
@@ -12746,28 +13981,28 @@ function FileOwnershipClaim({ onClaim, className }) {
     }
   }
   if (claimState === "claiming") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(Loader2, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#64748b)]" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)]", children: "Recording provenance\u2026" })
+    return /* @__PURE__ */ jsxs29("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx33(Loader22, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#64748b)]" }),
+      /* @__PURE__ */ jsx33("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)]", children: "Recording provenance\u2026" })
     ] });
   }
   if (claimState === "claimed") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(CheckCircle3, { size: 10, className: "shrink-0 text-emerald-500" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-emerald-600 dark:text-emerald-400", children: "Claimed as your work" })
+    return /* @__PURE__ */ jsxs29("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx33(CheckCircle3, { size: 10, className: "shrink-0 text-emerald-500" }),
+      /* @__PURE__ */ jsx33("span", { className: "text-[10px] text-emerald-600 dark:text-emerald-400", children: "Claimed as your work" })
     ] });
   }
   if (claimState === "referenced") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(CheckCircle3, { size: 10, className: "shrink-0 text-blue-500" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-blue-600 dark:text-blue-400", children: "Recorded as external source" })
+    return /* @__PURE__ */ jsxs29("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx33(CheckCircle3, { size: 10, className: "shrink-0 text-blue-500" }),
+      /* @__PURE__ */ jsx33("span", { className: "text-[10px] text-blue-600 dark:text-blue-400", children: "Recorded as external source" })
     ] });
   }
   if (claimState === "error") {
-    return /* @__PURE__ */ jsxs26("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
-      /* @__PURE__ */ jsx30(AlertCircle2, { size: 10, className: "shrink-0 text-red-500" }),
-      /* @__PURE__ */ jsx30("span", { className: "text-[10px] text-red-600", children: "Recording failed \u2014" }),
-      /* @__PURE__ */ jsx30(
+    return /* @__PURE__ */ jsxs29("div", { className: cn("flex items-center gap-1.5 mt-1", className), children: [
+      /* @__PURE__ */ jsx33(AlertCircle3, { size: 10, className: "shrink-0 text-red-500" }),
+      /* @__PURE__ */ jsx33("span", { className: "text-[10px] text-red-600", children: "Recording failed \u2014" }),
+      /* @__PURE__ */ jsx33(
         "button",
         {
           type: "button",
@@ -12778,7 +14013,7 @@ function FileOwnershipClaim({ onClaim, className }) {
       )
     ] });
   }
-  return /* @__PURE__ */ jsxs26(
+  return /* @__PURE__ */ jsxs29(
     "div",
     {
       className: cn(
@@ -12786,28 +14021,28 @@ function FileOwnershipClaim({ onClaim, className }) {
         className
       ),
       children: [
-        /* @__PURE__ */ jsx30("p", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)] mb-1.5 leading-snug", children: "New file \u2014 do you own this?" }),
-        /* @__PURE__ */ jsxs26("div", { className: "flex gap-1", children: [
-          /* @__PURE__ */ jsxs26(
+        /* @__PURE__ */ jsx33("p", { className: "text-[10px] text-[var(--pk-muted-foreground,#64748b)] mb-1.5 leading-snug", children: "New file \u2014 do you own this?" }),
+        /* @__PURE__ */ jsxs29("div", { className: "flex gap-1", children: [
+          /* @__PURE__ */ jsxs29(
             "button",
             {
               type: "button",
               onClick: () => handleClaim(true),
               className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/60 transition-colors",
               children: [
-                /* @__PURE__ */ jsx30(UserCheck, { size: 9 }),
+                /* @__PURE__ */ jsx33(UserCheck, { size: 9 }),
                 "Yes, I own it"
               ]
             }
           ),
-          /* @__PURE__ */ jsxs26(
+          /* @__PURE__ */ jsxs29(
             "button",
             {
               type: "button",
               onClick: () => handleClaim(false),
               className: "flex items-center gap-1 text-[10px] px-2 py-0.5 rounded bg-[var(--pk-surface-muted,#f1f5f9)] text-[var(--pk-muted-foreground,#64748b)] hover:bg-[var(--pk-surface-muted,#e2e8f0)] transition-colors",
               children: [
-                /* @__PURE__ */ jsx30(ExternalLink4, { size: 9 }),
+                /* @__PURE__ */ jsx33(ExternalLink5, { size: 9 }),
                 "No, I don't"
               ]
             }
@@ -12819,19 +14054,19 @@ function FileOwnershipClaim({ onClaim, className }) {
 }
 
 // src/components/provenance/file-provenance-tag.tsx
-import { jsx as jsx31, jsxs as jsxs27 } from "react/jsx-runtime";
+import { jsx as jsx34, jsxs as jsxs30 } from "react/jsx-runtime";
 function SimilarityBar({ score }) {
   const pct = Math.round(score * 100);
   const color = pct >= 90 ? "bg-[var(--pk-verified,#22c55e)]" : pct >= 70 ? "bg-[var(--pk-partial,#f59e0b)]" : "bg-[var(--pk-unverified,#ef4444)]";
-  return /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 w-full", children: [
-    /* @__PURE__ */ jsx31("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ jsx31(
+  return /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 w-full", children: [
+    /* @__PURE__ */ jsx34("div", { className: "flex-1 h-1 rounded-full bg-[var(--pk-surface-muted,#f1f5f9)] overflow-hidden", children: /* @__PURE__ */ jsx34(
       "div",
       {
         className: cn("h-full rounded-full transition-all", color),
         style: { width: `${pct}%` }
       }
     ) }),
-    /* @__PURE__ */ jsxs27("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
+    /* @__PURE__ */ jsxs30("span", { className: "text-[10px] tabular-nums text-[var(--pk-muted-foreground,#64748b)] shrink-0 w-7 text-right", children: [
       pct,
       "%"
     ] })
@@ -12851,10 +14086,10 @@ function BundleSummary({
   const topResource = bundle.resources?.[0];
   const licenseExt = topResource?.extensions?.["ext:license@1.0.0"];
   const aiExt = topAction?.extensions?.["ext:ai@1.0.0"];
-  return /* @__PURE__ */ jsxs27("div", { className: "space-y-1.5 text-[11px]", children: [
-    /* @__PURE__ */ jsxs27("div", { className: "flex items-center justify-between gap-2", children: [
-      /* @__PURE__ */ jsx31(CidDisplay, { cid, showCopy: true }),
-      onViewDetail && /* @__PURE__ */ jsx31(
+  return /* @__PURE__ */ jsxs30("div", { className: "space-y-1.5 text-[11px]", children: [
+    /* @__PURE__ */ jsxs30("div", { className: "flex items-center justify-between gap-2", children: [
+      /* @__PURE__ */ jsx34(CidDisplay, { cid, showCopy: true }),
+      onViewDetail && /* @__PURE__ */ jsx34(
         "button",
         {
           type: "button",
@@ -12864,40 +14099,40 @@ function BundleSummary({
         }
       )
     ] }),
-    creator && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
-      /* @__PURE__ */ jsx31(User4, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
-      /* @__PURE__ */ jsx31("span", { className: "truncate", children: creator.name ?? creator.id })
+    creator && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-foreground,#0f172a)]", children: [
+      /* @__PURE__ */ jsx34(User4, { size: 10, className: "shrink-0 text-[var(--pk-role-human,#3b82f6)]" }),
+      /* @__PURE__ */ jsx34("span", { className: "truncate", children: creator.name ?? creator.id })
     ] }),
-    aiEntity && !aiExt && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ jsx31("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
+    aiEntity && !aiExt && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ jsx34("span", { className: "truncate", children: aiEntity.name ?? aiEntity.id })
     ] }),
-    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
-      /* @__PURE__ */ jsx31("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
+    aiExt && (aiExt.provider || aiExt.model) && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(Bot7, { size: 10, className: "shrink-0 text-[var(--pk-role-ai,#a855f7)]" }),
+      /* @__PURE__ */ jsx34("span", { className: "truncate", children: [aiExt.provider, aiExt.model].filter(Boolean).join(" / ") })
     ] }),
-    topResource?.type && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(FileImage, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx31("span", { className: "capitalize", children: topResource.type })
+    topResource?.type && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(FileImage, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx34("span", { className: "capitalize", children: topResource.type })
     ] }),
-    topAction?.type && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(Tag, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx31("span", { className: "capitalize", children: topAction.type })
+    topAction?.type && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(Tag, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx34("span", { className: "capitalize", children: topAction.type })
     ] }),
-    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(ShieldCheck2, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx31("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
+    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(ShieldCheck2, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx34("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
     ] }),
-    topAction?.timestamp && /* @__PURE__ */ jsxs27("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
-      /* @__PURE__ */ jsx31(Calendar, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ jsx31("span", { children: formatDate(topAction.timestamp) })
+    topAction?.timestamp && /* @__PURE__ */ jsxs30("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+      /* @__PURE__ */ jsx34(Calendar2, { size: 10, className: "shrink-0" }),
+      /* @__PURE__ */ jsx34("span", { children: formatDate(topAction.timestamp) })
     ] }),
-    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ jsxs27("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
+    bundle.attributions && bundle.attributions.length > 0 && /* @__PURE__ */ jsxs30("p", { className: "text-[var(--pk-muted-foreground,#64748b)]", children: [
       bundle.attributions.length,
       " attribution",
       bundle.attributions.length > 1 ? "s" : ""
     ] }),
-    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ jsxs27("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
+    extraMatches != null && extraMatches > 0 && /* @__PURE__ */ jsxs30("p", { className: "text-[var(--pk-muted-foreground,#64748b)] border-t border-[var(--pk-surface-border,#e2e8f0)] pt-1.5 mt-1", children: [
       "+",
       extraMatches,
       " more similar record",
@@ -12914,9 +14149,9 @@ function FileProvenanceTag({
   className
 }) {
   const { pk } = useProvenanceKit();
-  const [state, setState] = useState13({ status: "idle" });
-  const [expanded, setExpanded] = useState13(false);
-  const search = useCallback7(async () => {
+  const [state, setState] = useState15({ status: "idle" });
+  const [expanded, setExpanded] = useState15(false);
+  const search = useCallback8(async () => {
     if (!pk || !file) return;
     setState({ status: "loading" });
     try {
@@ -12942,18 +14177,18 @@ function FileProvenanceTag({
   }, []);
   if (!pk || state.status === "idle" || state.status === "error") return null;
   if (state.status === "loading") {
-    return /* @__PURE__ */ jsxs27("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ jsx31(Loader22, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ jsx31("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
+    return /* @__PURE__ */ jsxs30("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx34(Loader23, { size: 10, className: "animate-spin text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ jsx34("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "Checking provenance\u2026" })
     ] });
   }
   if (state.status === "not-found") {
     if (onClaim) {
-      return /* @__PURE__ */ jsx31(FileOwnershipClaim, { onClaim, className });
+      return /* @__PURE__ */ jsx34(FileOwnershipClaim, { onClaim, className });
     }
-    return /* @__PURE__ */ jsxs27("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
-      /* @__PURE__ */ jsx31(ShieldOff2, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
-      /* @__PURE__ */ jsx31("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
+    return /* @__PURE__ */ jsxs30("div", { className: cn("flex items-center gap-1 mt-1", className), children: [
+      /* @__PURE__ */ jsx34(ShieldOff2, { size: 10, className: "text-[var(--pk-muted-foreground,#94a3b8)]" }),
+      /* @__PURE__ */ jsx34("span", { className: "text-[10px] text-[var(--pk-muted-foreground,#94a3b8)]", children: "No prior provenance found" })
     ] });
   }
   const topMatch = state.result?.matches?.[0];
@@ -12963,7 +14198,7 @@ function FileProvenanceTag({
   );
   const headerLabel = creator?.name ? `By ${creator.name}` : `${Math.round(topMatch.score * 100)}% match`;
   const extraMatches = (state.result?.matches?.length ?? 0) - 1;
-  return /* @__PURE__ */ jsxs27(
+  return /* @__PURE__ */ jsxs30(
     "div",
     {
       className: cn(
@@ -12971,22 +14206,22 @@ function FileProvenanceTag({
         className
       ),
       children: [
-        /* @__PURE__ */ jsxs27(
+        /* @__PURE__ */ jsxs30(
           "button",
           {
             type: "button",
             onClick: () => setExpanded((v) => !v),
             className: "w-full flex items-center gap-1.5 px-2 pt-1.5 pb-1 hover:bg-[var(--pk-surface-muted,#f8fafc)] transition-colors",
             children: [
-              /* @__PURE__ */ jsx31(ShieldCheck2, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
-              /* @__PURE__ */ jsx31("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
-              topMatch.type && /* @__PURE__ */ jsx31("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
-              expanded ? /* @__PURE__ */ jsx31(ChevronUp2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ jsx31(ChevronDown2, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
+              /* @__PURE__ */ jsx34(ShieldCheck2, { size: 10, className: "shrink-0 text-[var(--pk-verified,#22c55e)]" }),
+              /* @__PURE__ */ jsx34("span", { className: "text-[10px] font-medium truncate flex-1 text-left text-[var(--pk-foreground,#0f172a)]", children: headerLabel }),
+              topMatch.type && /* @__PURE__ */ jsx34("span", { className: "text-[10px] capitalize text-[var(--pk-muted-foreground,#64748b)] shrink-0 mr-1", children: topMatch.type }),
+              expanded ? /* @__PURE__ */ jsx34(ChevronUp4, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" }) : /* @__PURE__ */ jsx34(ChevronDown4, { size: 10, className: "shrink-0 text-[var(--pk-muted-foreground,#64748b)]" })
             ]
           }
         ),
-        /* @__PURE__ */ jsx31("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ jsx31(SimilarityBar, { score: topMatch.score }) }),
-        expanded && /* @__PURE__ */ jsx31("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ jsx31(
+        /* @__PURE__ */ jsx34("div", { className: "px-2 pb-1.5", children: /* @__PURE__ */ jsx34(SimilarityBar, { score: topMatch.score }) }),
+        expanded && /* @__PURE__ */ jsx34("div", { className: "border-t border-[var(--pk-surface-border,#e2e8f0)] p-2", children: state.topBundle ? /* @__PURE__ */ jsx34(
           BundleSummary,
           {
             bundle: state.topBundle,
@@ -12994,9 +14229,9 @@ function FileProvenanceTag({
             onViewDetail,
             extraMatches: extraMatches > 0 ? extraMatches : void 0
           }
-        ) : /* @__PURE__ */ jsxs27("div", { className: "flex items-center justify-between gap-2", children: [
-          /* @__PURE__ */ jsx31(CidDisplay, { cid: topMatch.cid, showCopy: true }),
-          onViewDetail && /* @__PURE__ */ jsx31(
+        ) : /* @__PURE__ */ jsxs30("div", { className: "flex items-center justify-between gap-2", children: [
+          /* @__PURE__ */ jsx34(CidDisplay, { cid: topMatch.cid, showCopy: true }),
+          onViewDetail && /* @__PURE__ */ jsx34(
             "button",
             {
               type: "button",
@@ -13027,13 +14262,16 @@ export {
   OnchainExtensionView,
   ProvenanceBadge,
   ProvenanceBundleView,
+  ProvenanceDocument,
   ProvenanceGraph,
   ProvenanceKitProvider,
   ProvenancePopover,
   ProvenanceSearch,
   ProvenanceTracker,
+  RedactedItem,
   ResourceCard,
   RoleBadge,
+  ShareModal,
   Timestamp,
   VerificationIndicator,
   VerificationView,

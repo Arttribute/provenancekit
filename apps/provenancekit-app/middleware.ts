@@ -8,6 +8,7 @@ export function middleware(req: NextRequest) {
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/mcp") || // MCP uses its own API key auth
+    pathname.startsWith("/p/") ||      // public share viewer pages
     pathname === "/" ||
     pathname === "/opengraph-image" ||
     pathname === "/twitter-image";

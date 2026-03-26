@@ -21,6 +21,7 @@ import {
   integer,
   unique,
   boolean,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import type { InferSelectModel, InferInsertModel } from "drizzle-orm";
 
@@ -211,3 +212,50 @@ export const appUsageRecords = pgTable("app_usage_records", {
 
 export type UsageRecord       = InferSelectModel<typeof appUsageRecords>;
 export type InsertUsageRecord = InferInsertModel<typeof appUsageRecords>;
+
+// ─── Provenance Shares ────────────────────────────────────────────────────────
+
+/**
+ * Provenance shares — cryptographically-backed shareable links.
+ *
+ * Uses @provenancekit/privacy selective disclosure (SD-JWT-like pattern):
+ *   - At creation: ALL items are signed into a SelectiveDisclosureDocument.
+ *     Each item becomes a claim keyed by "action:<id>", "resource:<ref>", "entity:<id>".
+ *   - At read time: createPresentation() reveals only the non-redacted items.
+ *   - Viewers always see document.digests (commits to ALL items), so they know
+ *     the full structure and which items were redacted — nothing can be fabricated.
+ *
+ * sdDocument: SelectiveDisclosureDocument (public commitment, all item digests + HMAC sig)
+ * sdDisclosures: EncodedDisclosure[] for ALL items (server holds, created once at share time)
+ * sdSecret: hex-encoded HMAC secret (server holds for signature verification)
+ *
+ * redactedIds: string[] of item keys the author chose not to disclose
+ * redactionReasons: Record<itemKey, { reason?, label? }> shown to viewers for each redacted item
+ */
+export const appProvenanceShares = pgTable("app_provenance_shares", {
+  id:             uuid("id").defaultRandom().primaryKey(),
+  projectId:      uuid("project_id"),
+  title:          text("title"),
+  description:    text("description"),
+  cid:            text("cid"),
+  sessionId:      text("session_id"),
+  projectScopeId: text("project_scope_id"),
+
+  // Selective disclosure backing (@provenancekit/privacy)
+  sdDocument:       jsonb("sd_document"),    // SelectiveDisclosureDocument (public commitment)
+  sdDisclosures:    jsonb("sd_disclosures"), // EncodedDisclosure[] — server holds all disclosures
+  sdSecret:         text("sd_secret"),       // hex HMAC secret — server holds for verification
+
+  // User-controlled redaction state
+  redactedIds:      jsonb("redacted_ids").default([]).notNull(),       // string[] of item keys
+  redactionReasons: jsonb("redaction_reasons").default({}).notNull(),  // Record<key, {reason?,label?}>
+
+  viewCount:      integer("view_count").default(0).notNull(),
+  expiresAt:      timestamp("expires_at"),
+  revokedAt:      timestamp("revoked_at"),
+  createdAt:      timestamp("created_at").defaultNow().notNull(),
+  updatedAt:      timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type ProvenanceShare       = InferSelectModel<typeof appProvenanceShares>;
+export type InsertProvenanceShare = InferInsertModel<typeof appProvenanceShares>;

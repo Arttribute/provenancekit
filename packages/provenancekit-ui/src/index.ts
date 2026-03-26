@@ -83,6 +83,25 @@ export { OnchainExtensionView } from "./components/extensions/onchain-extension-
 export { VerificationView } from "./components/extensions/verification-view";
 export { ContribExtensionView } from "./components/extensions/contrib-extension-view";
 
+// ── Share / Selective Disclosure ─────────────────────────
+export { RedactedItem, type RedactedItemProps } from "./components/share/redacted-item";
+export {
+  ProvenanceDocument,
+  type ProvenanceDocumentProps,
+  type ShareData,
+  type RedactedItemDescriptor,
+  type RedactedMarker,
+  type MaybeRedactedAction,
+  type MaybeRedactedResource,
+  type MaybeRedactedEntity,
+} from "./components/share/provenance-document";
+export {
+  ShareModal,
+  type ShareModalProps,
+  type ShareConfig,
+  type RedactionConfig,
+} from "./components/share/share-modal";
+
 // ── File Provenance ───────────────────────────────────────────
 export {
   FileProvenanceTag,
