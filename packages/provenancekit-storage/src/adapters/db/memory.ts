@@ -162,6 +162,14 @@ export class MemoryDbStorage implements IProvenanceStorage, ITransactionalStorag
     return resource ? { ...resource } : null;
   }
 
+  async getResourceByIntegrity(integrity: string): Promise<Resource | null> {
+    this.ensureInitialized();
+    for (const r of this.resources.values()) {
+      if (r.address.integrity === integrity) return { ...r };
+    }
+    return null;
+  }
+
   async resourceExists(ref: string): Promise<boolean> {
     this.ensureInitialized();
     return this.resources.has(ref);

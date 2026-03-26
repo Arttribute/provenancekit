@@ -616,6 +616,23 @@ CREATE INDEX IF NOT EXISTS idx_${prefix}encrypted_embedding_created
     return result.data ? this.rowToResource(result.data) : null;
   }
 
+  async getResourceByIntegrity(integrity: string): Promise<Resource | null> {
+    this.ensureInitialized();
+
+    const result = await this.client
+      .from<ResourceRow>(this.t.resource)
+      .select("*")
+      .eq("integrity", integrity)
+      .limit(1)
+      .single();
+
+    if (result.error?.code === "PGRST116") return null;
+    // Non-fatal: if integrity index doesn't exist yet, fall through to null
+    if (result.error) return null;
+
+    return result.data ? this.rowToResource(result.data) : null;
+  }
+
   async resourceExists(ref: string): Promise<boolean> {
     this.ensureInitialized();
     const resource = await this.getResource(ref);
