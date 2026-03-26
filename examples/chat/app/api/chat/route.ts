@@ -117,53 +117,54 @@ async function recordAndUpdateProvenance(opts: {
 
   console.log(`[pk:chat] text_provenance_done cid=${pkResult.cid.slice(0,16)}… ms=${Date.now()-t1}`);
 
-  // Helper: silently pre-fetch a bundle from the PK API.
-  // Stores result in the pk-proxy server cache AND returns it for inline DB storage.
-  // Non-fatal — if this fails, the client falls back to its own fetch.
+  // Helper: warm the server-side pk-proxy cache and update MongoDB with the bundle.
+  // Called as fire-and-forget AFTER the DB is already marked "recorded" — so a failed
+  // or slow bundle fetch never blocks the badge from appearing.
   const pkClient = await getPKClientAsync();
-  async function prefetchBundle(cid: string): Promise<Record<string, unknown> | undefined> {
-    if (!pkClient) return undefined;
+  function warmBundleAsync(cid: string, dbField: string) {
+    if (!pkClient) return;
     const tb = Date.now();
-    try {
-      const bundle = await pkClient.bundle(cid) as unknown as Record<string, unknown>;
-      cacheBundle(cid, bundle); // warm pk-proxy cache for browser fetch fallback
-      console.log(`[pk:chat] bundle_prefetch HIT cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`);
-      return bundle;
-    } catch (err) {
-      console.warn(`[pk:chat] bundle_prefetch FAILED cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`, err instanceof Error ? err.message : err);
-      return undefined;
-    }
+    pkClient.bundle(cid)
+      .then((bundle) => {
+        const bundleData = bundle as unknown as Record<string, unknown>;
+        cacheBundle(cid, bundleData); // warm pk-proxy cache so browser fetch is instant
+        console.log(`[pk:chat] bundle_warm HIT cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`);
+        // Secondary DB write — badge is already showing, this enriches the popover data
+        return MessageModel.updateOne(
+          { _id: assistantMsgId },
+          { $set: { [dbField]: bundleData } }
+        );
+      })
+      .then(() => {
+        console.log(`[pk:chat] bundle_db_write done field=${dbField}`);
+      })
+      .catch((err) => {
+        console.warn(`[pk:chat] bundle_warm FAILED cid=${cid.slice(0,16)}… ms=${Date.now()-tb}`, err instanceof Error ? err.message : err);
+      });
   }
 
   // 2. If there is a generated image, record its provenance separately.
-  //    Run text-bundle pre-fetch in parallel with image recording so neither waits on the other.
   if (imageToolResult) {
     const imageResult = imageToolResult.result as { imageUrl: string; prompt: string };
-
-    const t2 = Date.now();
-    console.log(`[pk:chat] parallel_start text_bundle_prefetch + image_provenance`);
-    const [bundleData, imagePkResult] = await Promise.all([
-      prefetchBundle(pkResult.cid),
-      recordImageProvenance({
-        userPrivyDid: userId,
-        provider,
-        model: "dall-e-3",
-        prompt: imageResult.prompt,
-        imageUrl: imageResult.imageUrl,
-        imageBlob: imageToolResult.blob,
-        inputCids: [pkResult.promptCid ?? pkResult.cid],
-        sessionId,
-        agentEntityId: pkResult.agentEntityId,
-      }),
-    ]);
-    console.log(`[pk:chat] parallel_done ms=${Date.now()-t2} image_cid=${imagePkResult?.cid?.slice(0,16) ?? "null"}…`);
-
-    // Pre-fetch image bundle (text bundle was already fetched in parallel above)
-    const imageBundleData = imagePkResult ? await prefetchBundle(imagePkResult.cid) : undefined;
-
-    // Replace the expiring OpenAI URL with a persistent Pinata/IPFS gateway URL.
     const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
 
+    const t2 = Date.now();
+    console.log(`[pk:chat] image_provenance_start`);
+    const imagePkResult = await recordImageProvenance({
+      userPrivyDid: userId,
+      provider,
+      model: "dall-e-3",
+      prompt: imageResult.prompt,
+      imageUrl: imageResult.imageUrl,
+      imageBlob: imageToolResult.blob,
+      inputCids: [pkResult.promptCid ?? pkResult.cid],
+      sessionId,
+      agentEntityId: pkResult.agentEntityId,
+    });
+    console.log(`[pk:chat] image_provenance_done ms=${Date.now()-t2} image_cid=${imagePkResult?.cid?.slice(0,16) ?? "null"}…`);
+
+    // Immediately write "recorded" with CIDs — badge appears on next poll (~500ms).
+    // Bundle warm-up runs in the background and writes bundle data once ready.
     const tdb = Date.now();
     await MessageModel.updateOne(
       { _id: assistantMsgId },
@@ -174,7 +175,6 @@ async function recordAndUpdateProvenance(opts: {
             actionId: pkResult.actionId,
             promptCid: pkResult.promptCid,
             sessionId: sessionId ?? undefined,
-            ...(bundleData ? { bundle: bundleData } : {}),
           },
           provenanceStatus: "recorded",
           ...(imagePkResult
@@ -184,19 +184,23 @@ async function recordAndUpdateProvenance(opts: {
                   cid: imagePkResult.cid,
                   actionId: imagePkResult.actionId,
                   status: "recorded",
-                  ...(imageBundleData ? { bundle: imageBundleData } : {}),
                 },
               }
             : { "imageProvenance.status": "failed" }),
         },
       }
     );
-    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} bundle=${!!bundleData} imageBundle=${!!imageBundleData}`);
+    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} — badge visible on next poll`);
+
+    // Fire-and-forget bundle warm-up. Warms pk-proxy cache so the badge popover
+    // loads instantly when the user hovers/clicks it. Also writes bundle to DB so
+    // future page loads render the badge with zero fetches.
+    warmBundleAsync(pkResult.cid, "provenance.bundle");
+    if (imagePkResult) warmBundleAsync(imagePkResult.cid, "imageProvenance.bundle");
+
     console.log(`[pk:chat] recordAndUpdateProvenance DONE (image) total_ms=${Date.now()-t0}`);
   } else {
-    // Text-only: pre-fetch bundle then write a single update
-    const bundleData = await prefetchBundle(pkResult.cid);
-
+    // Text-only: immediately write "recorded" + CID, warm bundle in background.
     const tdb = Date.now();
     await MessageModel.updateOne(
       { _id: assistantMsgId },
@@ -207,13 +211,16 @@ async function recordAndUpdateProvenance(opts: {
             actionId: pkResult.actionId,
             promptCid: pkResult.promptCid,
             sessionId: sessionId ?? undefined,
-            ...(bundleData ? { bundle: bundleData } : {}),
           },
           provenanceStatus: "recorded",
         },
       }
     );
-    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} bundle=${!!bundleData}`);
+    console.log(`[pk:chat] db_update done ms=${Date.now()-tdb} — badge visible on next poll`);
+
+    // Fire-and-forget bundle warm-up.
+    warmBundleAsync(pkResult.cid, "provenance.bundle");
+
     console.log(`[pk:chat] recordAndUpdateProvenance DONE (text-only) total_ms=${Date.now()-t0}`);
   }
 
