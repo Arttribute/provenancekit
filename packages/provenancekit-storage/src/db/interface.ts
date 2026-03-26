@@ -192,6 +192,17 @@ export interface IProvenanceStorage {
   getResource(ref: string): Promise<Resource | null>;
 
   /**
+   * Get a resource by the integrity hash stored in its address.
+   *
+   * The integrity field stores `sha256:{hex}` for unencrypted resources.
+   * This enables a fast pre-upload duplicate check without knowing the CID:
+   * compute SHA-256 locally, query the DB, skip the IPFS upload if found.
+   *
+   * Returns null if not found or if the adapter does not support the query.
+   */
+  getResourceByIntegrity(integrity: string): Promise<Resource | null>;
+
+  /**
    * Check if a resource exists by its content reference.
    * Use this for deduplication before creating.
    *

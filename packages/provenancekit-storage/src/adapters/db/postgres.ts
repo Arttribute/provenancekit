@@ -470,6 +470,20 @@ export class PostgresStorage implements IProvenanceStorage {
     return rows.length > 0 ? this.rowToResource(rows[0]) : null;
   }
 
+  async getResourceByIntegrity(integrity: string): Promise<Resource | null> {
+    this.ensureInitialized();
+
+    try {
+      const rows = await this.query<ResourceRow>(
+        `SELECT * FROM ${this.t.resource} WHERE integrity = $1 LIMIT 1`,
+        [integrity]
+      );
+      return rows.length > 0 ? this.rowToResource(rows[0]) : null;
+    } catch {
+      return null; // non-fatal if index doesn't exist
+    }
+  }
+
   async resourceExists(ref: string): Promise<boolean> {
     this.ensureInitialized();
 

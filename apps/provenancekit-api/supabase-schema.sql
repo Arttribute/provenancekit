@@ -66,6 +66,8 @@ CREATE INDEX IF NOT EXISTS idx_pk_attribution_entity ON pk_attribution(entity_id
 
 CREATE INDEX IF NOT EXISTS idx_pk_resource_extensions ON pk_resource USING GIN (extensions);
 CREATE INDEX IF NOT EXISTS idx_pk_action_extensions ON pk_action USING GIN (extensions);
+-- Partial index for pre-upload dedup: lets getResourceByIntegrity() skip IPFS upload on duplicates
+CREATE INDEX IF NOT EXISTS idx_pk_resource_integrity ON pk_resource(integrity) WHERE integrity IS NOT NULL;
 
 -- ─── Vector search (pgvector — dimension 768 matches Xenova CLIP default) ─────
 

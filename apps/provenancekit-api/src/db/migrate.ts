@@ -204,6 +204,19 @@ function buildMigrations(vectorDimension: number): Migration[] {
     },
 
     {
+      // Partial index on pk_resource.integrity for fast pre-upload duplicate detection.
+      // integrity stores `sha256:{hex}` for unencrypted resources.
+      // Lets getResourceByIntegrity() skip IPFS upload (~1s) for duplicates across
+      // Cloud Run instances and cold starts — now just a ~10ms indexed DB lookup.
+      id: "0005_pk_resource_integrity_index",
+      sql: `
+        CREATE INDEX IF NOT EXISTS idx_pk_resource_integrity
+          ON pk_resource(integrity)
+          WHERE integrity IS NOT NULL;
+      `,
+    },
+
+    {
       // Vector embeddings — recreate with correct dimension and primary key schema.
       // Existing data is discarded and will be regenerated on next activity write.
       id: `0004_pk_vectors_dim${vectorDimension}`,

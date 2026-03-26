@@ -314,6 +314,13 @@ export class MongoDBStorage implements IProvenanceStorage {
       .findOne({ "address.ref": ref });
   }
 
+  async getResourceByIntegrity(integrity: string): Promise<Resource | null> {
+    this.ensureInitialized();
+    return this.db
+      .collection<Resource>(this.c.resource)
+      .findOne({ "address.integrity": integrity });
+  }
+
   async resourceExists(ref: string): Promise<boolean> {
     this.ensureInitialized();
     const count = await this.db

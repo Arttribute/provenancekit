@@ -628,6 +628,9 @@ export async function createActivity(
     : null;
 
   if (contentSha256) {
+    const integrityKey = `sha256:${contentSha256}`;
+
+    // 4a-i. Fast path: check in-process memory cache (microseconds)
     const cachedCid = contentCidCache.get(contentSha256);
     if (cachedCid) {
       // Double-check DB — if the resource was somehow deleted, the cache is stale
@@ -639,10 +642,25 @@ export async function createActivity(
           details: { cid: cachedCid, similarity: 1 },
         });
       }
-      contentCidCache.delete(contentSha256); // stale — fall through to upload
-    } else {
-      console.log(`[pk:activity] content_cache MISS — will upload`);
+      contentCidCache.delete(contentSha256); // stale — fall through to DB check
     }
+
+    // 4a-ii. Persistent path: check DB by integrity hash (survives cold starts + multi-instance)
+    // This eliminates the 500-2000ms IPFS upload for duplicates seen by other instances.
+    const t_integrity = Date.now();
+    const existingByHash = await dbStorage.getResourceByIntegrity(integrityKey);
+    if (existingByHash) {
+      const existingCid = existingByHash.address?.ref ?? "";
+      if (existingCid) {
+        contentCidCache.set(contentSha256, existingCid); // warm memory cache
+        console.log(`[pk:activity] integrity_db HIT → 409 cid=${existingCid.slice(0,16)}… integrity_ms=${Date.now()-t_integrity} saved_ipfs_ms=~1000+`);
+        throw new ProvenanceKitError("Duplicate", "Resource with identical CID already exists", {
+          recovery: "Use the existing CID instead of uploading again",
+          details: { cid: existingCid, similarity: 1 },
+        });
+      }
+    }
+    console.log(`[pk:activity] integrity_db MISS — will upload integrity_ms=${Date.now()-t_integrity}`);
   }
 
   // 5+7. Upload to IPFS and generate embedding in parallel.
@@ -875,8 +893,16 @@ export async function createActivity(
   });
 
   // 9. Build resource record (sync — no I/O)
+  //
+  // Populate integrity with `sha256:{hex}` for unencrypted resources.
+  // This is stored in the DB and indexed, enabling the pre-upload dedup check
+  // (4a-ii above) to work across Cloud Run instances and cold starts.
+  const baseRef = cidRef(cid, size);
+  if (contentSha256) {
+    baseRef.integrity = `sha256:${contentSha256}`;
+  }
   let resource: Resource = {
-    address: cidRef(cid, size),
+    address: baseRef,
     type: kind,
     locations: [{ uri: `${ipfsGateway}/${cid}`, provider: "ipfs" }],
     createdAt: timestamp,
