@@ -6,7 +6,7 @@
 # been published to npm yet at this point, so pnpm install would fail.
 # The real deploy happens on the next push once npm has the new versions.
 
-if [ "$VERCEL_GIT_COMMIT_MESSAGE" = "chore: version packages" ]; then
+if echo "$VERCEL_GIT_COMMIT_MESSAGE" | grep -q "chore: version packages"; then
   echo "Skipping deploy: version-bump commit (packages not published yet)"
   exit 0
 fi

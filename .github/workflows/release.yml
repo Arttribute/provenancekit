@@ -125,6 +125,7 @@ jobs:
           "
 
       - name: Create Release PR or Publish
+        id: changesets
         uses: changesets/action@v1
         with:
           publish: pnpm release
@@ -133,3 +134,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Sync deployable apps to published package versions
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          node scripts/use-published-packages.mjs --source=workspace --wait
+          if git diff --quiet -- apps/provenancekit-app/package.json examples/chat/package.json examples/canvas/package.json; then
+            echo "Deployable app package.json files already match npm"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add apps/provenancekit-app/package.json examples/chat/package.json examples/canvas/package.json
+          git commit -m "chore: sync apps to published packages"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
