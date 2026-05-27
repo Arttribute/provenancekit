@@ -131,7 +131,7 @@ export interface IMessage {
   /** "recording" while async provenance write is in-flight; "recorded" on success; "failed" on error */
   provenanceStatus?: "recording" | "recorded" | "failed";
   provenance?: { cid: string; actionId?: string; promptCid?: string; sessionId?: string; bundle?: Record<string, unknown> };
-  /** Separate provenance record for a DALL-E generated image in this message */
+  /** Separate provenance record for a GPT Image generated image in this message */
   imageProvenance?: { cid: string; actionId?: string; status: "recording" | "recorded" | "failed"; bundle?: Record<string, unknown> };
   createdAt?: Date;
   updatedAt?: Date;

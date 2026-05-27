@@ -19,6 +19,8 @@ export function TrackerActionItem({ action, isLatest, isLast, className }: Track
   const aiTool = getAIToolSafe(action);
   const verification = getVerificationSafe(action);
   const isVerified = verification?.status === "verified";
+  const actionType = action.type ?? "action";
+  const outputCount = action.outputs?.length ?? 0;
 
   const dotColor = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
   const dotBorder = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
@@ -77,7 +79,7 @@ export function TrackerActionItem({ action, isLatest, isLast, className }: Track
               textTransform: "capitalize",
             }}
           >
-            {formatActionType(action.type)}
+            {formatActionType(actionType)}
           </span>
 
           {isLatest && (
@@ -138,9 +140,9 @@ export function TrackerActionItem({ action, isLatest, isLast, className }: Track
         {/* Timestamp */}
         <div style={{ fontSize: 11, color: "var(--pk-muted-foreground, #64748b)" }}>
           <Timestamp iso={action.timestamp} />
-          {action.outputs.length > 0 && (
+          {outputCount > 0 && (
             <span style={{ marginLeft: 8 }}>
-              → {action.outputs.length} output{action.outputs.length !== 1 ? "s" : ""}
+              → {outputCount} output{outputCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>

@@ -72,7 +72,9 @@ __export(src_exports, {
   formatTxHash: () => formatTxHash,
   getAIAgentSafe: () => getAIAgentSafe,
   getAIToolSafe: () => getAIToolSafe,
+  getAuthorizationSafe: () => getAuthorizationSafe,
   getContribSafe: () => getContribSafe,
+  getGovernanceSafe: () => getGovernanceSafe,
   getLicenseSafe: () => getLicenseSafe,
   getOnchainSafe: () => getOnchainSafe,
   getPrimaryCreator: () => getPrimaryCreator,
@@ -9198,6 +9200,7 @@ function getVerification(obj) {
   return VerificationExtension.parse(data);
 }
 var MAX_SAFE_WEIGHT = Number.MAX_SAFE_INTEGER;
+var AUTHORIZATION_NAMESPACE = "ext:authorization@1.0.0";
 var AuthorizationStatus = external_exports.enum([
   "authorized",
   "unauthorized",
@@ -9248,6 +9251,11 @@ var AuthorizationExtension = external_exports.object({
    */
   proof: external_exports.string().optional()
 });
+function getAuthorization(obj) {
+  const data = obj.extensions?.[AUTHORIZATION_NAMESPACE];
+  if (!data) return void 0;
+  return AuthorizationExtension.parse(data);
+}
 var OwnershipEvidenceType = external_exports.enum([
   "self-declaration",
   // No external proof — just a formal assertion
@@ -9413,6 +9421,29 @@ var X402Extension = external_exports.object({
   (data) => data.requirements !== void 0 || data.proof !== void 0 || data.split !== void 0,
   { message: "At least one of requirements, proof, or split must be provided" }
 );
+var GOVERNANCE_NAMESPACE = "ext:governance@1.0.0";
+var GovernanceRequirement = external_exports.enum(["R1", "R2", "R3", "R4", "R5", "R6"]);
+var GovernanceExtension = external_exports.object({
+  workflow: external_exports.string().optional(),
+  purpose: external_exports.string().optional(),
+  roleInWorkflow: external_exports.enum(["source", "prompt", "generated-output", "derived-output", "reference", "final-output"]).optional(),
+  disclosure: external_exports.object({
+    aiInvolved: external_exports.boolean().optional(),
+    humanContribution: external_exports.string().optional(),
+    aiContribution: external_exports.string().optional(),
+    publicSummary: external_exports.string().optional()
+  }).optional(),
+  requirements: external_exports.array(GovernanceRequirement).default([]),
+  policyBasis: external_exports.array(external_exports.string()).optional(),
+  riskFlags: external_exports.array(external_exports.string()).optional(),
+  reviewStatus: external_exports.enum(["not-reviewed", "review-required", "reviewed", "approved"]).optional(),
+  note: external_exports.string().optional()
+});
+function getGovernance(obj) {
+  const data = obj.extensions?.[GOVERNANCE_NAMESPACE];
+  if (!data) return void 0;
+  return GovernanceExtension.parse(data);
+}
 
 // ../provenancekit-sdk/dist/index.mjs
 var ProvenanceKitError = class _ProvenanceKitError extends Error {
@@ -10261,6 +10292,22 @@ function getWitnessSafe(action) {
     return null;
   }
 }
+function getAuthorizationSafe(target) {
+  if (!target) return null;
+  try {
+    return getAuthorization(target) ?? null;
+  } catch {
+    return null;
+  }
+}
+function getGovernanceSafe(target) {
+  if (!target) return null;
+  try {
+    return getGovernance(target) ?? null;
+  } catch {
+    return null;
+  }
+}
 function bundleHasAI(actions) {
   return actions.some((a) => getAIToolSafe(a) !== null);
 }
@@ -10468,7 +10515,8 @@ function LicenseChip({
         showIcons && !isPublicDomain && license && /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)(import_jsx_runtime5.Fragment, { children: [
           license.commercial === false && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { title: "Non-commercial", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_lucide_react3.DollarSign, { size: 10, strokeWidth: 2, className: "shrink-0 text-amber-500", "aria-label": "Non-commercial" }) }),
           license.derivatives === false && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { title: "No derivatives", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_lucide_react3.GitBranch, { size: 10, strokeWidth: 2, className: "shrink-0 text-amber-500", "aria-label": "No derivatives" }) }),
-          license.shareAlike && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { title: "Share alike required", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_lucide_react3.Share2, { size: 10, strokeWidth: 2, className: "shrink-0 text-blue-500", "aria-label": "Share alike required" }) })
+          license.shareAlike && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { title: "Share alike required", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_lucide_react3.Share2, { size: 10, strokeWidth: 2, className: "shrink-0 text-blue-500", "aria-label": "Share alike required" }) }),
+          license.aiTraining === "reserved" && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { title: "AI training rights reserved", children: /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(import_lucide_react3.Ban, { size: 10, strokeWidth: 2, className: "shrink-0 text-red-500", "aria-label": "AI training rights reserved" }) })
         ] })
       ]
     }
@@ -10643,6 +10691,28 @@ function findVerification(bundle) {
   }
   return null;
 }
+function findAuthorization(bundle) {
+  for (let i = bundle.resources.length - 1; i >= 0; i--) {
+    const auth = getAuthorizationSafe(bundle.resources[i]);
+    if (auth) return auth;
+  }
+  for (let i = bundle.actions.length - 1; i >= 0; i--) {
+    const auth = getAuthorizationSafe(bundle.actions[i]);
+    if (auth) return auth;
+  }
+  return null;
+}
+function findGovernance(bundle) {
+  for (let i = bundle.resources.length - 1; i >= 0; i--) {
+    const governance = getGovernanceSafe(bundle.resources[i]);
+    if (governance) return governance;
+  }
+  for (let i = bundle.actions.length - 1; i >= 0; i--) {
+    const governance = getGovernanceSafe(bundle.actions[i]);
+    if (governance) return governance;
+  }
+  return null;
+}
 function CredRow({ label, value }) {
   return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: { padding: "9px 0" }, children: [
     /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("p", { style: { margin: "0 0 2px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#9ca3af" }, children: label }),
@@ -10661,6 +10731,8 @@ function ProvenancePopover({
   const aiTools = getUniqueAITools(bundle);
   const license = findLicense(bundle);
   const verification = findVerification(bundle);
+  const authorization = findAuthorization(bundle);
+  const governance = findGovernance(bundle);
   const lastAction = bundle.actions[bundle.actions.length - 1];
   const otherContributors = bundle.entities.filter((e) => e.id !== creator?.id);
   const verifiedLabel = verification?.status === "verified" ? verification.policyUsed ?? "Verified" : verification?.status === "partial" ? "Partially verified" : null;
@@ -10699,6 +10771,15 @@ function ProvenancePopover({
   }
   if (license?.type) {
     rows.push({ label: "License", value: license.type });
+  }
+  if (license?.aiTraining) {
+    rows.push({ label: "AI training rights", value: license.aiTraining });
+  }
+  if (authorization?.status) {
+    rows.push({ label: "Authorization", value: authorization.status });
+  }
+  if (governance?.reviewStatus) {
+    rows.push({ label: "Governance review", value: governance.reviewStatus.replace(/-/g, " ") });
   }
   if (verifiedLabel) {
     rows.push({ label: "Signed with", value: verifiedLabel });
@@ -11534,7 +11615,10 @@ function formatActionType3(t) {
 function ActionCard({ action }) {
   const aiTool = getAIToolSafe(action);
   const verification = getVerificationSafe(action);
+  const authorization = getAuthorizationSafe(action);
+  const governance = getGovernanceSafe(action);
   const isVerified = verification?.status === "verified";
+  const needsReview = governance?.reviewStatus === "review-required" || authorization?.status === "pending" || authorization?.status === "unauthorized";
   return /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
     "div",
     {
@@ -11632,7 +11716,51 @@ function ActionCard({ action }) {
                   verification?.policyUsed ?? "Verified"
                 ]
               }
-            )
+            ),
+            (authorization || governance) && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }, children: [
+              authorization?.status && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+                "span",
+                {
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 11,
+                    color: authorization.status === "authorized" ? "#047857" : "#b45309",
+                    background: authorization.status === "authorized" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.12)",
+                    border: `1px solid ${authorization.status === "authorized" ? "rgba(16,185,129,0.22)" : "rgba(245,158,11,0.28)"}`,
+                    borderRadius: 6,
+                    padding: "2px 8px"
+                  },
+                  title: authorization.scope,
+                  children: [
+                    authorization.status === "authorized" ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.Shield, { size: 10 }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.AlertTriangle, { size: 10 }),
+                    authorization.status
+                  ]
+                }
+              ),
+              governance?.reviewStatus && /* @__PURE__ */ (0, import_jsx_runtime15.jsxs)(
+                "span",
+                {
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                    fontSize: 11,
+                    color: needsReview ? "#b45309" : "#047857",
+                    background: needsReview ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.08)",
+                    border: `1px solid ${needsReview ? "rgba(245,158,11,0.28)" : "rgba(16,185,129,0.22)"}`,
+                    borderRadius: 6,
+                    padding: "2px 8px"
+                  },
+                  title: governance.note,
+                  children: [
+                    needsReview ? /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.AlertTriangle, { size: 10 }) : /* @__PURE__ */ (0, import_jsx_runtime15.jsx)(import_lucide_react8.Shield, { size: 10 }),
+                    governance.reviewStatus.replace(/-/g, " ")
+                  ]
+                }
+              )
+            ] })
           ] })
         ] }) })
       ]
@@ -11646,7 +11774,10 @@ var import_jsx_runtime16 = require("react/jsx-runtime");
 function ResourceCard({ resource }) {
   const cid = resource.address?.ref;
   const license = getLicenseSafe(resource);
+  const authorization = getAuthorizationSafe(resource);
+  const governance = getGovernanceSafe(resource);
   const location = resource.locations?.[0];
+  const needsReview = governance?.reviewStatus === "review-required" || authorization?.status === "pending" || authorization?.status === "unauthorized";
   return /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
     "div",
     {
@@ -11699,6 +11830,71 @@ function ResourceCard({ resource }) {
               ),
               resource.size && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)("span", { style: { fontSize: 11, color: "#94a3b8" }, children: resource.size < 1024 * 1024 ? `${(resource.size / 1024).toFixed(1)} KB` : `${(resource.size / 1024 / 1024).toFixed(1)} MB` }),
               license && /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(LicenseChip, { license })
+            ] }),
+            (authorization || governance || license?.aiTraining) && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }, children: [
+              authorization?.status && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+                "span",
+                {
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    color: authorization.status === "authorized" ? "#047857" : "#b45309",
+                    background: authorization.status === "authorized" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.12)",
+                    border: `1px solid ${authorization.status === "authorized" ? "rgba(16,185,129,0.22)" : "rgba(245,158,11,0.28)"}`,
+                    borderRadius: 6,
+                    padding: "2px 7px"
+                  },
+                  title: authorization.scope,
+                  children: [
+                    authorization.status === "authorized" ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react9.ShieldCheck, { size: 10 }) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react9.AlertTriangle, { size: 10 }),
+                    authorization.status
+                  ]
+                }
+              ),
+              license?.aiTraining && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+                "span",
+                {
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    color: license.aiTraining === "reserved" ? "#b91c1c" : "#475569",
+                    background: license.aiTraining === "reserved" ? "rgba(239,68,68,0.08)" : "#f8fafc",
+                    border: `1px solid ${license.aiTraining === "reserved" ? "rgba(239,68,68,0.22)" : "#e2e8f0"}`,
+                    borderRadius: 6,
+                    padding: "2px 7px"
+                  },
+                  children: [
+                    /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react9.Brain, { size: 10 }),
+                    "AI training ",
+                    license.aiTraining
+                  ]
+                }
+              ),
+              governance?.reviewStatus && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
+                "span",
+                {
+                  style: {
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                    fontSize: 11,
+                    color: needsReview ? "#b45309" : "#047857",
+                    background: needsReview ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.08)",
+                    border: `1px solid ${needsReview ? "rgba(245,158,11,0.28)" : "rgba(16,185,129,0.22)"}`,
+                    borderRadius: 6,
+                    padding: "2px 7px"
+                  },
+                  title: governance.note,
+                  children: [
+                    needsReview ? /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react9.AlertTriangle, { size: 10 }) : /* @__PURE__ */ (0, import_jsx_runtime16.jsx)(import_lucide_react9.ShieldCheck, { size: 10 }),
+                    governance.reviewStatus.replace(/-/g, " ")
+                  ]
+                }
+              )
             ] }),
             cid && /* @__PURE__ */ (0, import_jsx_runtime16.jsxs)(
               "div",
@@ -12085,6 +12281,8 @@ function TrackerActionItem({ action, isLatest, isLast, className }) {
   const aiTool = getAIToolSafe(action);
   const verification = getVerificationSafe(action);
   const isVerified = verification?.status === "verified";
+  const actionType = action.type ?? "action";
+  const outputCount = action.outputs?.length ?? 0;
   const dotColor = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
   const dotBorder = isLatest ? "#22c55e" : "var(--pk-surface-border, #e2e8f0)";
   return /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)(
@@ -12143,7 +12341,7 @@ function TrackerActionItem({ action, isLatest, isLast, className }) {
                   color: "var(--pk-foreground, #0f172a)",
                   textTransform: "capitalize"
                 },
-                children: formatActionType4(action.type)
+                children: formatActionType4(actionType)
               }
             ),
             isLatest && /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(
@@ -12205,11 +12403,11 @@ function TrackerActionItem({ action, isLatest, isLast, className }) {
           ] }),
           /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("div", { style: { fontSize: 11, color: "var(--pk-muted-foreground, #64748b)" }, children: [
             /* @__PURE__ */ (0, import_jsx_runtime20.jsx)(Timestamp, { iso: action.timestamp }),
-            action.outputs.length > 0 && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { style: { marginLeft: 8 }, children: [
+            outputCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime20.jsxs)("span", { style: { marginLeft: 8 }, children: [
               "\u2192 ",
-              action.outputs.length,
+              outputCount,
               " output",
-              action.outputs.length !== 1 ? "s" : ""
+              outputCount !== 1 ? "s" : ""
             ] })
           ] })
         ] })
@@ -12724,6 +12922,21 @@ function LicenseExtensionView({ extension, className }) {
       extension.expires && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { children: [
         "Expires: ",
         /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "font-medium text-[var(--pk-foreground)]", children: new Date(extension.expires).toLocaleDateString() })
+      ] }),
+      extension.aiTraining && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { children: [
+        "AI training: ",
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "font-medium text-[var(--pk-foreground)] capitalize", children: extension.aiTraining })
+      ] }),
+      extension.grantType && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { children: [
+        "Grant type: ",
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsx)("span", { className: "font-medium text-[var(--pk-foreground)] capitalize", children: extension.grantType })
+      ] }),
+      extension.grantedBy && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("div", { children: [
+        "Granted by: ",
+        /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)("span", { className: "font-mono text-[var(--pk-foreground)]", children: [
+          extension.grantedBy.slice(0, 16),
+          "\u2026"
+        ] })
       ] })
     ] }),
     extension.termsUrl && /* @__PURE__ */ (0, import_jsx_runtime26.jsxs)(
@@ -14160,9 +14373,12 @@ function BundleSummary({
       /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(import_lucide_react23.Tag, { size: 10, className: "shrink-0" }),
       /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", { className: "capitalize", children: topAction.type })
     ] }),
-    licenseExt && (licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
+    licenseExt && (licenseExt.type || licenseExt.spdxId || licenseExt.name) && /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
       /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(import_lucide_react23.ShieldCheck, { size: 10, className: "shrink-0" }),
-      /* @__PURE__ */ (0, import_jsx_runtime34.jsx)("span", { className: "truncate", children: licenseExt.spdxId ?? licenseExt.name })
+      /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("span", { className: "truncate", children: [
+        licenseExt.type ?? licenseExt.spdxId ?? licenseExt.name,
+        licenseExt.aiTraining ? ` \xB7 AI training ${licenseExt.aiTraining}` : ""
+      ] })
     ] }),
     topAction?.timestamp && /* @__PURE__ */ (0, import_jsx_runtime34.jsxs)("div", { className: "flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]", children: [
       /* @__PURE__ */ (0, import_jsx_runtime34.jsx)(import_lucide_react23.Calendar, { size: 10, className: "shrink-0" }),
@@ -14330,7 +14546,9 @@ function FileProvenanceTag({
   formatTxHash,
   getAIAgentSafe,
   getAIToolSafe,
+  getAuthorizationSafe,
   getContribSafe,
+  getGovernanceSafe,
   getLicenseSafe,
   getOnchainSafe,
   getPrimaryCreator,

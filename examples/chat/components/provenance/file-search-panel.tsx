@@ -29,7 +29,9 @@ import {
 import { useRouter } from "next/navigation";
 import { ProvenanceBundleView, ProvenanceGraph, useProvenanceKit } from "@/components/provenance/pk-ui";
 import { cn } from "@/lib/utils";
+import { defaultAttachmentGovernance } from "@/lib/governance";
 import type { Match } from "@provenancekit/sdk";
+import type { AttachmentGovernance, AttachmentGovernanceStatus } from "@/types";
 
 // ── Thresholds ─────────────────────────────────────────────────────────────────
 /** ≥95% → show full provenance dialog. <95% → show claim/explore prompt. */
@@ -175,6 +177,106 @@ function MatchResultCard({ match, onClick }: { match: Match; onClick: () => void
   );
 }
 
+function GovernanceClaimControls({
+  governance,
+  onChange,
+}: {
+  governance: AttachmentGovernance;
+  onChange: (governance: AttachmentGovernance) => void;
+}) {
+  return (
+    <div className="grid gap-2 rounded-lg border bg-background/70 p-3 text-left">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Source status</span>
+          <select
+            value={governance.status}
+            onChange={(e) => onChange(defaultAttachmentGovernance(e.target.value as AttachmentGovernanceStatus))}
+            className="h-8 w-full rounded border bg-background px-2 text-xs outline-none"
+          >
+            <option value="own-original">Original</option>
+            <option value="licensed-source">Licensed source</option>
+            <option value="restricted-source">Restricted source</option>
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">License</span>
+          <select
+            value={governance.licenseType}
+            onChange={(e) => onChange({ ...governance, licenseType: e.target.value })}
+            className="h-8 w-full rounded border bg-background px-2 text-xs outline-none"
+          >
+            <option value="CC-BY-4.0">CC BY 4.0</option>
+            <option value="CC0-1.0">CC0</option>
+            <option value="MIT">MIT</option>
+            <option value="Proprietary">Proprietary</option>
+            <option value="Custom">Custom</option>
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Authorization</span>
+          <select
+            value={governance.authorizationStatus}
+            onChange={(e) =>
+              onChange({
+                ...governance,
+                authorizationStatus: e.target.value as AttachmentGovernance["authorizationStatus"],
+              })
+            }
+            className="h-8 w-full rounded border bg-background px-2 text-xs outline-none"
+          >
+            <option value="authorized">Authorized</option>
+            <option value="pending">Pending review</option>
+            <option value="unauthorized">Unauthorized</option>
+          </select>
+        </label>
+      </div>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_120px]">
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Authorized scope</span>
+          <input
+            value={governance.scope}
+            onChange={(e) => onChange({ ...governance, scope: e.target.value })}
+            className="h-8 w-full rounded border bg-background px-2 text-xs outline-none"
+          />
+        </label>
+        <label className="space-y-1">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">AI training</span>
+          <select
+            value={governance.aiTraining}
+            onChange={(e) => onChange({ ...governance, aiTraining: e.target.value as AttachmentGovernance["aiTraining"] })}
+            className="h-8 w-full rounded border bg-background px-2 text-xs outline-none"
+          >
+            <option value="reserved">Reserved</option>
+            <option value="permitted">Permitted</option>
+            <option value="unspecified">Unspecified</option>
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+async function claimFile(opts: {
+  file: File;
+  owned: boolean;
+  governance: AttachmentGovernance;
+  userId?: string;
+}) {
+  const form = new FormData();
+  form.append("file", opts.file, opts.file.name);
+  form.append("owned", String(opts.owned));
+  form.append("userId", opts.userId ?? "anonymous");
+  form.append("mimeType", opts.file.type);
+  form.append("governance", JSON.stringify(opts.governance));
+  const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error ?? "Failed to record provenance claim");
+  }
+  return res.json() as Promise<{ cid: string; status: "claimed" | "referenced" }>;
+}
+
 // ── Provenance File Dialog ─────────────────────────────────────────────────────
 
 type DialogTab = "preview" | "graph" | "overview";
@@ -185,21 +287,29 @@ function ProvenanceFileDialog({
   match,
   file,
   previewUrl,
+  userId,
 }: {
   open: boolean;
   onClose: () => void;
   match: Match | null;
   file: File | null;
   previewUrl: string | null;
+  userId?: string;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<DialogTab>("overview");
   const [claimExpanded, setClaimExpanded] = useState(false);
+  const [governance, setGovernance] = useState<AttachmentGovernance>(defaultAttachmentGovernance("own-original"));
+  const [claiming, setClaiming] = useState(false);
+  const [claimedCid, setClaimedCid] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
 
   // Reset state when dialog closes or match changes
   useEffect(() => {
     if (!open) {
       setClaimExpanded(false);
+      setClaimedCid(null);
+      setClaimError(null);
     }
   }, [open]);
 
@@ -215,6 +325,22 @@ function ProvenanceFileDialog({
   const pct = Math.round(match.score * 100);
   const isHigh = pct >= HIGH_CONFIDENCE * 100;
   const isImage = file.type.startsWith("image/");
+
+  async function handleClaim(owned: boolean) {
+    if (!file) return;
+    const claimTarget = file;
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      const selectedGovernance = owned ? { ...governance, status: "own-original" as const } : governance;
+      const result = await claimFile({ file: claimTarget, owned, governance: selectedGovernance, userId });
+      setClaimedCid(result.cid);
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Failed to record claim");
+    } finally {
+      setClaiming(false);
+    }
+  }
 
   const tabs: { key: DialogTab; label: string }[] = [
     ...(isImage ? [{ key: "preview" as const, label: "Preview" }] : []),
@@ -313,20 +439,38 @@ function ProvenanceFileDialog({
                     <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mb-1">
                       Record attribution with ProvenanceKit
                     </p>
-                    <p className="text-xs text-amber-700/80 dark:text-amber-400/70 leading-relaxed">
-                      To formally claim this content as your work, use the ProvenanceKit SDK to
-                      record a provenance bundle for your original file. This links your identity
-                      as creator on-chain.
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/70 leading-relaxed mb-2">
+                      Record this uploaded file now with license, authorization, AI-training, and review metadata.
                     </p>
-                    <a
-                      href="https://provenancekit.org/guides/recording-provenance"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-primary hover:underline mt-1.5 inline-flex items-center gap-1"
-                    >
-                      View recording guide
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
+                    <GovernanceClaimControls governance={governance} onChange={setGovernance} />
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleClaim(true)}
+                        disabled={claiming}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                      >
+                        {claiming ? "Recording..." : "Claim as original"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleClaim(false)}
+                        disabled={claiming}
+                        className="rounded-lg border bg-background px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
+                      >
+                        Record as governed source
+                      </button>
+                      {claimedCid && (
+                        <button
+                          type="button"
+                          onClick={() => { router.push(`/provenance/${claimedCid}`); onClose(); }}
+                          className="text-xs font-semibold text-primary hover:underline"
+                        >
+                          Open recorded provenance
+                        </button>
+                      )}
+                    </div>
+                    {claimError && <p className="mt-1.5 text-xs text-red-600">{claimError}</p>}
                   </div>
                   <button
                     type="button"
@@ -400,7 +544,7 @@ export { ProvenanceFileDialog };
 
 // ── File Search Panel ──────────────────────────────────────────────────────────
 
-export function FileSearchPanel() {
+export function FileSearchPanel({ userId }: { userId?: string }) {
   const { pk } = useProvenanceKit();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -409,6 +553,11 @@ export function FileSearchPanel() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dialogMatch, setDialogMatch] = useState<Match | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [governance, setGovernance] = useState<AttachmentGovernance>(defaultAttachmentGovernance("own-original"));
+  const [claiming, setClaiming] = useState(false);
+  const [claimedCid, setClaimedCid] = useState<string | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const router = useRouter();
 
   const handleFile = useCallback(
     async (file: File) => {
@@ -424,6 +573,8 @@ export function FileSearchPanel() {
       setLoading(true);
       setError(null);
       setResults([]);
+      setClaimedCid(null);
+      setClaimError(null);
 
       try {
         const matches = await (pk as any).similar(file, 5);
@@ -442,7 +593,24 @@ export function FileSearchPanel() {
     setActiveFile(null);
     setResults([]);
     setError(null);
+    setClaimedCid(null);
+    setClaimError(null);
   }, []);
+
+  const handleClaim = useCallback(async (owned: boolean) => {
+    if (!activeFile) return;
+    setClaiming(true);
+    setClaimError(null);
+    try {
+      const selectedGovernance = owned ? { ...governance, status: "own-original" as const } : governance;
+      const result = await claimFile({ file: activeFile, owned, governance: selectedGovernance, userId });
+      setClaimedCid(result.cid);
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Failed to record provenance claim");
+    } finally {
+      setClaiming(false);
+    }
+  }, [activeFile, governance, userId]);
 
   // Clean up object URL on unmount
   useEffect(() => {
@@ -485,11 +653,42 @@ export function FileSearchPanel() {
       )}
 
       {!loading && !error && activeFile && results.length === 0 && (
-        <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-6 text-center">
+        <div className="rounded-xl border border-dashed bg-muted/20 px-4 py-5">
           <p className="text-sm text-muted-foreground">No provenance records found for this file</p>
           <p className="text-xs text-muted-foreground/70 mt-1">
-            This content hasn&apos;t been recorded with ProvenanceKit yet.
+            Record it now with licensing and governance metadata so downstream AI actions can cite this exact input.
           </p>
+          <div className="mt-3">
+            <GovernanceClaimControls governance={governance} onChange={setGovernance} />
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleClaim(true)}
+              disabled={claiming}
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+            >
+              {claiming ? "Recording..." : "Claim as original"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleClaim(false)}
+              disabled={claiming}
+              className="rounded-lg border bg-background px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
+            >
+              Record as governed source
+            </button>
+            {claimedCid && (
+              <button
+                type="button"
+                onClick={() => router.push(`/provenance/${claimedCid}`)}
+                className="text-xs font-semibold text-primary hover:underline"
+              >
+                Open recorded provenance
+              </button>
+            )}
+          </div>
+          {claimError && <p className="mt-2 text-xs text-red-600">{claimError}</p>}
         </div>
       )}
 
@@ -499,6 +698,7 @@ export function FileSearchPanel() {
         match={dialogMatch}
         file={activeFile}
         previewUrl={previewUrl}
+        userId={userId}
       />
     </div>
   );

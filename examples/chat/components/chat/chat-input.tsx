@@ -380,7 +380,7 @@ function AttachmentChip({
   const governance = attachment.governance ?? defaultAttachmentGovernance("own-original");
 
   return (
-    <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs max-w-[220px]">
+    <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs w-[280px] max-w-full">
       <div className="flex items-center gap-1.5">
         {isImage
           ? <ImageIcon className="h-3 w-3 shrink-0 text-blue-500" />
@@ -413,6 +413,89 @@ function AttachmentChip({
         <option value="licensed-source">Licensed source</option>
         <option value="restricted-source">Restricted source</option>
       </select>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">License</span>
+          <select
+            value={governance.licenseType}
+            onChange={(e) => onGovernanceChange?.({ ...governance, licenseType: e.target.value })}
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="CC-BY-4.0">CC BY 4.0</option>
+            <option value="CC0-1.0">CC0</option>
+            <option value="MIT">MIT</option>
+            <option value="Proprietary">Proprietary</option>
+            <option value="Custom">Custom</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Authorization</span>
+          <select
+            value={governance.authorizationStatus}
+            onChange={(e) =>
+              onGovernanceChange?.({
+                ...governance,
+                authorizationStatus: e.target.value as "authorized" | "pending" | "unauthorized",
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="authorized">Authorized</option>
+            <option value="pending">Pending</option>
+            <option value="unauthorized">Unauthorized</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">AI training</span>
+          <select
+            value={governance.aiTraining}
+            onChange={(e) =>
+              onGovernanceChange?.({
+                ...governance,
+                aiTraining: e.target.value as "permitted" | "reserved" | "unspecified",
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="reserved">Reserved</option>
+            <option value="permitted">Permitted</option>
+            <option value="unspecified">Unspecified</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Weight</span>
+          <input
+            type="number"
+            min={0}
+            max={10000}
+            step={100}
+            value={governance.contributionWeight}
+            onChange={(e) =>
+              onGovernanceChange?.({
+                ...governance,
+                contributionWeight: Math.max(0, Math.min(10000, Number(e.target.value) || 0)),
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          />
+        </label>
+      </div>
+      <input
+        value={governance.scope}
+        onChange={(e) => onGovernanceChange?.({ ...governance, scope: e.target.value })}
+        placeholder="Authorized scope"
+        className="mt-1 h-6 rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+      />
+      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+        {governance.authorizationStatus === "authorized" ? (
+          <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
+        ) : (
+          <ShieldOff className="h-2.5 w-2.5 text-amber-500" />
+        )}
+        <span className="truncate">
+          {governance.licenseType} · AI training {governance.aiTraining}
+        </span>
+      </div>
     </div>
   );
 }

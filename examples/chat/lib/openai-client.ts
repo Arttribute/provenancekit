@@ -1,6 +1,6 @@
 /**
  * OpenAI SDK singleton.
- * Used for DALL-E image generation, TTS, and STT.
+ * Used for GPT Image generation, TTS, and STT.
  * The streaming chat itself uses @ai-sdk/openai via Vercel AI SDK.
  */
 

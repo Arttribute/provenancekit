@@ -39,6 +39,8 @@ export {
   getOnchainSafe,
   getVerificationSafe,
   getWitnessSafe,
+  getAuthorizationSafe,
+  getGovernanceSafe,
   bundleHasAI,
   getPrimaryCreator,
 } from "./lib/extensions";

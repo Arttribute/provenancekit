@@ -110,7 +110,7 @@ export interface ChatMessage {
   content: string;
   /** Structured content parts (for multi-modal user messages) */
   contentParts?: MessagePart[];
-  /** Generated image URL from DALL-E tool */
+  /** Generated image URL from the image-generation tool */
   imageUrl?: string;
   imageRevisedPrompt?: string;
   /** Generated audio data URI from TTS tool */
@@ -136,7 +136,7 @@ export interface ChatMessage {
     /** Pre-fetched bundle data — when present, badge renders instantly with no extra fetch */
     bundle?: Record<string, unknown>;
   };
-  /** Separate provenance record for a DALL-E generated image in this message */
+  /** Separate provenance record for a GPT Image generated image in this message */
   imageProvenance?: {
     cid: string;
     actionId?: string;

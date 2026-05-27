@@ -1,7 +1,7 @@
 import * as react_jsx_runtime from 'react/jsx-runtime';
 import React from 'react';
 import { z } from 'zod';
-import { AIAgentExtension, AIToolExtension, ContribExtension, LicenseExtension, OnchainExtension, VerificationExtension, WitnessExtension } from '@provenancekit/extensions';
+import { AIAgentExtension, AIToolExtension, AuthorizationExtension, ContribExtension, GovernanceExtension, LicenseExtension, OnchainExtension, VerificationExtension, WitnessExtension } from '@provenancekit/extensions';
 import { ClassValue } from 'clsx';
 
 /**
@@ -844,6 +844,37 @@ interface FileOpts {
         aiTool?: AIToolOpts;
     };
     resourceType?: string;
+    resourceExtensions?: Record<string, any>;
+    attribution?: {
+        contrib?: {
+            weight: number;
+            basis?: "points" | "percentage" | "absolute";
+            source?: "self-declared" | "agreed" | "calculated" | "verified" | "default";
+            category?: string;
+            note?: string;
+        };
+        license?: string | {
+            type: string;
+            commercial?: boolean;
+            derivatives?: boolean;
+            shareAlike?: boolean;
+            attribution?: "required" | "requested" | "none";
+            attributionText?: string;
+            termsUrl?: string;
+            jurisdiction?: string;
+            expires?: string;
+            grantedBy?: string;
+            grantType?: "license" | "purchase" | "transfer" | "open" | "agreement";
+            transactionRef?: string;
+            aiTraining?: "permitted" | "reserved" | "unspecified";
+        };
+        payment?: {
+            address: string;
+            chainId?: number;
+            method?: string;
+            currency?: string;
+        };
+    };
     sessionId?: string;
 }
 interface UploadOptions {
@@ -1201,6 +1232,8 @@ declare function getContribSafe(attribution: Attribution | null | undefined): Co
 declare function getOnchainSafe(target: AnyEaaType | null | undefined): OnchainExtension | null;
 declare function getVerificationSafe(action: Action | null | undefined): VerificationExtension | null;
 declare function getWitnessSafe(action: Action | null | undefined): WitnessExtension | null;
+declare function getAuthorizationSafe(target: AnyEaaType | null | undefined): AuthorizationExtension | null;
+declare function getGovernanceSafe(target: AnyEaaType | null | undefined): GovernanceExtension | null;
 /** Check if any action in a bundle used an AI tool */
 declare function bundleHasAI(actions: Action[]): boolean;
 /** Get the primary creator attribution (role === "creator", or first) */
@@ -1588,4 +1621,4 @@ interface FileProvenanceTagProps {
 }
 declare function FileProvenanceTag({ file, onViewDetail, onClaim, onMatchFound, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
 
-export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, type MaybeRedactedAction, type MaybeRedactedEntity, type MaybeRedactedResource, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceDocument, type ProvenanceDocumentProps, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, RedactedItem, type RedactedItemDescriptor, type RedactedItemProps, type RedactedMarker, type RedactionConfig, ResourceCard, RoleBadge, type ShareConfig, type ShareData, ShareModal, type ShareModalProps, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };
+export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, type MaybeRedactedAction, type MaybeRedactedEntity, type MaybeRedactedResource, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceDocument, type ProvenanceDocumentProps, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, RedactedItem, type RedactedItemDescriptor, type RedactedItemProps, type RedactedMarker, type RedactionConfig, ResourceCard, RoleBadge, type ShareConfig, type ShareData, ShareModal, type ShareModalProps, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getAuthorizationSafe, getContribSafe, getGovernanceSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };
