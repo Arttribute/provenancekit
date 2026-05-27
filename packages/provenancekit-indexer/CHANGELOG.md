@@ -1,5 +1,11 @@
 # @provenancekit/indexer
 
+## 0.1.11
+
+### Patch Changes
+
+- Auto patch release
+
 ## 0.1.10
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @provenancekit/sdk
 
+## 0.1.15
+
+### Patch Changes
+
+- Auto patch release
+- Updated dependencies
+  - @provenancekit/extensions@0.1.6
+  - @provenancekit/privacy@0.1.11
+
 ## 0.1.14
 
 ### Patch Changes
