@@ -213,6 +213,117 @@ export function ChatInput({
   );
 }
 
+function AttachmentGovernanceControls({
+  governance,
+  onChange,
+}: {
+  governance: NonNullable<FileAttachment["governance"]>;
+  onChange?: (governance: NonNullable<FileAttachment["governance"]>) => void;
+}) {
+  if (!onChange) return null;
+
+  return (
+    <div className="mt-1.5 rounded-md border border-border bg-background/80 p-1.5">
+      <select
+        value={governance.status}
+        onChange={(e) =>
+          onChange(
+            defaultAttachmentGovernance(e.target.value as "own-original" | "licensed-source" | "restricted-source")
+          )
+        }
+        className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+      >
+        <option value="own-original">Original</option>
+        <option value="licensed-source">Licensed source</option>
+        <option value="restricted-source">Restricted source</option>
+      </select>
+      <div className="mt-1 grid grid-cols-2 gap-1">
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">License</span>
+          <select
+            value={governance.licenseType}
+            onChange={(e) => onChange({ ...governance, licenseType: e.target.value })}
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="CC-BY-4.0">CC BY 4.0</option>
+            <option value="CC0-1.0">CC0</option>
+            <option value="MIT">MIT</option>
+            <option value="Proprietary">Proprietary</option>
+            <option value="Custom">Custom</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Authorization</span>
+          <select
+            value={governance.authorizationStatus}
+            onChange={(e) =>
+              onChange({
+                ...governance,
+                authorizationStatus: e.target.value as "authorized" | "pending" | "unauthorized",
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="authorized">Authorized</option>
+            <option value="pending">Pending</option>
+            <option value="unauthorized">Unauthorized</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">AI training</span>
+          <select
+            value={governance.aiTraining}
+            onChange={(e) =>
+              onChange({
+                ...governance,
+                aiTraining: e.target.value as "permitted" | "reserved" | "unspecified",
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          >
+            <option value="reserved">Reserved</option>
+            <option value="permitted">Permitted</option>
+            <option value="unspecified">Unspecified</option>
+          </select>
+        </label>
+        <label className="space-y-0.5">
+          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Weight</span>
+          <input
+            type="number"
+            min={0}
+            max={10000}
+            step={100}
+            value={governance.contributionWeight}
+            onChange={(e) =>
+              onChange({
+                ...governance,
+                contributionWeight: Math.max(0, Math.min(10000, Number(e.target.value) || 0)),
+              })
+            }
+            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+          />
+        </label>
+      </div>
+      <input
+        value={governance.scope}
+        onChange={(e) => onChange({ ...governance, scope: e.target.value })}
+        placeholder="Authorized scope"
+        className="mt-1 h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+      />
+      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+        {governance.authorizationStatus === "authorized" ? (
+          <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
+        ) : (
+          <ShieldOff className="h-2.5 w-2.5 text-amber-500" />
+        )}
+        <span className="truncate">
+          {governance.licenseType} · AI training {governance.aiTraining}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 /** Compact provenance indicator for an attachment chip.
  *  Runs a background search on mount; shows a small status row.
  *  On match → clickable badge that opens the ProvenanceFileDialog.
@@ -222,12 +333,14 @@ function AttachmentProvenance({
   onMatchFound,
   onCidAssigned,
   governance,
+  onGovernanceChange,
   userId,
 }: {
   file: File;
   onMatchFound?: (cid: string) => void;
   onCidAssigned?: (cid: string) => void;
   governance?: FileAttachment["governance"];
+  onGovernanceChange?: (governance: NonNullable<FileAttachment["governance"]>) => void;
   userId?: string;
 }) {
   const { pk } = useProvenanceKit();
@@ -249,9 +362,12 @@ function AttachmentProvenance({
         if (!result.matches?.length || result.verdict === "no-match") {
           setStatus("not-found");
         } else {
-          setTopMatch(result.matches[0]);
+          const match = result.matches[0];
+          setTopMatch(match);
           setStatus("found");
-          onMatchFound?.(result.matches[0].cid);
+          if (match.score >= 0.95) {
+            onMatchFound?.(match.cid);
+          }
         }
       })
       .catch(() => setStatus("error"));
@@ -292,6 +408,16 @@ function AttachmentProvenance({
   if (status === "found" && topMatch) {
     const pct = Math.round(topMatch.score * 100);
     const isHigh = pct >= 95;
+    if (claimDone) {
+      return (
+        <div className="flex items-center gap-1 mt-1">
+          <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
+          <span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+            {claimDone === "claimed" ? "Claimed as your work" : "Recorded as governed source"}
+          </span>
+        </div>
+      );
+    }
     return (
       <>
         <button
@@ -307,6 +433,38 @@ function AttachmentProvenance({
           <ShieldCheck className="h-2.5 w-2.5 shrink-0" />
           {pct}% match · View details →
         </button>
+        {!isHigh && governance && (
+          <div className="mt-1">
+            <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
+              <ShieldOff className="h-2.5 w-2.5 shrink-0" />
+              <span>Low match. Record a clearer claim?</span>
+            </div>
+            <AttachmentGovernanceControls governance={governance} onChange={onGovernanceChange} />
+            <div className="mt-1 flex items-center gap-1">
+              {claiming ? (
+                <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleClaim(true)}
+                    className="text-[10px] font-medium text-primary hover:underline"
+                  >
+                    Claim original
+                  </button>
+                  <span className="text-[10px] text-muted-foreground">/</span>
+                  <button
+                    type="button"
+                    onClick={() => handleClaim(false)}
+                    className="text-[10px] font-medium text-muted-foreground hover:underline"
+                  >
+                    Governed source
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <ProvenanceFileDialog
           open={dialogOpen}
           onClose={() => setDialogOpen(false)}
@@ -330,30 +488,37 @@ function AttachmentProvenance({
       );
     }
     return (
-      <div className="flex items-center gap-1 mt-1">
-        <ShieldOff className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
-        <span className="text-[10px] text-muted-foreground">New file — yours?</span>
-        {claiming ? (
-          <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground ml-1" />
-        ) : (
-          <>
-            <button
-              type="button"
-              onClick={() => handleClaim(true)}
-              className="text-[10px] font-medium text-primary hover:underline ml-1"
-            >
-              Yes
-            </button>
-            <span className="text-[10px] text-muted-foreground">/</span>
-            <button
-              type="button"
-              onClick={() => handleClaim(false)}
-              className="text-[10px] font-medium text-muted-foreground hover:underline"
-            >
-              No
-            </button>
-          </>
+      <div className="mt-1">
+        <div className="flex items-center gap-1">
+          <ShieldOff className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+          <span className="text-[10px] text-muted-foreground">No match found. Register this file?</span>
+        </div>
+        {governance && (
+          <AttachmentGovernanceControls governance={governance} onChange={onGovernanceChange} />
         )}
+        <div className="mt-1 flex items-center gap-1">
+          {claiming ? (
+            <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => handleClaim(true)}
+                className="text-[10px] font-medium text-primary hover:underline"
+              >
+                Claim original
+              </button>
+              <span className="text-[10px] text-muted-foreground">/</span>
+              <button
+                type="button"
+                onClick={() => handleClaim(false)}
+                className="text-[10px] font-medium text-muted-foreground hover:underline"
+              >
+                Governed source
+              </button>
+            </>
+          )}
+        </div>
       </div>
     );
   }
@@ -397,105 +562,10 @@ function AttachmentChip({
           onMatchFound={onCidAssigned}
           onCidAssigned={onCidAssigned}
           governance={governance}
+          onGovernanceChange={onGovernanceChange}
           userId={userId}
         />
       )}
-      <select
-        value={governance.status}
-        onChange={(e) =>
-          onGovernanceChange?.(
-            defaultAttachmentGovernance(e.target.value as "own-original" | "licensed-source" | "restricted-source")
-          )
-        }
-        className="mt-1 h-6 rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-      >
-        <option value="own-original">Original</option>
-        <option value="licensed-source">Licensed source</option>
-        <option value="restricted-source">Restricted source</option>
-      </select>
-      <div className="mt-1 grid grid-cols-2 gap-1">
-        <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">License</span>
-          <select
-            value={governance.licenseType}
-            onChange={(e) => onGovernanceChange?.({ ...governance, licenseType: e.target.value })}
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-          >
-            <option value="CC-BY-4.0">CC BY 4.0</option>
-            <option value="CC0-1.0">CC0</option>
-            <option value="MIT">MIT</option>
-            <option value="Proprietary">Proprietary</option>
-            <option value="Custom">Custom</option>
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Authorization</span>
-          <select
-            value={governance.authorizationStatus}
-            onChange={(e) =>
-              onGovernanceChange?.({
-                ...governance,
-                authorizationStatus: e.target.value as "authorized" | "pending" | "unauthorized",
-              })
-            }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-          >
-            <option value="authorized">Authorized</option>
-            <option value="pending">Pending</option>
-            <option value="unauthorized">Unauthorized</option>
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">AI training</span>
-          <select
-            value={governance.aiTraining}
-            onChange={(e) =>
-              onGovernanceChange?.({
-                ...governance,
-                aiTraining: e.target.value as "permitted" | "reserved" | "unspecified",
-              })
-            }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-          >
-            <option value="reserved">Reserved</option>
-            <option value="permitted">Permitted</option>
-            <option value="unspecified">Unspecified</option>
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Weight</span>
-          <input
-            type="number"
-            min={0}
-            max={10000}
-            step={100}
-            value={governance.contributionWeight}
-            onChange={(e) =>
-              onGovernanceChange?.({
-                ...governance,
-                contributionWeight: Math.max(0, Math.min(10000, Number(e.target.value) || 0)),
-              })
-            }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-          />
-        </label>
-      </div>
-      <input
-        value={governance.scope}
-        onChange={(e) => onGovernanceChange?.({ ...governance, scope: e.target.value })}
-        placeholder="Authorized scope"
-        className="mt-1 h-6 rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
-      />
-      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
-        {governance.authorizationStatus === "authorized" ? (
-          <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
-        ) : (
-          <ShieldOff className="h-2.5 w-2.5 text-amber-500" />
-        )}
-        <span className="truncate">
-          {governance.licenseType} · AI training {governance.aiTraining}
-        </span>
-      </div>
     </div>
   );
 }
