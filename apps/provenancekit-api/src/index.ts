@@ -39,6 +39,7 @@ import payments from "./handlers/payments.js";
 import media from "./handlers/media.js";
 import ownership from "./handlers/ownership.js";
 import management from "./handlers/management.js";
+import shares from "./handlers/shares.js";
 
 /*─────────────────────────────────────────────────────────────*\
  | App Factory                                                   |
@@ -67,7 +68,8 @@ export function createApp(opts?: CreateAppOptions) {
   app.use("*", cors());
 
   app.use("*", createAuthMiddleware(opts?.authProviders ?? [], {
-    excludePrefixes: ["/management"],
+    // /management has its own auth; /p/ hosts public share pages (no pk_live_ key needed)
+    excludePrefixes: ["/management", "/p/"],
   }));
 
   // Usage recording — registered BEFORE routes so it wraps all route handlers.
@@ -78,6 +80,7 @@ export function createApp(opts?: CreateAppOptions) {
   // Management control plane — own auth, no pk_live_ key required
   app.use("/management/*", createManagementAuthMiddleware());
   app.route("/management", management);
+  app.route("/", shares);
 
   // Routes
   app.route("/", health);

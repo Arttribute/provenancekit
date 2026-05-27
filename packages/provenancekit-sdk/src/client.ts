@@ -143,6 +143,39 @@ export interface FileOpts {
     aiTool?: AIToolOpts;
   };
   resourceType?: string;
+  resourceExtensions?: Record<string, any>;
+  attribution?: {
+    contrib?: {
+      weight: number;
+      basis?: "points" | "percentage" | "absolute";
+      source?: "self-declared" | "agreed" | "calculated" | "verified" | "default";
+      category?: string;
+      note?: string;
+    };
+    license?:
+      | string
+      | {
+          type: string;
+          commercial?: boolean;
+          derivatives?: boolean;
+          shareAlike?: boolean;
+          attribution?: "required" | "requested" | "none";
+          attributionText?: string;
+          termsUrl?: string;
+          jurisdiction?: string;
+          expires?: string;
+          grantedBy?: string;
+          grantType?: "license" | "purchase" | "transfer" | "open" | "agreement";
+          transactionRef?: string;
+          aiTraining?: "permitted" | "reserved" | "unspecified";
+        };
+    payment?: {
+      address: string;
+      chainId?: number;
+      method?: string;
+      currency?: string;
+    };
+  };
   sessionId?: string;
 }
 

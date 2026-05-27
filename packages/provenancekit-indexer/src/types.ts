@@ -239,6 +239,12 @@ export const CHAIN_PRESETS = {
     explorerUrl: "https://polygonscan.com",
   },
 
+  celo: {
+    chainId: 42220,
+    name: "Celo",
+    explorerUrl: "https://celoscan.io",
+  },
+
   // Testnets
   sepolia: {
     chainId: 11155111,
@@ -254,6 +260,11 @@ export const CHAIN_PRESETS = {
     chainId: 421614,
     name: "Arbitrum Sepolia",
     explorerUrl: "https://sepolia.arbiscan.io",
+  },
+  celoSepolia: {
+    chainId: 11142220,
+    name: "Celo Sepolia",
+    explorerUrl: "https://celo-sepolia.blockscout.com",
   },
 } as const;
 

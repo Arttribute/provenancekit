@@ -15,7 +15,13 @@
 import { createHash } from "crypto";
 import { v5 as uuidv5 } from "uuid";
 import { getPKClientAsync } from "./pk-client";
-import type { AIProvider, ModelInfo } from "@/types";
+import {
+  AUTHORIZATION_NAMESPACE,
+  GOVERNANCE_NAMESPACE,
+  buildGovernanceExtensions,
+  defaultAttachmentGovernance,
+} from "./governance";
+import type { AIProvider, AttachmentGovernance, ModelInfo } from "@/types";
 
 /** True for transient network errors worth retrying (cold start, connection reset). */
 function isRetryable(err: unknown): boolean {
@@ -192,7 +198,7 @@ export async function recordChatProvenance(opts: {
   tokens: number;
   sessionId: string | null;
   /** Attachments sent with the user message — their CIDs become inputCids on the response action */
-  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string }>;
+  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string; governance?: AttachmentGovernance }>;
 }): Promise<ProvenanceResult | null> {
   const pk = await getPKClientAsync();
   if (!pk) return null;
@@ -222,6 +228,14 @@ export async function recordChatProvenance(opts: {
 
       // Include attachment CIDs as additional inputs to the response action
       const attachmentCids = (opts.attachments ?? []).filter((a) => a.cid).map((a) => a.cid!);
+      const restrictedInputs = (opts.attachments ?? []).filter(
+        (a) => a.governance?.authorizationStatus !== "authorized"
+      );
+      const responseGovernance = buildGovernanceExtensions({
+        governance: restrictedInputs[0]?.governance ?? defaultAttachmentGovernance("licensed-source"),
+        userId: agentEntityId,
+        roleInWorkflow: "derived-output",
+      });
 
       const responseBlob = new Blob([opts.response], { type: "text/plain" });
 
@@ -231,6 +245,26 @@ export async function recordChatProvenance(opts: {
         action: {
           type: "generate",
           inputCids: [promptResult.cid, ...attachmentCids],
+          extensions: {
+            [AUTHORIZATION_NAMESPACE]: {
+              ...responseGovernance.authorization,
+              status: restrictedInputs.length > 0 ? "pending" : "authorized",
+              scope:
+                restrictedInputs.length > 0
+                  ? `Generated response depends on ${restrictedInputs.length} input(s) requiring governance review.`
+                  : "Generated response authorised for this chat demonstration workflow.",
+            },
+            [GOVERNANCE_NAMESPACE]: {
+              ...responseGovernance.governance,
+              requirements: ["R1", "R2", "R3", "R4", "R5", "R6"],
+              disclosure: {
+                aiInvolved: true,
+                humanContribution: "User prompt and attached source material selected the task, constraints, and inputs.",
+                aiContribution: `${opts.provider}/${opts.model} generated the response from declared inputs.`,
+                publicSummary: "AI-assisted response with recorded source CIDs, rights metadata, and authorisation status.",
+              },
+            },
+          },
           aiTool: {
             provider: opts.provider,
             model: opts.model,
@@ -239,6 +273,42 @@ export async function recordChatProvenance(opts: {
           },
         },
         resourceType: "text",
+        resourceExtensions: {
+          [AUTHORIZATION_NAMESPACE]: {
+            status: restrictedInputs.length > 0 ? "pending" : "authorized",
+            authorizedBy: restrictedInputs.length > 0 ? undefined : agentEntityId,
+            authorizedAt: restrictedInputs.length > 0 ? undefined : new Date().toISOString(),
+            scope:
+              restrictedInputs.length > 0
+                ? `Output depends on ${restrictedInputs.length} input(s) requiring rights or consent review.`
+                : "Output authorised for the active Human-AI governance demonstration workflow.",
+            reference: `chat-demo:response:${opts.provider}/${opts.model}`,
+          },
+          [GOVERNANCE_NAMESPACE]: {
+            workflow: "Human-AI governance demo chat",
+            roleInWorkflow: "derived-output",
+            requirements: ["R1", "R2", "R3", "R4", "R5", "R6"],
+            reviewStatus: restrictedInputs.length > 0 ? "review-required" : "reviewed",
+            riskFlags: restrictedInputs.length > 0 ? ["input-authorisation-pending"] : [],
+            note: "Assistant response produced as a derived artefact from the user prompt and declared source CIDs.",
+          },
+        },
+        attribution: {
+          contrib: {
+            weight: 6000,
+            basis: "points",
+            source: "self-declared",
+            category: "ai-generation",
+            note: "AI contribution to the response; human and source contributions are visible through input CIDs.",
+          },
+          license: {
+            type: "Demo-Governed-Output",
+            commercial: false,
+            derivatives: true,
+            attribution: "required",
+            aiTraining: "reserved",
+          },
+        },
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
       console.log(`[pk:provenance] response_upload done cid=${responseResult.cid.slice(0,16)}… ms=${Date.now()-t2}`);
@@ -341,6 +411,27 @@ export async function recordImageProvenance(opts: {
         action: {
           type: "generate",
           inputCids: opts.inputCids,
+          extensions: {
+            [AUTHORIZATION_NAMESPACE]: {
+              status: "authorized",
+              authorizedBy: performerEntityId,
+              authorizedAt: new Date().toISOString(),
+              scope: "Image generation for the active Human-AI governance demonstration workflow.",
+              reference: `chat-demo:image:${opts.model}`,
+            },
+            [GOVERNANCE_NAMESPACE]: {
+              workflow: "Human-AI governance demo chat",
+              roleInWorkflow: "generated-output",
+              requirements: ["R1", "R3", "R4", "R6"],
+              disclosure: {
+                aiInvolved: true,
+                humanContribution: "Human prompt selected the visual concept.",
+                aiContribution: `${opts.model} generated the image artefact.`,
+                publicSummary: "AI-generated image linked to its prompt CID.",
+              },
+              reviewStatus: "reviewed",
+            },
+          },
           // dall-e-3 is recorded as the tool used, not as the performer entity
           aiTool: {
             provider: opts.provider,
@@ -349,6 +440,37 @@ export async function recordImageProvenance(opts: {
           },
         },
         resourceType: "image",
+        resourceExtensions: {
+          [AUTHORIZATION_NAMESPACE]: {
+            status: "authorized",
+            authorizedBy: performerEntityId,
+            authorizedAt: new Date().toISOString(),
+            scope: "Generated image authorised for the active Human-AI governance demonstration workflow.",
+            reference: `chat-demo:image:${opts.model}`,
+          },
+          [GOVERNANCE_NAMESPACE]: {
+            workflow: "Human-AI governance demo chat",
+            roleInWorkflow: "generated-output",
+            requirements: ["R1", "R3", "R4", "R6"],
+            reviewStatus: "reviewed",
+            note: "Generated image stored as its own artefact and linked to the prompt CID.",
+          },
+        },
+        attribution: {
+          contrib: {
+            weight: 6000,
+            basis: "points",
+            source: "self-declared",
+            category: "ai-generation",
+          },
+          license: {
+            type: "Demo-Governed-Output",
+            commercial: false,
+            derivatives: true,
+            attribution: "required",
+            aiTraining: "reserved",
+          },
+        },
         ...(opts.sessionId ? { sessionId: opts.sessionId } : {}),
       });
       console.log(`[pk:provenance] image_upload done cid=${result.cid.slice(0,16)}… ms=${Date.now()-t1}`);

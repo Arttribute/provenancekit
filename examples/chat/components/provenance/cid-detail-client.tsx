@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, RefreshCw } from "lucide-react";
-import { ProvenanceBundleView, ProvenanceGraph } from "@/components/provenance/pk-ui";
+import { ArrowLeft, RefreshCw, Share2 } from "lucide-react";
+import { ProvenanceBundleView, ProvenanceGraph, ShareModal, type ShareConfig } from "@/components/provenance/pk-ui";
 import { SessionFlowDiagram } from "@/components/provenance/session-flow-diagram";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { GraphNode, GraphEdge } from "@provenancekit/sdk";
+
+const SHARE_BASE_URL = process.env.NEXT_PUBLIC_SHARE_BASE_URL ?? "https://app.provenancekit.com";
 
 interface CidDetailClientProps {
   cid: string;
@@ -93,6 +95,7 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
   const [tab, setTab] = useState<Tab>("overview");
   const [refreshKey, setRefreshKey] = useState(0);
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Fetch full session data when sessionId is available
   useEffect(() => {
@@ -108,6 +111,33 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
     const t = setTimeout(() => setRefreshKey((k) => k + 1), 8000);
     return () => clearTimeout(t);
   }, [cid]);
+
+  /** Create a share via the PK proxy → POST /shares */
+  const createShare = async (config: ShareConfig): Promise<string> => {
+    const res = await fetch("/api/pk-proxy/shares", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title:            config.title || undefined,
+        description:      config.description || undefined,
+        cid,
+        sessionId:        sessionId ?? undefined,
+        redactedIds:      config.redactions.map((red) => `${red.type}:${red.targetId}`),
+        redactionReasons: Object.fromEntries(
+          config.redactions.map((red) => [
+            `${red.type}:${red.targetId}`,
+            { reason: red.reason || undefined, label: red.label !== "REDACTED" ? red.label : undefined },
+          ])
+        ),
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error((err as { error?: { message?: string } }).error?.message ?? "Failed to create share");
+    }
+    const data = await res.json() as { shareId: string };
+    return `${SHARE_BASE_URL}/p/${data.shareId}`;
+  };
 
   const TABS: { key: Tab; label: string; disabled?: boolean }[] = [
     { key: "overview", label: "Overview" },
@@ -132,6 +162,15 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
             <h1 className="text-lg font-semibold">Provenance Record</h1>
             <p className="text-xs text-muted-foreground font-mono truncate">{cid}</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5 shrink-0"
+            onClick={() => setShareOpen(true)}
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            Share
+          </Button>
         </div>
 
         {/* Tab navigation */}
@@ -238,6 +277,16 @@ export function CidDetailClient({ cid, sessionId }: CidDetailClientProps) {
           )}
         </div>
       </div>
+
+      {/* Share modal — lazily populated once session data loads */}
+      <ShareModal
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        actions={sessionData?.actions as Parameters<typeof ShareModal>[0]["actions"] ?? []}
+        resources={sessionData?.resources as Parameters<typeof ShareModal>[0]["resources"] ?? []}
+        entities={sessionData?.entities as Parameters<typeof ShareModal>[0]["entities"] ?? []}
+        onCreateShare={createShare}
+      />
     </div>
   );
 }

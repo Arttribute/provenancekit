@@ -600,7 +600,7 @@ interface DuplicateDetails {
 }
 interface Match {
     cid: string;
-    type: string;
+    type?: string;
     score: number;
 }
 interface UploadMatchResult {
@@ -904,6 +904,43 @@ interface ProvenanceKitOptions extends ApiClientOptions {
      * `IChainAdapter` directly for other EVM clients (ethers.js, wagmi, etc.).
      */
     chain?: IChainAdapter;
+    /**
+     * In-memory bundle cache TTL in seconds.
+     *
+     * When set, `bundle()` and `provenance()` responses are cached in-memory
+     * keyed by CID. Useful in Node.js server environments (Next.js API routes,
+     * Express middleware) where the browser HTTP cache is not available.
+     *
+     * CIDs are content-addressed so the resource itself is immutable, but
+     * lineage can grow as new transforms reference old CIDs as inputs.
+     * A short TTL (e.g. 60–300 s) balances freshness against DB load.
+     *
+     * Default: 0 (disabled). Browsers don't need this — the HTTP cache
+     * handles the `Cache-Control` + ETag headers the server already sends.
+     */
+    bundleCacheTtl?: number;
+    /**
+     * Client-side file deduplication cache TTL in seconds.
+     *
+     * When > 0, `file()` caches successful results keyed by
+     * `sha256(bytes) + entityId + actionType + inputCids`. A subsequent call
+     * with identical bytes from the same entity returns the cached `FileResult`
+     * without making a network request.
+     *
+     * This primarily helps in two situations:
+     *   1. **Retry loops** — if the server processed the request but the
+     *      response was lost, the retry gets an instant cache hit instead of
+     *      re-uploading the full file and waiting for the API to detect the
+     *      duplicate.
+     *   2. **Accidental double-calls** — e.g. the same content submitted twice
+     *      by application code.
+     *
+     * Cache entries are scoped to the `ProvenanceKit` instance so different
+     * API keys or projects never share cached results.
+     *
+     * Default: 300 (5 minutes). Set to 0 to disable.
+     */
+    fileDeduplicationTtl?: number;
 }
 declare class ProvenanceKit {
     private readonly api;
@@ -911,8 +948,14 @@ declare class ProvenanceKit {
     private readonly signingKey?;
     private readonly signingEntityId?;
     private readonly chainAdapter?;
+    private readonly bundleCache;
+    private readonly bundleCacheTtlMs;
+    private readonly fileCache;
+    private readonly fileCacheTtlMs;
     readonly unclaimed = "ent:unclaimed";
     constructor(opts?: ProvenanceKitOptions);
+    private getCachedBundle;
+    private setCachedBundle;
     private form;
     uploadAndMatch(file: Blob | File | Buffer | Uint8Array, o?: UploadOptions): Promise<UploadMatchResult>;
     file(file: Blob | File | Buffer | Uint8Array, opts: FileOpts): Promise<FileResult>;
@@ -1360,6 +1403,148 @@ interface ContribExtensionViewProps {
 }
 declare function ContribExtensionView({ extension, className }: ContribExtensionViewProps): react_jsx_runtime.JSX.Element;
 
+interface RedactedItemProps {
+    /** The display label, defaults to "REDACTED" */
+    label?: string;
+    /** Optional explanation for why this item is redacted */
+    reason?: string;
+    /** Compact inline variant (for use inside cards) vs. full-width block */
+    variant?: "block" | "inline";
+    /**
+     * SHA-256 commitment digest from the SD document.
+     * Proves this item exists in the original provenance record
+     * even though its content is not disclosed.
+     * Format: "sha256:<hex>"
+     */
+    commitment?: string;
+}
+/**
+ * Visual indicator for a redacted provenance item.
+ *
+ * Redacted items are NEVER hidden — they always show this block so viewers
+ * know the full structure of the provenance chain and which parts the author
+ * chose not to disclose.
+ */
+declare function RedactedItem({ label, reason, commitment, variant }: RedactedItemProps): react_jsx_runtime.JSX.Element;
+
+/** An item that has been redacted by the share author. */
+interface RedactedMarker {
+    _redacted: true;
+    _redactedLabel?: string;
+    _redactedReason?: string;
+}
+type MaybeRedactedAction = (Action & {
+    _redacted?: false;
+}) | (Partial<Action> & RedactedMarker);
+type MaybeRedactedResource = (Resource & {
+    _redacted?: false;
+}) | (Partial<Resource> & RedactedMarker);
+type MaybeRedactedEntity = (Entity & {
+    _redacted?: false;
+}) | (Partial<Entity> & RedactedMarker);
+/** A single redacted item descriptor returned by the share API */
+interface RedactedItemDescriptor {
+    key: string;
+    type: string;
+    id: string;
+    label: string;
+    reason?: string;
+    /** SHA-256 commitment from the SD document — proves item exists in original */
+    commitment?: string;
+}
+/** The share payload returned by GET /p/shares/:shareId */
+interface ShareData {
+    shareId: string;
+    title?: string | null;
+    description?: string | null;
+    cid?: string | null;
+    sessionId?: string | null;
+    /** Descriptors for every redacted item (with commitment digests) */
+    redactedItems: RedactedItemDescriptor[];
+    redactionCount: number;
+    viewCount: number;
+    createdAt: string;
+    expiresAt?: string | null;
+    /** SD document with all item digests (public commitment) */
+    sdDocument?: {
+        version: string;
+        digests: {
+            key: string;
+            digest: string;
+        }[];
+        issuedAt: string;
+        signature: string;
+    } | null;
+    bundle?: {
+        resources: MaybeRedactedResource[];
+        actions: MaybeRedactedAction[];
+        entities: MaybeRedactedEntity[];
+        attributions: Attribution[];
+    } | null;
+    session?: {
+        sessionId: string;
+        actions: MaybeRedactedAction[];
+        resources: MaybeRedactedResource[];
+        entities: MaybeRedactedEntity[];
+        attributions: Attribution[];
+        summary: {
+            actions: number;
+            resources: number;
+            entities: number;
+            attributions: number;
+        };
+    } | null;
+}
+interface ProvenanceDocumentProps {
+    share: ShareData;
+    /** Height for the graph section in px */
+    graphHeight?: number;
+}
+/**
+ * ProvenanceDocument — full-page provenance display for share links.
+ *
+ * Renders a rich, publicly-viewable provenance document with:
+ * - Header (title, description, metadata)
+ * - Redaction notice (if any items are redacted)
+ * - All provenance sections (actions, resources, entities, attribution, graph)
+ * - Clearly labeled [REDACTED] blocks where the author chose to redact
+ */
+declare function ProvenanceDocument({ share, graphHeight }: ProvenanceDocumentProps): react_jsx_runtime.JSX.Element;
+
+interface RedactionConfig {
+    type: "action" | "resource" | "entity";
+    targetId: string;
+    reason: string;
+    label: string;
+}
+interface ShareConfig {
+    title: string;
+    description: string;
+    redactions: RedactionConfig[];
+    expiresAt?: string;
+}
+interface ShareModalProps {
+    /** Set to false to close the modal */
+    open: boolean;
+    onClose: () => void;
+    /** Bundle / session items to configure redaction for */
+    actions?: Action[];
+    resources?: Resource[];
+    entities?: Entity[];
+    /** Called with the final share config; should return the share URL */
+    onCreateShare: (config: ShareConfig) => Promise<string>;
+}
+/**
+ * ShareModal — configure a shareable provenance link.
+ *
+ * The user can:
+ * - Add a title and description for the share
+ * - Toggle visibility of individual actions, resources, and entities
+ * - Add a reason for each redaction (shown to viewers as a label)
+ * - Create the share to get a copyable link
+ */
+declare function ShareModal({ open, onClose, actions, resources, entities, onCreateShare, }: ShareModalProps): react_jsx_runtime.JSX.Element | null;
+
 interface FileOwnershipClaimResult {
     cid: string;
     status: "claimed" | "referenced";
@@ -1403,4 +1588,4 @@ interface FileProvenanceTagProps {
 }
 declare function FileProvenanceTag({ file, onViewDetail, onClaim, onMatchFound, topK, className, }: FileProvenanceTagProps): react_jsx_runtime.JSX.Element | null;
 
-export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, ResourceCard, RoleBadge, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };
+export { AIExtensionView, ActionCard, AttributionList, CidDisplay, ContribExtensionView, ContributionBar, EntityAvatar, EntityCard, FileOwnershipClaim, type FileOwnershipClaimProps, type FileOwnershipClaimResult, FileProvenanceTag, type FileProvenanceTagProps, FileUploadZone, LicenseChip, LicenseExtensionView, type MaybeRedactedAction, type MaybeRedactedEntity, type MaybeRedactedResource, OnchainExtensionView, ProvenanceBadge, type ProvenanceBadgeProps, ProvenanceBundleView, ProvenanceDocument, type ProvenanceDocumentProps, ProvenanceGraph, type ProvenanceGraphProps, ProvenanceKitProvider, type ProvenanceKitProviderProps, type ProvenanceKitTheme, ProvenancePopover, ProvenanceSearch, type ProvenanceSearchProps, ProvenanceTracker, type ProvenanceTrackerProps, RedactedItem, type RedactedItemDescriptor, type RedactedItemProps, type RedactedMarker, type RedactionConfig, ResourceCard, RoleBadge, type ShareConfig, type ShareData, ShareModal, type ShareModalProps, Timestamp, type UseDistributionResult, type UseProvenanceBundleResult, type UseProvenanceGraphResult, type UseSessionProvenanceResult, VerificationIndicator, VerificationView, bundleHasAI, cn, formatActionType, formatBps, formatBytes, formatChainName, formatCid, formatDate, formatDateAbsolute, formatRole, formatTxHash, getAIAgentSafe, getAIToolSafe, getContribSafe, getLicenseSafe, getOnchainSafe, getPrimaryCreator, getVerificationSafe, getWitnessSafe, useDistribution, useProvenanceBundle, useProvenanceGraph, useProvenanceKit, useSessionProvenance };

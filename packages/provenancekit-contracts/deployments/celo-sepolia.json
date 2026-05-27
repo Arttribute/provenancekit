@@ -1,0 +1,11 @@
+{
+  "network": "celo-sepolia",
+  "chainId": 11142220,
+  "contractAddress": "",
+  "deployer": "",
+  "hookAdmin": "",
+  "deployedAt": "",
+  "txHash": "",
+  "version": "1.0.0",
+  "notes": "Deploy with: forge script script/Deploy.s.sol --rpc-url celo-sepolia --broadcast --verify"
+}

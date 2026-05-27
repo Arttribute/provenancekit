@@ -151,7 +151,14 @@ const LicenseSchema = z.union([
     derivatives: z.boolean().optional(),
     shareAlike: z.boolean().optional(),
     attribution: z.enum(["required", "requested", "none"]).optional(),
+    attributionText: z.string().optional(),
     termsUrl: z.string().url().optional(),
+    jurisdiction: z.string().optional(),
+    expires: z.string().datetime().optional(),
+    grantedBy: z.string().optional(),
+    grantType: z.enum(["license", "purchase", "transfer", "open", "agreement"]).optional(),
+    transactionRef: z.string().optional(),
+    aiTraining: z.enum(["permitted", "reserved", "unspecified"]).optional(),
   }),
 ]);
 
@@ -199,6 +206,9 @@ export const ActivityPayload = z.object({
 
   /** Resource type (inferred from MIME if not provided) */
   resourceType: z.string().optional(),
+
+  /** Additional resource-level extensions to attach to the output resource */
+  resourceExtensions: z.record(z.unknown()).optional(),
 
   /** Project ID — identifies the app/project (required for multi-tenant isolation) */
   projectId: z.string().optional(),
@@ -528,7 +538,7 @@ export async function createActivity(
   // projectId from auth claims is authoritative when using Supabase-backed keys.
   // It overrides anything the caller sends in the body, ensuring project isolation.
   const authProjectId = authIdentity?.claims?.["projectId"] as string | undefined;
-  const { entity: ent, action: act, resourceType, sessionId, attribution: attr, encrypt } = parsed.data;
+  const { entity: ent, action: act, resourceType, resourceExtensions, sessionId, attribution: attr, encrypt } = parsed.data;
   const projectId = authProjectId ?? parsed.data.projectId;
 
   if (!ent.role?.trim()) {
@@ -908,6 +918,7 @@ export async function createActivity(
     createdAt: timestamp,
     createdBy: entityId,
     rootAction: actionId,
+    extensions: resourceExtensions,
   };
 
   if (sessionId || projectId) {

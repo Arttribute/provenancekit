@@ -251,7 +251,7 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
             )}
             {hasImage && (
               <Badge variant="muted" className="text-xs bg-violet-100 text-violet-800 dark:bg-violet-900 dark:text-violet-200">
-                <ImageIcon className="h-3 w-3 mr-1" />DALL-E 3
+                <ImageIcon className="h-3 w-3 mr-1" />AI image
               </Badge>
             )}
             {hasAudio && (
@@ -332,15 +332,11 @@ export function MessageItem({ message, isStreaming }: MessageItemProps) {
             <AudioPlayer src={message.audioUrl!} label={message.audioText ? `"${message.audioText.slice(0, 40)}…"` : "Generated audio"} />
           )}
 
-          {/* Footer */}
-          <div className="flex items-center justify-between px-1">
-            {message.usage && (
-              <span className="text-xs text-muted-foreground">
-                {message.usage.totalTokens.toLocaleString()} tokens
-              </span>
-            )}
-            {message.content && <CopyButton text={message.content} />}
-          </div>
+          {message.content && (
+            <div className="flex justify-end px-1">
+              <CopyButton text={message.content} />
+            </div>
+          )}
         </div>
       </div>
     );

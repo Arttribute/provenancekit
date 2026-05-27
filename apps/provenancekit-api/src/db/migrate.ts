@@ -204,6 +204,43 @@ function buildMigrations(vectorDimension: number): Migration[] {
     },
 
     {
+      // Provenance shares — server-side share configs with selective redaction.
+      // Stores which bundle/session to share and which items to redact.
+      // GET /p/shares/:id is public; write operations require pk_live_ auth.
+      id: "0006_app_provenance_shares",
+      sql: `
+        CREATE TABLE IF NOT EXISTS app_provenance_shares (
+          id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          project_id          UUID,
+          title               TEXT,
+          description         TEXT,
+          cid                 TEXT,
+          session_id          TEXT,
+          project_scope_id    TEXT,
+          -- Selective disclosure backing (@provenancekit/privacy SD-JWT-like)
+          sd_document         JSONB,           -- SelectiveDisclosureDocument (public commitment)
+          sd_disclosures      JSONB,           -- EncodedDisclosure[] for all items (server-held)
+          sd_secret           TEXT,            -- hex HMAC secret (server-held)
+          -- User redaction config
+          redacted_ids        JSONB NOT NULL DEFAULT '[]',   -- string[] of item keys
+          redaction_reasons   JSONB NOT NULL DEFAULT '{}',  -- Record<key, {reason?,label?}>
+          view_count          INTEGER NOT NULL DEFAULT 0,
+          expires_at          TIMESTAMPTZ,
+          revoked_at          TIMESTAMPTZ,
+          created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_app_shares_project
+          ON app_provenance_shares(project_id);
+        CREATE INDEX IF NOT EXISTS idx_app_shares_cid
+          ON app_provenance_shares(cid) WHERE cid IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_app_shares_session
+          ON app_provenance_shares(session_id) WHERE session_id IS NOT NULL;
+      `,
+    },
+
+    {
       // Partial index on pk_resource.integrity for fast pre-upload duplicate detection.
       // integrity stores `sha256:{hex}` for unencrypted resources.
       // Lets getResourceByIntegrity() skip IPFS upload (~1s) for duplicates across

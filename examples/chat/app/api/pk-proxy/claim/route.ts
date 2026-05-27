@@ -24,6 +24,13 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getPKClientAsync } from "@/lib/pk-client";
+import {
+  AUTHORIZATION_NAMESPACE,
+  GOVERNANCE_NAMESPACE,
+  buildGovernanceExtensions,
+  defaultAttachmentGovernance,
+} from "@/lib/governance";
+import type { AttachmentGovernance } from "@/types";
 
 export const runtime = "nodejs";
 
@@ -32,6 +39,20 @@ function resourceTypeFromMime(mimeType: string): string {
   if (mimeType.startsWith("audio/")) return "audio";
   if (mimeType.startsWith("video/")) return "video";
   return "text";
+}
+
+function parseGovernance(raw: FormDataEntryValue | null, owned: boolean): AttachmentGovernance {
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw) as AttachmentGovernance;
+      if (parsed?.status && parsed?.licenseType && parsed?.authorizationStatus) {
+        return parsed;
+      }
+    } catch {
+      // Fall through to defaults.
+    }
+  }
+  return defaultAttachmentGovernance(owned ? "own-original" : "restricted-source");
 }
 
 export async function POST(req: NextRequest) {
@@ -62,6 +83,7 @@ export async function POST(req: NextRequest) {
   const owned = ownedRaw === "true";
   const mimeType = mimeTypeOverride ?? file.type ?? "application/octet-stream";
   const resourceType = resourceTypeFromMime(mimeType);
+  const governance = parseGovernance(form.get("governance"), owned);
 
   try {
     const entityId = await pk.entity({ role: "human", name: userId });
@@ -70,8 +92,54 @@ export async function POST(req: NextRequest) {
       entity: { id: entityId, role: "human", name: userId },
       action: {
         type: owned ? "create" : "reference",
+        extensions: {
+          [AUTHORIZATION_NAMESPACE]: buildGovernanceExtensions({
+            governance,
+            userId: entityId,
+            fileName: file.name,
+            roleInWorkflow: owned ? "source" : "reference",
+          }).authorization,
+          [GOVERNANCE_NAMESPACE]: buildGovernanceExtensions({
+            governance,
+            userId: entityId,
+            fileName: file.name,
+            roleInWorkflow: owned ? "source" : "reference",
+          }).governance,
+        },
       },
       resourceType,
+      resourceExtensions: {
+        [AUTHORIZATION_NAMESPACE]: buildGovernanceExtensions({
+          governance,
+          userId: entityId,
+          fileName: file.name,
+          roleInWorkflow: owned ? "source" : "reference",
+        }).authorization,
+        [GOVERNANCE_NAMESPACE]: buildGovernanceExtensions({
+          governance,
+          userId: entityId,
+          fileName: file.name,
+          roleInWorkflow: owned ? "source" : "reference",
+        }).governance,
+      },
+      attribution: {
+        contrib: {
+          weight: governance.contributionWeight,
+          basis: "points",
+          source: owned ? "self-declared" : "default",
+          category: governance.contributorRole,
+          note: governance.note,
+        },
+        license: {
+          type: governance.licenseType,
+          commercial: governance.status !== "restricted-source",
+          derivatives: governance.status !== "restricted-source",
+          attribution: "required",
+          aiTraining: governance.aiTraining,
+          grantedBy: governance.authorizationStatus === "authorized" ? entityId : undefined,
+          grantType: governance.status === "own-original" ? "open" : "license",
+        },
+      },
     });
 
     const status = owned ? "claimed" : "referenced";

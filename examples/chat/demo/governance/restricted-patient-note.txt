@@ -1,0 +1,11 @@
+Restricted source: patient interview extract
+
+The interview describes a real person's experience using an AI symptom checker.
+The person has not granted consent for their words, likeness, or medical details
+to be reused in a public campaign.
+
+Governance instruction:
+- Do not quote or identify the person.
+- Treat this as restricted background context only.
+- Any publication based on this source requires review and consent.
+- AI training rights are reserved.

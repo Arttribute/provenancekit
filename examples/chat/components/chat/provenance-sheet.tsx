@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { X, ShieldCheck, FileImage, Bot, Clock, ExternalLink, RefreshCw, ChevronDown, ChevronRight } from "lucide-react";
+import { X, ShieldCheck, FileImage, Bot, Clock, ExternalLink, RefreshCw, ChevronDown, ChevronRight, Scale, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,39 @@ interface SessionResource {
   type?: string;
   extensions?: Record<string, unknown>;
 }
+
+type AuthorizationExtension = {
+  status?: "authorized" | "unauthorized" | "pending" | "revoked";
+  authorizedBy?: string;
+  scope?: string;
+  expiresAt?: string;
+  reference?: string;
+};
+
+type LicenseExtension = {
+  type?: string;
+  attribution?: string;
+  aiTraining?: "permitted" | "reserved" | "unspecified";
+};
+
+type GovernanceExtension = {
+  roleInWorkflow?: string;
+  requirements?: string[];
+  reviewStatus?: string;
+  riskFlags?: string[];
+  note?: string;
+  disclosure?: {
+    publicSummary?: string;
+    humanContribution?: string;
+    aiContribution?: string;
+  };
+};
+
+const AUTHORIZATION_NS = "ext:authorization@1.0.0";
+const LICENSE_NS = "ext:license@1.0.0";
+const GOVERNANCE_NS = "ext:governance@1.0.0";
+const VERIFICATION_NS = "ext:verification@1.0.0";
+const AI_NS = "ext:ai@1.0.0";
 
 interface SessionProvenance {
   sessionId: string;
@@ -67,6 +100,8 @@ function ActionItem({
     | { tool?: { provider?: string; model?: string; tokensUsed?: number } }
     | undefined;
   const aiExt = aiExtRaw?.tool;
+  const authExt = action.extensions?.[AUTHORIZATION_NS] as AuthorizationExtension | undefined;
+  const governanceExt = action.extensions?.[GOVERNANCE_NS] as GovernanceExtension | undefined;
   const onchainExt = action.extensions?.["ext:onchain@1.0.0"] as
     | { txHash?: string; chainId?: number; chainName?: string; contractAddress?: string }
     | undefined;
@@ -140,6 +175,18 @@ function ActionItem({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            {authExt?.status && (
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-[9px] font-semibold",
+                  authExt.status === "authorized"
+                    ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
+                    : "bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+                )}
+              >
+                {authExt.status}
+              </span>
+            )}
             {action.timestamp && (
               <span className="text-[10px] text-muted-foreground flex items-center gap-0.5">
                 <Clock className="h-2.5 w-2.5" />
@@ -157,12 +204,25 @@ function ActionItem({
 
       {open && (
         <div className="mt-1 rounded-b-lg border-x border-b border-border bg-muted/20 px-3 py-2 text-xs space-y-1.5">
-          {/* Tokens */}
-          {aiExt?.tokensUsed != null && (
-            <p className="text-muted-foreground">
-              {aiExt.tokensUsed.toLocaleString()} tokens
-            </p>
+          {/* Input CIDs */}
+          {governanceExt?.disclosure?.publicSummary && (
+            <p className="text-muted-foreground">{governanceExt.disclosure.publicSummary}</p>
           )}
+          {authExt?.scope && (
+            <div className="rounded bg-background px-2 py-1">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Authorisation</p>
+              <p className="text-[11px] text-foreground">{authExt.scope}</p>
+            </div>
+          )}
+          {governanceExt?.requirements?.length ? (
+            <div className="flex flex-wrap gap-1">
+              {governanceExt.requirements.map((req) => (
+                <span key={req} className="rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  {req}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {/* Input CIDs */}
           {action.inputs && action.inputs.length > 0 && (
@@ -235,6 +295,74 @@ function StatPill({ label, value }: { label: string; value: number }) {
     <div className="flex flex-col items-center rounded-lg border bg-card px-3 py-2.5 min-w-0">
       <span className="text-sm font-bold tabular-nums">{value}</span>
       <span className="text-[10px] text-muted-foreground mt-0.5">{label}</span>
+    </div>
+  );
+}
+
+function GovernanceOverview({ session }: { session: SessionProvenance }) {
+  const records = [...session.actions, ...session.resources];
+  const requirementSet = new Set<string>();
+  let authorized = 0;
+  let pending = 0;
+  let aiRecords = 0;
+  let trainingReserved = 0;
+
+  for (const record of records) {
+    const extensions = record.extensions ?? {};
+    const governance = extensions[GOVERNANCE_NS] as GovernanceExtension | undefined;
+    const authorization = extensions[AUTHORIZATION_NS] as AuthorizationExtension | undefined;
+    const license = extensions[LICENSE_NS] as LicenseExtension | undefined;
+
+    governance?.requirements?.forEach((req) => requirementSet.add(req));
+    if (authorization?.status === "authorized") authorized += 1;
+    if (authorization?.status && authorization.status !== "authorized") pending += 1;
+    if (extensions[AI_NS]) aiRecords += 1;
+    if (license?.aiTraining === "reserved") trainingReserved += 1;
+  }
+
+  const requirements = ["R1", "R2", "R3", "R4", "R5", "R6"];
+
+  return (
+    <div className="rounded-lg border bg-card p-3 space-y-3">
+      <div className="flex items-center gap-2">
+        <Scale className="h-3.5 w-3.5 text-primary" />
+        <p className="text-xs font-semibold">Governance Evidence</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div>
+          <p className="text-sm font-bold tabular-nums">{authorized}</p>
+          <p className="text-[9px] text-muted-foreground">authorised</p>
+        </div>
+        <div>
+          <p className="text-sm font-bold tabular-nums">{trainingReserved}</p>
+          <p className="text-[9px] text-muted-foreground">TDM reserved</p>
+        </div>
+        <div>
+          <p className="text-sm font-bold tabular-nums">{aiRecords}</p>
+          <p className="text-[9px] text-muted-foreground">AI disclosed</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {requirements.map((req) => (
+          <span
+            key={req}
+            className={cn(
+              "rounded border px-1.5 py-0.5 text-[10px] font-medium",
+              requirementSet.has(req)
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+                : "border-border bg-muted text-muted-foreground"
+            )}
+          >
+            {req}
+          </span>
+        ))}
+      </div>
+      {pending > 0 && (
+        <div className="flex items-start gap-1.5 rounded bg-amber-50 px-2 py-1 text-[10px] text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">
+          <ShieldAlert className="mt-0.5 h-3 w-3 shrink-0" />
+          {pending} governance item{pending === 1 ? "" : "s"} require review before publication.
+        </div>
+      )}
     </div>
   );
 }
@@ -404,6 +532,8 @@ export function ProvenanceSheet({ open, onClose, conversation }: ProvenanceSheet
                   <StatPill label="Entities" value={session.summary.entities} />
                   <StatPill label="Attribs" value={session.summary.attributions} />
                 </div>
+
+                <GovernanceOverview session={session} />
 
                 {/* Action timeline */}
                 {actions.length === 0 ? (

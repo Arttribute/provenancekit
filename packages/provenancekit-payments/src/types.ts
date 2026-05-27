@@ -317,10 +317,12 @@ export const CHAIN_IDS = {
   AVALANCHE: 43114,
   BSC: 56,
   GNOSIS: 100,
+  CELO: 42220,
   // Testnets
   SEPOLIA: 11155111,
   BASE_SEPOLIA: 84532,
   POLYGON_AMOY: 80002,
+  CELO_SEPOLIA: 11142220,
 } as const;
 
 /**
