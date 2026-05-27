@@ -87,48 +87,36 @@ export async function POST(req: NextRequest) {
 
   try {
     const entityId = await pk.entity({ role: "human", name: userId });
+    const governanceExtensions = buildGovernanceExtensions({
+      governance,
+      userId: entityId,
+      fileName: file.name,
+      roleInWorkflow: owned ? "source" : "reference",
+    });
 
     const result = await pk.file(file, {
       entity: { id: entityId, role: "human", name: userId },
       action: {
         type: owned ? "create" : "reference",
         extensions: {
-          [AUTHORIZATION_NAMESPACE]: buildGovernanceExtensions({
-            governance,
-            userId: entityId,
-            fileName: file.name,
-            roleInWorkflow: owned ? "source" : "reference",
-          }).authorization,
-          [GOVERNANCE_NAMESPACE]: buildGovernanceExtensions({
-            governance,
-            userId: entityId,
-            fileName: file.name,
-            roleInWorkflow: owned ? "source" : "reference",
-          }).governance,
+          [AUTHORIZATION_NAMESPACE]: governanceExtensions.authorization,
+          [GOVERNANCE_NAMESPACE]: governanceExtensions.governance,
         },
       },
       resourceType,
       resourceExtensions: {
-        [AUTHORIZATION_NAMESPACE]: buildGovernanceExtensions({
-          governance,
-          userId: entityId,
-          fileName: file.name,
-          roleInWorkflow: owned ? "source" : "reference",
-        }).authorization,
-        [GOVERNANCE_NAMESPACE]: buildGovernanceExtensions({
-          governance,
-          userId: entityId,
-          fileName: file.name,
-          roleInWorkflow: owned ? "source" : "reference",
-        }).governance,
+        [AUTHORIZATION_NAMESPACE]: governanceExtensions.authorization,
+        [GOVERNANCE_NAMESPACE]: governanceExtensions.governance,
       },
       attribution: {
         contrib: {
           weight: governance.contributionWeight,
           basis: "points",
-          source: owned ? "self-declared" : "default",
+          source: "self-declared",
           category: governance.contributorRole,
-          note: governance.note,
+          note:
+            governance.note ??
+            `${file.name}: ${owned ? "creator claim" : "external source reference"} with ${governance.licenseType}; authorization ${governance.authorizationStatus}.`,
         },
         license: {
           type: governance.licenseType,

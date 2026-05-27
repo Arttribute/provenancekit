@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type ChangeEvent,
 } from "react";
-import { Send, Loader2, Paperclip, Mic, MicOff, X, ImageIcon, FileText, ShieldCheck, ShieldOff } from "lucide-react";
+import { Send, Loader2, Paperclip, Mic, MicOff, X, ImageIcon, FileText, ShieldCheck, ShieldOff, AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useProvenanceKit } from "@/components/provenance/pk-ui";
@@ -86,10 +86,10 @@ export function ChatInput({
         if (!res.ok) throw new Error("Upload failed");
         const data = await res.json();
         // Store original File object so AttachmentProvenance can run background provenance search.
-        // cid is set when Pinata is configured; textContent is set for text/* files.
+        // `cid` is deliberately left unset until ProvenanceKit finds or records a resource.
         newAttachments.push({
           url: data.url,
-          cid: data.cid,
+          storageCid: data.cid,
           mimeType: data.mimeType,
           name: data.name,
           textContent: data.textContent,
@@ -139,7 +139,14 @@ export function ChatInput({
     } catch { /* mic denied */ }
   }
 
-  const canSubmit = (value.trim() || attachments.length > 0) && !isLoading && !disabled && !isUploading && !isTranscribing;
+  const hasUnregisteredAttachments = attachments.some((att) => att.file && !att.cid);
+  const canSubmit =
+    (value.trim() || attachments.length > 0) &&
+    !isLoading &&
+    !disabled &&
+    !isUploading &&
+    !isTranscribing &&
+    !hasUnregisteredAttachments;
 
   return (
     <div className="space-y-2">
@@ -209,6 +216,12 @@ export function ChatInput({
           {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </Button>
       </form>
+      {hasUnregisteredAttachments && (
+        <div className="flex items-center gap-1.5 px-1 text-[11px] text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-3 w-3 shrink-0" />
+          Finish the provenance check or claim step before sending.
+        </div>
+      )}
     </div>
   );
 }
@@ -223,7 +236,15 @@ function AttachmentGovernanceControls({
   if (!onChange) return null;
 
   return (
-    <div className="mt-1.5 rounded-md border border-border bg-background/80 p-1.5">
+    <div className="mt-2 rounded-lg border border-border bg-background/95 p-2 shadow-sm">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Governance claim
+        </span>
+        <span className="rounded-full bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">
+          required
+        </span>
+      </div>
       <select
         value={governance.status}
         onChange={(e) =>
@@ -231,19 +252,19 @@ function AttachmentGovernanceControls({
             defaultAttachmentGovernance(e.target.value as "own-original" | "licensed-source" | "restricted-source")
           )
         }
-        className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+        className="h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-ring"
       >
         <option value="own-original">Original</option>
         <option value="licensed-source">Licensed source</option>
         <option value="restricted-source">Restricted source</option>
       </select>
-      <div className="mt-1 grid grid-cols-2 gap-1">
+      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
         <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">License</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">License</span>
           <select
             value={governance.licenseType}
             onChange={(e) => onChange({ ...governance, licenseType: e.target.value })}
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="CC-BY-4.0">CC BY 4.0</option>
             <option value="CC0-1.0">CC0</option>
@@ -253,7 +274,7 @@ function AttachmentGovernanceControls({
           </select>
         </label>
         <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Authorization</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Authorization</span>
           <select
             value={governance.authorizationStatus}
             onChange={(e) =>
@@ -262,7 +283,7 @@ function AttachmentGovernanceControls({
                 authorizationStatus: e.target.value as "authorized" | "pending" | "unauthorized",
               })
             }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="authorized">Authorized</option>
             <option value="pending">Pending</option>
@@ -270,7 +291,7 @@ function AttachmentGovernanceControls({
           </select>
         </label>
         <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">AI training</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">AI training</span>
           <select
             value={governance.aiTraining}
             onChange={(e) =>
@@ -279,7 +300,7 @@ function AttachmentGovernanceControls({
                 aiTraining: e.target.value as "permitted" | "reserved" | "unspecified",
               })
             }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-ring"
           >
             <option value="reserved">Reserved</option>
             <option value="permitted">Permitted</option>
@@ -287,7 +308,7 @@ function AttachmentGovernanceControls({
           </select>
         </label>
         <label className="space-y-0.5">
-          <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">Weight</span>
+          <span className="text-[9px] font-semibold uppercase tracking-wide text-muted-foreground">Weight</span>
           <input
             type="number"
             min={0}
@@ -300,7 +321,7 @@ function AttachmentGovernanceControls({
                 contributionWeight: Math.max(0, Math.min(10000, Number(e.target.value) || 0)),
               })
             }
-            className="h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+            className="h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none focus:ring-1 focus:ring-ring"
           />
         </label>
       </div>
@@ -308,9 +329,9 @@ function AttachmentGovernanceControls({
         value={governance.scope}
         onChange={(e) => onChange({ ...governance, scope: e.target.value })}
         placeholder="Authorized scope"
-        className="mt-1 h-6 w-full rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+        className="mt-1.5 h-7 w-full rounded-md border border-border bg-background px-2 text-[11px] text-foreground outline-none placeholder:text-muted-foreground focus:ring-1 focus:ring-ring"
       />
-      <div className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground">
+      <div className="mt-1.5 flex items-center gap-1 text-[10px] text-muted-foreground">
         {governance.authorizationStatus === "authorized" ? (
           <ShieldCheck className="h-2.5 w-2.5 text-emerald-500" />
         ) : (
@@ -320,6 +341,72 @@ function AttachmentGovernanceControls({
           {governance.licenseType} · AI training {governance.aiTraining}
         </span>
       </div>
+    </div>
+  );
+}
+
+function governanceForClaim(
+  governance: FileAttachment["governance"],
+  owned: boolean
+): NonNullable<FileAttachment["governance"]> {
+  const fallback = defaultAttachmentGovernance(owned ? "own-original" : "licensed-source");
+  if (!governance) return fallback;
+
+  if (owned) {
+    return {
+      ...governance,
+      status: "own-original",
+      authorizationStatus: "authorized",
+      contributorRole: "creator",
+      scope: governance.scope || fallback.scope,
+      note: governance.note || "User asserted this uploaded file is an original source for the workflow.",
+    };
+  }
+
+  if (governance.status === "own-original") {
+    return fallback;
+  }
+
+  return {
+    ...governance,
+    contributorRole: governance.status === "restricted-source" ? "reference" : "source",
+  };
+}
+
+function ClaimActions({
+  claiming,
+  onClaimOriginal,
+  onRecordSource,
+}: {
+  claiming: boolean;
+  onClaimOriginal: () => void;
+  onRecordSource: () => void;
+}) {
+  if (claiming) {
+    return (
+      <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        <Loader2 className="h-3 w-3 animate-spin" />
+        Recording provenance…
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-1.5">
+      <button
+        type="button"
+        onClick={onClaimOriginal}
+        className="rounded-md bg-emerald-600 px-2 py-1.5 text-[11px] font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700"
+      >
+        Claim original
+      </button>
+      <button
+        type="button"
+        onClick={onRecordSource}
+        className="rounded-md border border-border bg-background px-2 py-1.5 text-[11px] font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
+      >
+        Governed source
+      </button>
     </div>
   );
 }
@@ -350,6 +437,8 @@ function AttachmentProvenance({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [claiming, setClaiming] = useState(false);
   const [claimDone, setClaimDone] = useState<"claimed" | "referenced" | null>(null);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [searchError, setSearchError] = useState(false);
 
   useEffect(() => {
     if (!pk) return;
@@ -370,7 +459,10 @@ function AttachmentProvenance({
           }
         }
       })
-      .catch(() => setStatus("error"));
+      .catch(() => {
+        setSearchError(true);
+        setStatus("not-found");
+      });
 
     return () => { if (url) URL.revokeObjectURL(url); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -378,19 +470,23 @@ function AttachmentProvenance({
 
   async function handleClaim(owned: boolean) {
     setClaiming(true);
+    setClaimError(null);
     try {
+      const claimGovernance = governanceForClaim(governance, owned);
       const form = new FormData();
       form.append("file", file, file.name);
       form.append("owned", String(owned));
       form.append("userId", userId ?? "anonymous");
       form.append("mimeType", file.type);
-      if (governance) form.append("governance", JSON.stringify(governance));
+      form.append("governance", JSON.stringify(claimGovernance));
       const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
       if (!res.ok) throw new Error("Claim failed");
       const data = await res.json();
       onCidAssigned?.(data.cid);
       setClaimDone(data.status as "claimed" | "referenced");
-    } catch { /* non-fatal */ }
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : "Claim failed");
+    }
     finally { setClaiming(false); }
   }
 
@@ -434,35 +530,18 @@ function AttachmentProvenance({
           {pct}% match · View details →
         </button>
         {!isHigh && governance && (
-          <div className="mt-1">
-            <div className="flex items-center gap-1 text-[10px] text-amber-700 dark:text-amber-400">
-              <ShieldOff className="h-2.5 w-2.5 shrink-0" />
-              <span>Low match. Record a clearer claim?</span>
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 p-2 dark:border-amber-900/70 dark:bg-amber-950/20">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-3 w-3 shrink-0" />
+              <span>Low-confidence match. Register only after confirming rights.</span>
             </div>
             <AttachmentGovernanceControls governance={governance} onChange={onGovernanceChange} />
-            <div className="mt-1 flex items-center gap-1">
-              {claiming ? (
-                <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleClaim(true)}
-                    className="text-[10px] font-medium text-primary hover:underline"
-                  >
-                    Claim original
-                  </button>
-                  <span className="text-[10px] text-muted-foreground">/</span>
-                  <button
-                    type="button"
-                    onClick={() => handleClaim(false)}
-                    className="text-[10px] font-medium text-muted-foreground hover:underline"
-                  >
-                    Governed source
-                  </button>
-                </>
-              )}
-            </div>
+            <ClaimActions
+              claiming={claiming}
+              onClaimOriginal={() => handleClaim(true)}
+              onRecordSource={() => handleClaim(false)}
+            />
+            {claimError && <p className="mt-1.5 text-[10px] text-red-600">{claimError}</p>}
           </div>
         )}
         <ProvenanceFileDialog
@@ -488,37 +567,27 @@ function AttachmentProvenance({
       );
     }
     return (
-      <div className="mt-1">
-        <div className="flex items-center gap-1">
-          <ShieldOff className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
-          <span className="text-[10px] text-muted-foreground">No match found. Register this file?</span>
+      <div className="mt-2 rounded-lg border border-border bg-background/70 p-2">
+        <div className="flex items-center gap-1.5">
+          <ShieldOff className="h-3 w-3 text-muted-foreground shrink-0" />
+          <span className="text-[11px] font-medium text-foreground">
+            {searchError ? "Provenance lookup unavailable" : "No provenance match found"}
+          </span>
         </div>
+        <p className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+          {searchError
+            ? "Register this file now so the workflow can still cite it as an input resource."
+            : "Register this file before sending so it appears as an input resource in the provenance explorer."}
+        </p>
         {governance && (
           <AttachmentGovernanceControls governance={governance} onChange={onGovernanceChange} />
         )}
-        <div className="mt-1 flex items-center gap-1">
-          {claiming ? (
-            <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground" />
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => handleClaim(true)}
-                className="text-[10px] font-medium text-primary hover:underline"
-              >
-                Claim original
-              </button>
-              <span className="text-[10px] text-muted-foreground">/</span>
-              <button
-                type="button"
-                onClick={() => handleClaim(false)}
-                className="text-[10px] font-medium text-muted-foreground hover:underline"
-              >
-                Governed source
-              </button>
-            </>
-          )}
-        </div>
+        <ClaimActions
+          claiming={claiming}
+          onClaimOriginal={() => handleClaim(true)}
+          onRecordSource={() => handleClaim(false)}
+        />
+        {claimError && <p className="mt-1.5 text-[10px] text-red-600">{claimError}</p>}
       </div>
     );
   }

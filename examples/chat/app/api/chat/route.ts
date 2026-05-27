@@ -23,6 +23,7 @@ import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import { connectDB, ConversationModel, MessageModel, UserModel } from "@/lib/db";
 import { getOpenAIClient } from "@/lib/openai-client";
+import { bufferToArrayBuffer, putGeneratedImage } from "@/lib/generated-image-cache";
 import { recordChatProvenance, recordImageProvenance, type SupportedProvider } from "@/lib/provenance";
 import { getPKClientAsync } from "@/lib/pk-client";
 import { cacheBundle } from "@/lib/bundle-cache";
@@ -113,10 +114,10 @@ function buildImageRequest({
   return imageRequest;
 }
 
-async function blobFromImageResult(imageUrl: string, b64Json?: string): Promise<Blob | undefined> {
+async function bufferFromImageResult(imageUrl: string, b64Json?: string): Promise<{ buffer: Buffer; contentType: string } | undefined> {
   if (b64Json) {
     const buffer = Buffer.from(b64Json, "base64");
-    return new Blob([buffer], { type: "image/png" });
+    return { buffer, contentType: "image/png" };
   }
 
   if (!imageUrl) return undefined;
@@ -124,7 +125,9 @@ async function blobFromImageResult(imageUrl: string, b64Json?: string): Promise<
   if (!imgResp.ok) {
     throw new Error(`Image download failed with HTTP ${imgResp.status}`);
   }
-  return imgResp.blob();
+  const contentType = imgResp.headers.get("content-type") ?? "image/png";
+  const buffer = Buffer.from(await imgResp.arrayBuffer());
+  return { buffer, contentType };
 }
 
 // ─── Background provenance recorder ──────────────────────────────────────────
@@ -441,22 +444,27 @@ export async function POST(req: Request) {
 
             const firstImage = response.data?.[0] as { url?: string; b64_json?: string; revised_prompt?: string } | undefined;
             const b64Json = firstImage?.b64_json;
-            const imageUrl = firstImage?.url ?? (b64Json ? `data:image/png;base64,${b64Json}` : "");
             const revisedPrompt = firstImage?.revised_prompt ?? prompt;
 
-            if (!imageUrl) {
+            if (!firstImage?.url && !b64Json) {
               throw new Error("Image API returned no image data.");
             }
 
-            // Download the image binary while the generated payload is fresh.
-            // Storing it here avoids re-fetching later when the URL may have expired,
-            // and lets the provenance recorder upload the real image to IPFS for embeddings.
+            // GPT Image models return base64 by default and do not support URL output.
+            // Store bytes in a short-lived server cache so MongoDB only stores a small URL;
+            // provenance later replaces this with a durable IPFS gateway URL.
             let imageBlob: Blob | undefined;
+            let imageUrl = firstImage.url ?? "";
             try {
-              imageBlob = await blobFromImageResult(imageUrl, b64Json);
+              const imageBytes = await bufferFromImageResult(firstImage.url ?? "", b64Json);
+              if (!imageBytes) throw new Error("Image API returned no downloadable image data.");
+              const cached = await putGeneratedImage(imageBytes.buffer, imageBytes.contentType);
+              imageUrl = cached.url;
+              imageBlob = new Blob([bufferToArrayBuffer(imageBytes.buffer)], { type: imageBytes.contentType });
             } catch (err) {
-              console.warn("[chat] generated image download failed:", err);
-              // Non-fatal: provenance recording will fall back to metadata JSON
+              console.warn("[chat] generated image byte capture failed:", err);
+              if (!imageUrl) throw err;
+              // Non-fatal for legacy URL responses: provenance recording will fall back to metadata JSON.
             }
 
             toolResults.push({ name: "generate_image", result: { imageUrl, revisedPrompt, prompt, model: imageModel }, blob: imageBlob });
