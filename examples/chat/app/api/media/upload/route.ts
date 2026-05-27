@@ -3,7 +3,7 @@
  *
  * Accepts a multipart form with a `file` field (and optional `userId`).
  * Uploads to Pinata/IPFS and returns a persistent gateway URL + CID.
- * Falls back to base64 data URL if PINATA_JWT is not configured (local dev).
+ * Falls back to a short, server-hosted media URL if PINATA_JWT is unavailable.
  *
  * NOTE: This route intentionally does NOT register the file in ProvenanceKit.
  * Provenance registration happens downstream via the FileProvenanceTag component:
@@ -19,6 +19,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { putGeneratedImage } from "@/lib/generated-image-cache";
 
 export const runtime = "nodejs";
 
@@ -106,19 +107,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Fallback: base64 data URL (local dev without Pinata configured).
-  // In production, PINATA_JWT must be set — base64 is too large for MongoDB.
+  // Fallback: store a transient copy and return a compact public URL.
+  // Do not return base64 data URLs here: they make /api/chat requests exceed
+  // Vercel body limits and can prevent the LLM from receiving image inputs.
   const buffer = Buffer.from(await file.arrayBuffer());
-  const base64 = buffer.toString("base64");
-  const dataUrl = `data:${file.type};base64,${base64}`;
+  const cached = await putGeneratedImage(buffer, file.type);
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? new URL(req.url).origin;
+  const url = new URL(cached.url, origin).toString();
 
   return NextResponse.json({
-    url: dataUrl,
+    url,
     cid: undefined,
     mimeType: file.type,
     name: file.name,
     size: file.size,
     isImage,
     textContent,
+    transient: true,
   });
 }
