@@ -82,9 +82,24 @@ export interface FileAttachment {
   name: string;
   /** Extracted text content for text/* files — included inline for the LLM */
   textContent?: string;
+  /** Governance metadata recorded with the file and used in the workflow summary */
+  governance?: AttachmentGovernance;
   /** For images: width x height (optional display hint) */
   width?: number;
   height?: number;
+}
+
+export type AttachmentGovernanceStatus = "own-original" | "licensed-source" | "restricted-source";
+
+export interface AttachmentGovernance {
+  status: AttachmentGovernanceStatus;
+  licenseType: string;
+  authorizationStatus: "authorized" | "pending" | "unauthorized";
+  scope: string;
+  aiTraining: "permitted" | "reserved" | "unspecified";
+  contributorRole: "creator" | "source" | "reference";
+  contributionWeight: number;
+  note?: string;
 }
 
 export interface ChatMessage {

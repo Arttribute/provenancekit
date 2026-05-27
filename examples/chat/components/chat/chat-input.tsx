@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useProvenanceKit } from "@/components/provenance/pk-ui";
 import { ProvenanceFileDialog } from "@/components/provenance/file-search-panel";
 import { cn } from "@/lib/utils";
+import { defaultAttachmentGovernance } from "@/lib/governance";
 import type { FileAttachment } from "@/types";
 import type { Match } from "@provenancekit/sdk";
 
@@ -92,6 +93,7 @@ export function ChatInput({
           mimeType: data.mimeType,
           name: data.name,
           textContent: data.textContent,
+          governance: defaultAttachmentGovernance("own-original"),
           file,
         });
       } catch { /* skip */ }
@@ -154,6 +156,11 @@ export function ChatInput({
                   prev.map((a, j) => j === i ? { ...a, cid } : a)
                 )
               }
+              onGovernanceChange={(governance) =>
+                setAttachments((prev) =>
+                  prev.map((a, j) => j === i ? { ...a, governance } : a)
+                )
+              }
               userId={userId}
             />
           ))}
@@ -214,11 +221,13 @@ function AttachmentProvenance({
   file,
   onMatchFound,
   onCidAssigned,
+  governance,
   userId,
 }: {
   file: File;
   onMatchFound?: (cid: string) => void;
   onCidAssigned?: (cid: string) => void;
+  governance?: FileAttachment["governance"];
   userId?: string;
 }) {
   const { pk } = useProvenanceKit();
@@ -259,6 +268,7 @@ function AttachmentProvenance({
       form.append("owned", String(owned));
       form.append("userId", userId ?? "anonymous");
       form.append("mimeType", file.type);
+      if (governance) form.append("governance", JSON.stringify(governance));
       const res = await fetch("/api/pk-proxy/claim", { method: "POST", body: form });
       if (!res.ok) throw new Error("Claim failed");
       const data = await res.json();
@@ -356,15 +366,18 @@ function AttachmentChip({
   onRemove,
   onViewProvenance,
   onCidAssigned,
+  onGovernanceChange,
   userId,
 }: {
   attachment: FileAttachment;
   onRemove: () => void;
   onViewProvenance: (cid: string) => void;
   onCidAssigned?: (cid: string) => void;
+  onGovernanceChange?: (governance: NonNullable<FileAttachment["governance"]>) => void;
   userId?: string;
 }) {
   const isImage = attachment.mimeType.startsWith("image/");
+  const governance = attachment.governance ?? defaultAttachmentGovernance("own-original");
 
   return (
     <div className="flex flex-col rounded-lg border border-border bg-muted/50 px-2 py-1.5 text-xs max-w-[220px]">
@@ -383,9 +396,23 @@ function AttachmentChip({
           file={attachment.file}
           onMatchFound={onCidAssigned}
           onCidAssigned={onCidAssigned}
+          governance={governance}
           userId={userId}
         />
       )}
+      <select
+        value={governance.status}
+        onChange={(e) =>
+          onGovernanceChange?.(
+            defaultAttachmentGovernance(e.target.value as "own-original" | "licensed-source" | "restricted-source")
+          )
+        }
+        className="mt-1 h-6 rounded border border-border bg-background px-1 text-[10px] text-muted-foreground outline-none"
+      >
+        <option value="own-original">Original</option>
+        <option value="licensed-source">Licensed source</option>
+        <option value="restricted-source">Restricted source</option>
+      </select>
     </div>
   );
 }

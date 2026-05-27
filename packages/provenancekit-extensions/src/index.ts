@@ -249,6 +249,18 @@ export {
   totalX402SplitBps,
 } from "./x402";
 
+// Governance evaluation metadata extension
+export {
+  GOVERNANCE_NAMESPACE,
+  GovernanceRequirement,
+  GovernanceExtension,
+  withGovernance,
+  getGovernance,
+  hasGovernance,
+  type GovernanceRequirement as GovernanceRequirementType,
+  type GovernanceExtension as GovernanceExtensionType,
+} from "./governance";
+
 /**
  * All extension namespace constants for convenience.
  */
@@ -268,4 +280,5 @@ export const NAMESPACES = {
   OWNERSHIP_TRANSFER: "ext:ownership:transfer@1.0.0",
   AUTHORIZATION: "ext:authorization@1.0.0",
   X402: "ext:x402@1.0.0",
+  GOVERNANCE: "ext:governance@1.0.0",
 } as const;

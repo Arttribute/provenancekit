@@ -27,6 +27,7 @@ import { recordChatProvenance, recordImageProvenance, type SupportedProvider } f
 import { getPKClientAsync } from "@/lib/pk-client";
 import { cacheBundle } from "@/lib/bundle-cache";
 import type { IMessage } from "@/lib/db";
+import type { AttachmentGovernance } from "@/types";
 
 // ─── Provider factory ─────────────────────────────────────────────────────────
 
@@ -96,7 +97,7 @@ async function recordAndUpdateProvenance(opts: {
   imageToolResult: { name: string; result: unknown; blob?: Blob } | undefined;
   conversationFirstCid: string | undefined;
   conversationTotalMessages: number;
-  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string }>;
+  attachments?: Array<{ cid?: string; url?: string; mimeType: string; name: string; governance?: AttachmentGovernance }>;
 }) {
   const {
     assistantMsgId,
@@ -455,7 +456,7 @@ export async function POST(req: Request) {
         // mimeType + name info that the raw content array lacks.
         const userContentParts: Array<{ type: string; url?: string; mimeType?: string; name?: string }> = [];
         if (Array.isArray(attachments) && attachments.length > 0) {
-          for (const att of attachments as Array<{ cid?: string; url?: string; mimeType: string; name: string }>) {
+          for (const att of attachments as Array<{ cid?: string; url?: string; mimeType: string; name: string; governance?: AttachmentGovernance }>) {
             if (att.mimeType?.startsWith("image/") && att.url) {
               userContentParts.push({ type: "image_url", url: att.url, mimeType: att.mimeType, name: att.name });
             } else {

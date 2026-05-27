@@ -146,7 +146,7 @@ export default function ConversationPage({
         .map((att) => ({ url: att.url!, contentType: att.mimeType, name: att.name }));
 
       // Attachment metadata in the request body for provenance recording
-      const attachmentMeta = atts.map(({ cid, url, mimeType, name }) => ({ cid, url, mimeType, name }));
+      const attachmentMeta = atts.map(({ cid, url, mimeType, name, governance }) => ({ cid, url, mimeType, name, governance }));
 
       append(
         { role: "user", content: textParts.join("\n\n") || " " },
