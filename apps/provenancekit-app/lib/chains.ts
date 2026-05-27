@@ -95,6 +95,23 @@ export const KNOWN_NETWORKS: KnownNetwork[] = [
     isTestnet: true,
     explorerUrl: "https://sepolia-optimism.etherscan.io",
   },
+  // ── Celo ──────────────────────────────────────────────────────────────────
+  {
+    chainId: 42220,
+    name: "Celo",
+    shortName: "Celo",
+    isTestnet: false,
+    explorerUrl: "https://celoscan.io",
+    rpcDefault: "https://forno.celo.org",
+  },
+  {
+    chainId: 11142220,
+    name: "Celo Sepolia",
+    shortName: "Celo Sepolia",
+    isTestnet: true,
+    explorerUrl: "https://celo-sepolia.blockscout.com",
+    rpcDefault: "https://forno.celo-sepolia.celo-testnet.org",
+  },
   // ── Gnosis ────────────────────────────────────────────────────────────────
   {
     chainId: 100,

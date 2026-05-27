@@ -4,7 +4,9 @@
  * Similarity search using embeddings via @provenancekit/storage.
  */
 
+import { createHash } from "node:crypto";
 import { toDataURI, inferKindFromMime } from "../utils.js";
+import { getContext } from "../context.js";
 import { EmbeddingService, type ResourceKind } from "../embedding/service.js";
 import { ProvenanceKitError } from "../errors.js";
 
@@ -40,12 +42,27 @@ export async function searchByFile(
     );
   }
 
-  const vec = await embedder.vector(kind, toDataURI(bytes, mime));
+  const exactMatch = await findExactMatch(bytes);
+
+  let vec: number[];
+  try {
+    vec = await embedder.vector(kind, toDataURI(bytes, mime));
+  } catch (error) {
+    if (exactMatch) return [exactMatch];
+    throw error;
+  }
   if (!vec?.length) {
+    if (exactMatch) return [exactMatch];
     throw new ProvenanceKitError("EmbeddingFailed", `Failed to generate vector for ${kind}`);
   }
 
-  return embedder.matchFiltered(vec, { ...opts, type: kind });
+  const matches = await embedder.matchFiltered(vec, { ...opts, type: kind });
+  if (!exactMatch) return matches;
+
+  return [
+    exactMatch,
+    ...matches.filter((match) => match.cid !== exactMatch.cid),
+  ].slice(0, opts.topK ?? 5);
 }
 
 /**
@@ -61,4 +78,18 @@ export async function searchByText(
   }
 
   return embedder.matchFiltered(vec, opts);
+}
+
+async function findExactMatch(bytes: Buffer): Promise<SearchResult | null> {
+  const { dbStorage } = getContext();
+  const integrity = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
+  const resource = await dbStorage.getResourceByIntegrity(integrity);
+  const cid = resource?.address?.ref;
+  if (!cid) return null;
+
+  return {
+    cid,
+    type: resource.type,
+    score: 1,
+  };
 }

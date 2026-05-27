@@ -96,6 +96,20 @@ const NETWORK_PRESETS = [
     contractAddress: "",
     testnet: false,
   },
+  {
+    label: "Celo",
+    chainId: 42220,
+    rpcUrl: "https://forno.celo.org",
+    contractAddress: "",
+    testnet: false,
+  },
+  {
+    label: "Celo Sepolia (testnet)",
+    chainId: 11142220,
+    rpcUrl: "https://forno.celo-sepolia.celo-testnet.org",
+    contractAddress: "",
+    testnet: true,
+  },
 ] as const;
 
 export function ProjectSettingsForm({ project }: { project: MgmtProject }) {

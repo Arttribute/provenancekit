@@ -36,6 +36,7 @@ export default async function ProjectPage({ params }: Props) {
   ]);
 
   const activeKeys = keys.filter((k) => !k.revokedAt);
+  const usageSummary = usage ?? { totalCalls: 0, successRate: 0 };
 
   return (
     <div className="p-6 space-y-8 max-w-5xl mx-auto">
@@ -75,8 +76,8 @@ export default async function ProjectPage({ params }: Props) {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><Activity className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wider">API Calls (30d)</span></div><p className="text-2xl font-bold">{usage.totalCalls.toLocaleString()}</p></CardContent></Card>
-        <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><CheckCircle className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wider">Success Rate</span></div><p className="text-2xl font-bold">{usage.successRate.toFixed(1)}%</p></CardContent></Card>
+        <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><Activity className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wider">API Calls (30d)</span></div><p className="text-2xl font-bold">{usageSummary.totalCalls.toLocaleString()}</p></CardContent></Card>
+        <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><CheckCircle className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wider">Success Rate</span></div><p className="text-2xl font-bold">{usageSummary.successRate.toFixed(1)}%</p></CardContent></Card>
         <Card><CardContent className="pt-4 pb-4"><div className="flex items-center gap-2 text-muted-foreground mb-1"><Key className="h-4 w-4" /><span className="text-xs font-medium uppercase tracking-wider">Active Keys</span></div><p className="text-2xl font-bold">{activeKeys.length}</p></CardContent></Card>
       </div>
 

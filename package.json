@@ -33,6 +33,7 @@
     ],
     "overrides": {
       "@xenova/transformers>sharp": "0.33.5",
+      "react": "19.2.3",
       "react-dom": "19.2.3",
       "@provenancekit/sdk": "workspace:*",
       "@provenancekit/ui": "workspace:*",

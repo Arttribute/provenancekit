@@ -47,6 +47,34 @@ function getAIProvider(provider: SupportedProvider, model: string) {
   }
 }
 
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
+
+function normalizeImageSize(model: string, size: string) {
+  if (!model.startsWith("gpt-image")) return size;
+  if (size === "1792x1024") return "1536x1024";
+  if (size === "1024x1792") return "1024x1536";
+  return size;
+}
+
+function normalizeImageQuality(model: string, quality: string) {
+  if (!model.startsWith("gpt-image")) return quality;
+  return quality === "hd" ? "high" : "medium";
+}
+
+async function blobFromImageResult(imageUrl: string, b64Json?: string): Promise<Blob | undefined> {
+  if (b64Json) {
+    const buffer = Buffer.from(b64Json, "base64");
+    return new Blob([buffer], { type: "image/png" });
+  }
+
+  if (!imageUrl) return undefined;
+  const imgResp = await fetch(imageUrl);
+  if (!imgResp.ok) {
+    throw new Error(`Image download failed with HTTP ${imgResp.status}`);
+  }
+  return imgResp.blob();
+}
+
 // ─── Background provenance recorder ──────────────────────────────────────────
 
 /**
@@ -145,7 +173,7 @@ async function recordAndUpdateProvenance(opts: {
 
   // 2. If there is a generated image, record its provenance separately.
   if (imageToolResult) {
-    const imageResult = imageToolResult.result as { imageUrl: string; prompt: string };
+    const imageResult = imageToolResult.result as { imageUrl: string; prompt: string; model?: string };
     const ipfsGateway = (process.env.PK_IPFS_GATEWAY ?? "https://gateway.pinata.cloud/ipfs").replace(/\/$/, "");
 
     const t2 = Date.now();
@@ -153,7 +181,7 @@ async function recordAndUpdateProvenance(opts: {
     const imagePkResult = await recordImageProvenance({
       userPrivyDid: userId,
       provider,
-      model: "dall-e-3",
+      model: imageResult.model ?? IMAGE_MODEL,
       prompt: imageResult.prompt,
       imageUrl: imageResult.imageUrl,
       imageBlob: imageToolResult.blob,
@@ -314,7 +342,7 @@ export async function POST(req: Request) {
             .enum(["1024x1024", "1792x1024", "1024x1792"])
             .optional()
             .default("1024x1024")
-            .describe("Image dimensions"),
+            .describe("Image dimensions. Wide/tall sizes are mapped to the active image model's closest supported size."),
           quality: z
             .enum(["standard", "hd"])
             .optional()
@@ -328,35 +356,53 @@ export async function POST(req: Request) {
         }),
         execute: async ({ prompt, size, quality, style }) => {
           try {
+            if (!process.env.OPENAI_API_KEY) {
+              throw new Error("OPENAI_API_KEY is not configured.");
+            }
+
             const openai = getOpenAIClient();
-            const response = await openai.images.generate({
-              model: "dall-e-3",
+            const imageModel = IMAGE_MODEL;
+            const imageSize = normalizeImageSize(imageModel, size ?? "1024x1024");
+            const imageQuality = normalizeImageQuality(imageModel, quality ?? "standard");
+            const imageRequest: Record<string, unknown> = {
+              model: imageModel,
               prompt,
-              size: size ?? "1024x1024",
-              quality: quality ?? "standard",
-              style: style ?? "vivid",
+              size: imageSize,
+              quality: imageQuality,
               n: 1,
-            });
-            const imageUrl = response.data?.[0]?.url ?? "";
-            const revisedPrompt = response.data?.[0]?.revised_prompt ?? prompt;
+            };
+            if (!imageModel.startsWith("gpt-image")) {
+              imageRequest.style = style ?? "vivid";
+              imageRequest.response_format = "url";
+            }
+
+            const response = await openai.images.generate(imageRequest as never);
+            const firstImage = response.data?.[0] as { url?: string; b64_json?: string; revised_prompt?: string } | undefined;
+            const b64Json = firstImage?.b64_json;
+            const imageUrl = firstImage?.url ?? (b64Json ? `data:image/png;base64,${b64Json}` : "");
+            const revisedPrompt = firstImage?.revised_prompt ?? prompt;
+
+            if (!imageUrl) {
+              throw new Error("Image API returned no image data.");
+            }
 
             // Download the image binary while the URL is fresh (just returned by DALL-E).
             // Storing it here avoids re-fetching later when the URL may have expired,
             // and lets the provenance recorder upload the real image to IPFS for embeddings.
             let imageBlob: Blob | undefined;
-            if (imageUrl) {
-              try {
-                const imgResp = await fetch(imageUrl);
-                imageBlob = await imgResp.blob();
-              } catch {
-                // Non-fatal: provenance recording will fall back to metadata JSON
-              }
+            try {
+              imageBlob = await blobFromImageResult(imageUrl, b64Json);
+            } catch (err) {
+              console.warn("[chat] generated image download failed:", err);
+              // Non-fatal: provenance recording will fall back to metadata JSON
             }
 
-            toolResults.push({ name: "generate_image", result: { imageUrl, revisedPrompt, prompt }, blob: imageBlob });
-            return { imageUrl, revisedPrompt, prompt };
+            toolResults.push({ name: "generate_image", result: { imageUrl, revisedPrompt, prompt, model: imageModel }, blob: imageBlob });
+            return { imageUrl, revisedPrompt, prompt, model: imageModel };
           } catch (err) {
-            return { error: String(err), imageUrl: "", revisedPrompt: prompt, prompt };
+            const message = err instanceof Error ? err.message : String(err);
+            console.error("[chat] image generation failed:", err);
+            return { error: message, imageUrl: "", revisedPrompt: prompt, prompt };
           }
         },
       }),

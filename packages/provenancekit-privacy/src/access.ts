@@ -29,8 +29,10 @@ export type SupportedChain =
   | "arbitrum"
   | "optimism"
   | "base"
+  | "celo"
   | "sepolia"
   | "baseSepolia"
+  | "celoSepolia"
   | "polygonMumbai";
 
 export const CHAIN_IDS: Record<SupportedChain, number> = {
@@ -39,8 +41,10 @@ export const CHAIN_IDS: Record<SupportedChain, number> = {
   arbitrum: 42161,
   optimism: 10,
   base: 8453,
+  celo: 42220,
   sepolia: 11155111,
   baseSepolia: 84532,
+  celoSepolia: 11142220,
   polygonMumbai: 80001,
 };
 

@@ -15,7 +15,7 @@ function decodeFont(): ArrayBuffer {
 export function loadOgFonts(): {
   name: string;
   data: ArrayBuffer;
-  weight: number;
+  weight: 500 | 700;
   style: "normal";
 }[] {
   const data = decodeFont();

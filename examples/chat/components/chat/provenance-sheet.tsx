@@ -157,13 +157,6 @@ function ActionItem({
 
       {open && (
         <div className="mt-1 rounded-b-lg border-x border-b border-border bg-muted/20 px-3 py-2 text-xs space-y-1.5">
-          {/* Tokens */}
-          {aiExt?.tokensUsed != null && (
-            <p className="text-muted-foreground">
-              {aiExt.tokensUsed.toLocaleString()} tokens
-            </p>
-          )}
-
           {/* Input CIDs */}
           {action.inputs && action.inputs.length > 0 && (
             <div className="space-y-0.5">
