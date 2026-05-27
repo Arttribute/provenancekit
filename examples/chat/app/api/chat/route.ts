@@ -2,7 +2,7 @@
  * Chat API route — streaming AI chat with OpenAI tool calling.
  *
  * Tools available to the AI:
- *   • generate_image  — DALL-E 3 image generation
+ *   • generate_image  — GPT Image generation
  *   • text_to_speech  — OpenAI TTS (tts-1)
  *   • web_search      — simulated (returns instruction for AI to answer from knowledge)
  *
@@ -48,18 +48,69 @@ function getAIProvider(provider: SupportedProvider, model: string) {
   }
 }
 
-const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
+const IMAGE_MODEL = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-2";
+const FALLBACK_IMAGE_MODEL = process.env.OPENAI_IMAGE_FALLBACK_MODEL ?? "gpt-image-1";
+
+function isGptImageModel(model: string) {
+  return model.startsWith("gpt-image");
+}
 
 function normalizeImageSize(model: string, size: string) {
-  if (!model.startsWith("gpt-image")) return size;
-  if (size === "1792x1024") return "1536x1024";
-  if (size === "1024x1792") return "1024x1536";
+  if (!isGptImageModel(model)) return size;
   return size;
 }
 
 function normalizeImageQuality(model: string, quality: string) {
-  if (!model.startsWith("gpt-image")) return quality;
-  return quality === "hd" ? "high" : "medium";
+  if (!isGptImageModel(model)) return quality;
+  return quality;
+}
+
+function normalizeLegacyImageSize(size: string) {
+  if (size === "1536x1024") return "1792x1024";
+  if (size === "1024x1536") return "1024x1792";
+  if (size === "auto") return "1024x1024";
+  return size;
+}
+
+function normalizeLegacyImageQuality(quality: string) {
+  if (quality === "high") return "hd";
+  return "standard";
+}
+
+function buildImageRequest({
+  model,
+  prompt,
+  size,
+  quality,
+}: {
+  model: string;
+  prompt: string;
+  size: string;
+  quality: string;
+}) {
+  if (!isGptImageModel(model)) {
+    return {
+      model,
+      prompt,
+      size: normalizeLegacyImageSize(size),
+      quality: normalizeLegacyImageQuality(quality),
+      style: "vivid",
+      response_format: "url",
+      n: 1,
+    };
+  }
+
+  const imageRequest: Record<string, unknown> = {
+    model,
+    prompt,
+    size: normalizeImageSize(model, size),
+    quality: normalizeImageQuality(model, quality),
+    output_format: "png",
+    moderation: "auto",
+    n: 1,
+  };
+
+  return imageRequest;
 }
 
 async function blobFromImageResult(imageUrl: string, b64Json?: string): Promise<Blob | undefined> {
@@ -313,7 +364,7 @@ export async function POST(req: Request) {
   // Track tool results during streaming for provenance recording.
   // `blob` holds the pre-downloaded image binary so we can upload it to IPFS
   // for real vector embeddings. Downloaded immediately inside the tool execute
-  // while the DALL-E URL is guaranteed fresh.
+  // while any generated-image URL or base64 payload is fresh.
   const toolResults: Array<{ name: string; result: unknown; blob?: Blob }> = [];
 
   // Capture user message text
@@ -336,48 +387,58 @@ export async function POST(req: Request) {
     tools: {
       generate_image: tool({
         description:
-          "Generate a high-quality image using DALL-E 3. Use this when the user asks to create, draw, generate, or visualize an image.",
+          "Generate an image using OpenAI GPT Image. Use this when the user asks to create, draw, generate, or visualize an image.",
         parameters: z.object({
           prompt: z.string().describe("Detailed description of the image to generate"),
           size: z
-            .enum(["1024x1024", "1792x1024", "1024x1792"])
+            .enum(["auto", "1024x1024", "1536x1024", "1024x1536"])
             .optional()
-            .default("1024x1024")
-            .describe("Image dimensions. Wide/tall sizes are mapped to the active image model's closest supported size."),
+            .default("auto")
+            .describe("Image dimensions. Use auto unless the user asks for square, landscape, or portrait."),
           quality: z
-            .enum(["standard", "hd"])
+            .enum(["auto", "low", "medium", "high"])
             .optional()
-            .default("standard")
-            .describe("Image quality"),
-          style: z
-            .enum(["vivid", "natural"])
-            .optional()
-            .default("vivid")
-            .describe("vivid=dramatic/hyper-real, natural=more subdued"),
+            .default("auto")
+            .describe("Rendering quality. Use low for drafts, medium/high for final assets, or auto by default."),
         }),
-        execute: async ({ prompt, size, quality, style }) => {
+        execute: async ({ prompt, size, quality }) => {
           try {
             if (!process.env.OPENAI_API_KEY) {
               throw new Error("OPENAI_API_KEY is not configured.");
             }
 
             const openai = getOpenAIClient();
-            const imageModel = IMAGE_MODEL;
-            const imageSize = normalizeImageSize(imageModel, size ?? "1024x1024");
-            const imageQuality = normalizeImageQuality(imageModel, quality ?? "standard");
-            const imageRequest: Record<string, unknown> = {
-              model: imageModel,
-              prompt,
-              size: imageSize,
-              quality: imageQuality,
-              n: 1,
-            };
-            if (!imageModel.startsWith("gpt-image")) {
-              imageRequest.style = style ?? "vivid";
-              imageRequest.response_format = "url";
+            const requestedSize = size ?? "auto";
+            const requestedQuality = quality ?? "auto";
+            let imageModel = IMAGE_MODEL;
+            let response;
+
+            try {
+              response = await openai.images.generate(
+                buildImageRequest({
+                  model: imageModel,
+                  prompt,
+                  size: requestedSize,
+                  quality: requestedQuality,
+                }) as never
+              );
+            } catch (primaryErr) {
+              if (imageModel === FALLBACK_IMAGE_MODEL) throw primaryErr;
+              console.warn(
+                `[chat] image generation failed with ${imageModel}; retrying with ${FALLBACK_IMAGE_MODEL}:`,
+                primaryErr instanceof Error ? primaryErr.message : primaryErr
+              );
+              imageModel = FALLBACK_IMAGE_MODEL;
+              response = await openai.images.generate(
+                buildImageRequest({
+                  model: imageModel,
+                  prompt,
+                  size: requestedSize,
+                  quality: requestedQuality,
+                }) as never
+              );
             }
 
-            const response = await openai.images.generate(imageRequest as never);
             const firstImage = response.data?.[0] as { url?: string; b64_json?: string; revised_prompt?: string } | undefined;
             const b64Json = firstImage?.b64_json;
             const imageUrl = firstImage?.url ?? (b64Json ? `data:image/png;base64,${b64Json}` : "");
@@ -387,7 +448,7 @@ export async function POST(req: Request) {
               throw new Error("Image API returned no image data.");
             }
 
-            // Download the image binary while the URL is fresh (just returned by DALL-E).
+            // Download the image binary while the generated payload is fresh.
             // Storing it here avoids re-fetching later when the URL may have expired,
             // and lets the provenance recorder upload the real image to IPFS for embeddings.
             let imageBlob: Blob | undefined;

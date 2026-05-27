@@ -9,6 +9,8 @@ import {
   getAIToolSafe,
   getVerificationSafe,
   getPrimaryCreator,
+  getAuthorizationSafe,
+  getGovernanceSafe,
 } from "../../lib/extensions";
 import type { ProvenanceBundle } from "@provenancekit/sdk";
 import type { AIToolExtension } from "../../lib/extensions";
@@ -67,6 +69,30 @@ function findVerification(bundle: ProvenanceBundle) {
   return null;
 }
 
+function findAuthorization(bundle: ProvenanceBundle) {
+  for (let i = bundle.resources.length - 1; i >= 0; i--) {
+    const auth = getAuthorizationSafe(bundle.resources[i]!);
+    if (auth) return auth;
+  }
+  for (let i = bundle.actions.length - 1; i >= 0; i--) {
+    const auth = getAuthorizationSafe(bundle.actions[i]!);
+    if (auth) return auth;
+  }
+  return null;
+}
+
+function findGovernance(bundle: ProvenanceBundle) {
+  for (let i = bundle.resources.length - 1; i >= 0; i--) {
+    const governance = getGovernanceSafe(bundle.resources[i]!);
+    if (governance) return governance;
+  }
+  for (let i = bundle.actions.length - 1; i >= 0; i--) {
+    const governance = getGovernanceSafe(bundle.actions[i]!);
+    if (governance) return governance;
+  }
+  return null;
+}
+
 // Credential row: small uppercase label above, value below
 function CredRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -96,6 +122,8 @@ export function ProvenancePopover({
   const aiTools = getUniqueAITools(bundle);
   const license = findLicense(bundle);
   const verification = findVerification(bundle);
+  const authorization = findAuthorization(bundle);
+  const governance = findGovernance(bundle);
   const lastAction = bundle.actions[bundle.actions.length - 1];
   const otherContributors = bundle.entities.filter((e) => e.id !== creator?.id);
 
@@ -149,6 +177,18 @@ export function ProvenancePopover({
 
   if (license?.type) {
     rows.push({ label: "License", value: license.type });
+  }
+
+  if (license?.aiTraining) {
+    rows.push({ label: "AI training rights", value: license.aiTraining });
+  }
+
+  if (authorization?.status) {
+    rows.push({ label: "Authorization", value: authorization.status });
+  }
+
+  if (governance?.reviewStatus) {
+    rows.push({ label: "Governance review", value: governance.reviewStatus.replace(/-/g, " ") });
   }
 
   if (verifiedLabel) {

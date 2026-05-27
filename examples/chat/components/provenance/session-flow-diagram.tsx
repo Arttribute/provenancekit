@@ -8,7 +8,7 @@
  *                                │
  *                 gpt-4o ──generate──> [Text response]
  *                                │
- *          dall-e (tool) ──generate──> [Image]
+ *          GPT Image (tool) ──generate──> [Image]
  *
  * Uses the /api/pk-proxy/session/:id/provenance endpoint.
  */
@@ -107,7 +107,7 @@ function shortCid(cid: string): string {
 
 /**
  * Returns the aiTool only when it's a *different* model from the entity performing the action.
- * e.g. gpt-4o calling dall-e-3 → returns {provider:"openai",model:"dall-e-3"}
+ * e.g. gpt-4o calling gpt-image-2 -> returns {provider:"openai",model:"gpt-image-2"}
  * e.g. gpt-4o responding with aiTool=gpt-4o (self-metadata) → returns null (not a tool call)
  */
 function getAITool(action: ActionData, entity?: EntityData): { provider: string; model: string } | null {

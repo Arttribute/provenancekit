@@ -151,7 +151,7 @@ export default function ProvenanceExplorerPage() {
           <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
             Search by file
           </p>
-          <FileSearchPanel />
+          <FileSearchPanel userId={userId} />
         </div>
 
         {/* Stats row */}

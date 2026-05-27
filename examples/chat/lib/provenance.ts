@@ -5,7 +5,7 @@
  *
  * Tracks:
  *   - recordChatProvenance: text prompt/response pairs with ext:ai@1.0.0
- *   - recordImageProvenance: DALL-E generated images with ext:ai@1.0.0
+ *   - recordImageProvenance: GPT Image generated images with ext:ai@1.0.0
  *
  * On-chain provenance: if CHAIN_PRIVATE_KEY + BASE_SEPOLIA_RPC_URL are set,
  * every pk.file() call also records the action on the Base Sepolia
@@ -101,7 +101,7 @@ export interface ProvenanceResult {
   promptCid?: string;
   /**
    * Entity ID of the AI agent that performed this action.
-   * Pass this to recordImageProvenance so DALL-E image actions are attributed
+   * Pass this to recordImageProvenance so image actions are attributed
    * to the same conversation model rather than creating a duplicate entity.
    */
   agentEntityId?: string;
@@ -337,23 +337,23 @@ export async function recordChatProvenance(opts: {
 }
 
 /**
- * Record provenance for a DALL-E generated image.
+ * Record provenance for a GPT Image generated image.
  *
  * Two-path strategy:
  *   1. If `imageBlob` is provided (pre-downloaded in the tool execute callback while
- *      the DALL-E URL was fresh), upload the real image binary to IPFS. This enables
+ *      the generated image payload was fresh), upload the real image binary to IPFS. This enables
  *      vector embeddings for content-based similarity search.
  *   2. If `imageBlob` is absent (download failed), fall back to a small JSON metadata
  *      blob. The provenance record is still permanent and auditable — only embeddings
  *      are missing.
  *
  * The caller (generate_image tool execute) is responsible for downloading the image
- * immediately after DALL-E returns it, before the ephemeral URL can expire (~60 min).
+ * immediately after OpenAI returns it, before any ephemeral URL can expire.
  */
 export async function recordImageProvenance(opts: {
   userPrivyDid: string;
   provider: SupportedProvider;
-  model: string; // "dall-e-3"
+  model: string; // e.g. "gpt-image-2"
   prompt: string;
   imageUrl: string;
   /** Pre-downloaded image binary — enables real IPFS storage and vector embeddings */
@@ -361,9 +361,9 @@ export async function recordImageProvenance(opts: {
   inputCids: string[]; // prompt CID(s) from the parent chat exchange
   sessionId: string | null;
   /**
-   * Entity ID of the conversation AI model (e.g. gpt-4o) that called DALL-E as a tool.
-   * When provided, the image action is attributed to this entity with dall-e-3 recorded
-   * only as aiTool metadata — no separate DALL-E entity is created.
+   * Entity ID of the conversation AI model (e.g. gpt-4o) that called image generation as a tool.
+   * When provided, the image action is attributed to this entity with the image model recorded
+   * only as aiTool metadata — no separate image-model entity is created.
    * This keeps the entity count at 2 (human + AI model) regardless of image tool usage.
    */
   agentEntityId?: string;
@@ -396,7 +396,7 @@ export async function recordImageProvenance(opts: {
 
   try {
     return await withRetry(async () => {
-      // DALL-E is a tool called by the conversation AI model, not a separate entity.
+      // Image generation is a tool called by the conversation AI model, not a separate entity.
       // Reuse the conversation model's entity ID if provided; fall back to deriving it
       // deterministically — no API call needed.
       const performerEntityId =
@@ -432,7 +432,7 @@ export async function recordImageProvenance(opts: {
               reviewStatus: "reviewed",
             },
           },
-          // dall-e-3 is recorded as the tool used, not as the performer entity
+          // The image model is recorded as the tool used, not as the performer entity.
           aiTool: {
             provider: opts.provider,
             model: opts.model,

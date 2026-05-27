@@ -1,5 +1,5 @@
 import React from "react";
-import { Scale, DollarSign, GitBranch, Share2 } from "lucide-react";
+import { Scale, DollarSign, GitBranch, Share2, Ban } from "lucide-react";
 import { cn } from "../../lib/utils";
 import type { LicenseExtension } from "../../lib/extensions";
 
@@ -65,6 +65,11 @@ export function LicenseChip({
           {license.shareAlike && (
             <span title="Share alike required">
               <Share2 size={10} strokeWidth={2} className="shrink-0 text-blue-500" aria-label="Share alike required" />
+            </span>
+          )}
+          {license.aiTraining === "reserved" && (
+            <span title="AI training rights reserved">
+              <Ban size={10} strokeWidth={2} className="shrink-0 text-red-500" aria-label="AI training rights reserved" />
             </span>
           )}
         </>

@@ -90,7 +90,7 @@ export default function ChatHomePage() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {authenticated
-                ? "Every response is provenance-tracked. Ask me anything — or try DALL-E, TTS, or voice input."
+                ? "Every response is provenance-tracked. Ask me anything — or try image generation, TTS, or voice input."
                 : "AI chat with built-in provenance tracking. Sign in to get started."}
             </p>
           </div>

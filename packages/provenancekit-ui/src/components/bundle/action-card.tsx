@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { Zap, Bot, Clock, Shield } from "lucide-react";
+import { Zap, Bot, Clock, Shield, AlertTriangle } from "lucide-react";
 import { Timestamp } from "../primitives/timestamp";
-import { getAIToolSafe, getVerificationSafe } from "../../lib/extensions";
+import { getAIToolSafe, getAuthorizationSafe, getGovernanceSafe, getVerificationSafe } from "../../lib/extensions";
 import type { Action } from "@provenancekit/eaa-types";
 
 interface ActionCardProps {
@@ -17,7 +17,10 @@ function formatActionType(t: string): string {
 export function ActionCard({ action }: ActionCardProps) {
   const aiTool = getAIToolSafe(action);
   const verification = getVerificationSafe(action);
+  const authorization = getAuthorizationSafe(action);
+  const governance = getGovernanceSafe(action);
   const isVerified = verification?.status === "verified";
+  const needsReview = governance?.reviewStatus === "review-required" || authorization?.status === "pending" || authorization?.status === "unauthorized";
 
   return (
     <div
@@ -117,6 +120,49 @@ export function ActionCard({ action }: ActionCardProps) {
               >
                 <Shield size={10} />
                 {verification?.policyUsed ?? "Verified"}
+              </div>
+            )}
+
+            {(authorization || governance) && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                {authorization?.status && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 11,
+                      color: authorization.status === "authorized" ? "#047857" : "#b45309",
+                      background: authorization.status === "authorized" ? "rgba(16,185,129,0.08)" : "rgba(245,158,11,0.12)",
+                      border: `1px solid ${authorization.status === "authorized" ? "rgba(16,185,129,0.22)" : "rgba(245,158,11,0.28)"}`,
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                    }}
+                    title={authorization.scope}
+                  >
+                    {authorization.status === "authorized" ? <Shield size={10} /> : <AlertTriangle size={10} />}
+                    {authorization.status}
+                  </span>
+                )}
+                {governance?.reviewStatus && (
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 5,
+                      fontSize: 11,
+                      color: needsReview ? "#b45309" : "#047857",
+                      background: needsReview ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.08)",
+                      border: `1px solid ${needsReview ? "rgba(245,158,11,0.28)" : "rgba(16,185,129,0.22)"}`,
+                      borderRadius: 6,
+                      padding: "2px 8px",
+                    }}
+                    title={governance.note}
+                  >
+                    {needsReview ? <AlertTriangle size={10} /> : <Shield size={10} />}
+                    {governance.reviewStatus.replace(/-/g, " ")}
+                  </span>
+                )}
               </div>
             )}
           </div>

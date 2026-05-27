@@ -35,6 +35,15 @@ export function LicenseExtensionView({ extension, className }: LicenseExtensionV
         {extension.expires && (
           <div>Expires: <span className="font-medium text-[var(--pk-foreground)]">{new Date(extension.expires).toLocaleDateString()}</span></div>
         )}
+        {extension.aiTraining && (
+          <div>AI training: <span className="font-medium text-[var(--pk-foreground)] capitalize">{extension.aiTraining}</span></div>
+        )}
+        {extension.grantType && (
+          <div>Grant type: <span className="font-medium text-[var(--pk-foreground)] capitalize">{extension.grantType}</span></div>
+        )}
+        {extension.grantedBy && (
+          <div>Granted by: <span className="font-mono text-[var(--pk-foreground)]">{extension.grantedBy.slice(0, 16)}…</span></div>
+        )}
       </div>
 
       {extension.termsUrl && (

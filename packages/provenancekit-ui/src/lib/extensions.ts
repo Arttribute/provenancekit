@@ -11,6 +11,8 @@ import {
   getOnchain,
   getVerification,
   getWitness,
+  getAuthorization,
+  getGovernance,
   type AIToolExtension,
   type AIAgentExtension,
   type LicenseExtension,
@@ -18,6 +20,8 @@ import {
   type OnchainExtension,
   type VerificationExtension,
   type WitnessExtension,
+  type AuthorizationExtension,
+  type GovernanceExtension,
 } from "@provenancekit/extensions";
 
 import type { Action, Entity, Resource, Attribution } from "@provenancekit/eaa-types";
@@ -93,6 +97,24 @@ export function getWitnessSafe(action: Action | null | undefined): WitnessExtens
   }
 }
 
+export function getAuthorizationSafe(target: AnyEaaType | null | undefined): AuthorizationExtension | null {
+  if (!target) return null;
+  try {
+    return getAuthorization(target as any) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function getGovernanceSafe(target: AnyEaaType | null | undefined): GovernanceExtension | null {
+  if (!target) return null;
+  try {
+    return getGovernance(target as any) ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Check if any action in a bundle used an AI tool */
 export function bundleHasAI(actions: Action[]): boolean {
   return actions.some((a) => getAIToolSafe(a) !== null);
@@ -116,4 +138,6 @@ export type {
   OnchainExtension,
   VerificationExtension,
   WitnessExtension,
+  AuthorizationExtension,
+  GovernanceExtension,
 };

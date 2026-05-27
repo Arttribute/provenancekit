@@ -94,7 +94,7 @@ function BundleSummary({
   const topResource = bundle.resources?.[0];
 
   const licenseExt = topResource?.extensions?.["ext:license@1.0.0"] as
-    | { spdxId?: string; name?: string }
+    | { type?: string; spdxId?: string; name?: string; aiTraining?: string }
     | undefined;
   const aiExt = topAction?.extensions?.["ext:ai@1.0.0"] as
     | { provider?: string; model?: string }
@@ -152,10 +152,13 @@ function BundleSummary({
         </div>
       )}
 
-      {licenseExt && (licenseExt.spdxId || licenseExt.name) && (
+      {licenseExt && (licenseExt.type || licenseExt.spdxId || licenseExt.name) && (
         <div className="flex items-center gap-1.5 text-[var(--pk-muted-foreground,#64748b)]">
           <ShieldCheck size={10} className="shrink-0" />
-          <span className="truncate">{licenseExt.spdxId ?? licenseExt.name}</span>
+          <span className="truncate">
+            {licenseExt.type ?? licenseExt.spdxId ?? licenseExt.name}
+            {licenseExt.aiTraining ? ` · AI training ${licenseExt.aiTraining}` : ""}
+          </span>
         </div>
       )}
 
