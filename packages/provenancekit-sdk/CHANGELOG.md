@@ -1,5 +1,14 @@
 # @provenancekit/sdk
 
+## 0.1.16
+
+### Patch Changes
+
+- Updated dependencies
+  - @provenancekit/eaa-types@0.1.5
+  - @provenancekit/extensions@0.1.7
+  - @provenancekit/privacy@0.1.12
+
 ## 0.1.15
 
 ### Patch Changes
