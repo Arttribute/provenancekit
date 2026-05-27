@@ -1,5 +1,12 @@
 # @provenancekit/storage
 
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies
+  - @provenancekit/eaa-types@0.1.5
+
 ## 0.1.9
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @provenancekit/payments
 
+## 0.1.7
+
+### Patch Changes
+
+- @provenancekit/extensions@0.1.7
+
 ## 0.1.6
 
 ### Patch Changes
