@@ -138,15 +138,30 @@ export default function ConversationPage({
       }
       if (input.trim()) textParts.push(input.trim());
 
+      const compactUrl = (url?: string) => {
+        if (!url || url.startsWith("data:")) return undefined;
+        return url;
+      };
+
       // Images are sent via experimental_attachments — the Vercel AI SDK's supported
       // multimodal API for useChat. This ensures images reach the model correctly
       // instead of being silently dropped by the SDK's string-content serialization.
       const imageAttachments = atts
-        .filter((att) => att.mimeType.startsWith("image/") && att.url)
-        .map((att) => ({ url: att.url!, contentType: att.mimeType, name: att.name }));
+        .map((att) => ({
+          att,
+          url: compactUrl(att.url),
+        }))
+        .filter(({ att, url }) => att.mimeType.startsWith("image/") && url)
+        .map(({ att, url }) => ({ url: url!, contentType: att.mimeType, name: att.name }));
 
       // Attachment metadata in the request body for provenance recording
-      const attachmentMeta = atts.map(({ cid, url, mimeType, name, governance }) => ({ cid, url, mimeType, name, governance }));
+      const attachmentMeta = atts.map(({ cid, url, mimeType, name, governance }) => ({
+        cid,
+        url: compactUrl(url),
+        mimeType,
+        name,
+        governance,
+      }));
 
       append(
         { role: "user", content: textParts.join("\n\n") || " " },
