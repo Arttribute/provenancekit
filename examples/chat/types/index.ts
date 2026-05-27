@@ -76,8 +76,10 @@ export interface FileAttachment {
   file?: File;
   /** Pinata/IPFS gateway URL (preferred) or base64 data URL fallback */
   url?: string;
-  /** IPFS CID — set when uploaded to Pinata; used for provenance inputCids */
+  /** ProvenanceKit resource CID — set only after an exact match or explicit claim/reference registration */
   cid?: string;
+  /** Raw storage CID from Pinata/IPFS, used only for retrieval/preview before provenance registration */
+  storageCid?: string;
   mimeType: string;
   name: string;
   /** Extracted text content for text/* files — included inline for the LLM */

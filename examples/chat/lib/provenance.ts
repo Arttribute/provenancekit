@@ -228,11 +228,26 @@ export async function recordChatProvenance(opts: {
 
       // Include attachment CIDs as additional inputs to the response action
       const attachmentCids = (opts.attachments ?? []).filter((a) => a.cid).map((a) => a.cid!);
-      const restrictedInputs = (opts.attachments ?? []).filter(
+      const declaredInputs = opts.attachments ?? [];
+      const restrictedInputs = declaredInputs.filter(
         (a) => a.governance?.authorizationStatus !== "authorized"
       );
+      const reviewInputs = declaredInputs.filter(
+        (a) =>
+          a.governance?.status === "restricted-source" ||
+          a.governance?.authorizationStatus !== "authorized"
+      );
+      const inputSummary =
+        declaredInputs.length > 0
+          ? declaredInputs
+              .map((a) => {
+                const gov = a.governance;
+                return `${a.name} (${a.mimeType}; ${gov?.licenseType ?? "license unspecified"}; authorization ${gov?.authorizationStatus ?? "unspecified"}; AI training ${gov?.aiTraining ?? "unspecified"})`;
+              })
+              .join("; ")
+          : "No declared file inputs.";
       const responseGovernance = buildGovernanceExtensions({
-        governance: restrictedInputs[0]?.governance ?? defaultAttachmentGovernance("licensed-source"),
+        governance: reviewInputs[0]?.governance ?? defaultAttachmentGovernance("licensed-source"),
         userId: agentEntityId,
         roleInWorkflow: "derived-output",
       });
@@ -248,18 +263,18 @@ export async function recordChatProvenance(opts: {
           extensions: {
             [AUTHORIZATION_NAMESPACE]: {
               ...responseGovernance.authorization,
-              status: restrictedInputs.length > 0 ? "pending" : "authorized",
+              status: reviewInputs.length > 0 ? "pending" : "authorized",
               scope:
-                restrictedInputs.length > 0
-                  ? `Generated response depends on ${restrictedInputs.length} input(s) requiring governance review.`
-                  : "Generated response authorised for this chat demonstration workflow.",
+                reviewInputs.length > 0
+                  ? `Generated response depends on ${reviewInputs.length} input(s) requiring governance review: ${reviewInputs.map((a) => a.name).join(", ")}.`
+                  : `Generated response authorised from declared inputs: ${inputSummary}`,
             },
             [GOVERNANCE_NAMESPACE]: {
               ...responseGovernance.governance,
               requirements: ["R1", "R2", "R3", "R4", "R5", "R6"],
               disclosure: {
                 aiInvolved: true,
-                humanContribution: "User prompt and attached source material selected the task, constraints, and inputs.",
+                humanContribution: `User prompt and attached source material selected the task, constraints, and inputs. Inputs: ${inputSummary}`,
                 aiContribution: `${opts.provider}/${opts.model} generated the response from declared inputs.`,
                 publicSummary: "AI-assisted response with recorded source CIDs, rights metadata, and authorisation status.",
               },
@@ -275,22 +290,27 @@ export async function recordChatProvenance(opts: {
         resourceType: "text",
         resourceExtensions: {
           [AUTHORIZATION_NAMESPACE]: {
-            status: restrictedInputs.length > 0 ? "pending" : "authorized",
-            authorizedBy: restrictedInputs.length > 0 ? undefined : agentEntityId,
-            authorizedAt: restrictedInputs.length > 0 ? undefined : new Date().toISOString(),
+            status: reviewInputs.length > 0 ? "pending" : "authorized",
+            authorizedBy: reviewInputs.length > 0 ? undefined : agentEntityId,
+            authorizedAt: reviewInputs.length > 0 ? undefined : new Date().toISOString(),
             scope:
-              restrictedInputs.length > 0
-                ? `Output depends on ${restrictedInputs.length} input(s) requiring rights or consent review.`
-                : "Output authorised for the active Human-AI governance demonstration workflow.",
+              reviewInputs.length > 0
+                ? `Output depends on ${reviewInputs.length} input(s) requiring rights or consent review: ${reviewInputs.map((a) => a.name).join(", ")}.`
+                : `Output authorised from declared inputs: ${inputSummary}`,
             reference: `chat-demo:response:${opts.provider}/${opts.model}`,
           },
           [GOVERNANCE_NAMESPACE]: {
-            workflow: "Human-AI governance demo chat",
+            workflow: "Chat file-to-output provenance workflow",
             roleInWorkflow: "derived-output",
             requirements: ["R1", "R2", "R3", "R4", "R5", "R6"],
-            reviewStatus: restrictedInputs.length > 0 ? "review-required" : "reviewed",
-            riskFlags: restrictedInputs.length > 0 ? ["input-authorisation-pending"] : [],
-            note: "Assistant response produced as a derived artefact from the user prompt and declared source CIDs.",
+            reviewStatus: reviewInputs.length > 0 ? "review-required" : "reviewed",
+            riskFlags: [
+              ...(reviewInputs.length > 0 ? ["input-authorisation-review"] : []),
+              ...declaredInputs
+                .filter((a) => a.governance?.aiTraining === "reserved")
+                .map((a) => `ai-training-reserved:${a.name}`),
+            ],
+            note: `Assistant response produced as a derived artefact from the user prompt and recorded source CIDs. Inputs: ${inputSummary}`,
           },
         },
         attribution: {

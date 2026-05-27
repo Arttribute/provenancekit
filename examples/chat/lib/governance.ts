@@ -53,6 +53,16 @@ export function buildGovernanceExtensions(opts: {
 }) {
   const now = new Date().toISOString();
   const { governance, userId, fileName, roleInWorkflow } = opts;
+  const fileLabel = fileName ?? "attachment";
+  const needsReview =
+    governance.status === "restricted-source" ||
+    governance.authorizationStatus !== "authorized";
+  const riskFlags = [
+    ...(governance.authorizationStatus === "pending" ? ["authorization-pending"] : []),
+    ...(governance.authorizationStatus === "unauthorized" ? ["authorization-missing"] : []),
+    ...(governance.status === "restricted-source" ? ["rights-restricted"] : []),
+    ...(governance.aiTraining === "reserved" ? ["ai-training-reserved"] : []),
+  ];
 
   return {
     authorization: {
@@ -60,22 +70,26 @@ export function buildGovernanceExtensions(opts: {
       authorizedBy: governance.authorizationStatus === "authorized" ? userId : undefined,
       authorizedAt: governance.authorizationStatus === "authorized" ? now : undefined,
       scope: governance.scope,
-      reference: `chat-demo:${governance.status}:${fileName ?? "attachment"}`,
+      reference: `chat-attachment:${governance.status}:${fileLabel}`,
     },
     governance: {
-      workflow: "Human-AI governance demo chat",
-      purpose: "Demonstrate attribution, rights, authorisation, AI disclosure, derivation, and selective disclosure readiness.",
+      workflow: "Chat file-to-output provenance workflow",
+      purpose: `Record declared rights, authorization, and AI-use constraints for ${fileLabel}.`,
       roleInWorkflow,
       requirements: ["R1", "R2", "R3", "R5", "R6"],
       policyBasis: [
         "Copyright authorship: human contribution and transformation history",
         "DSM Art. 4(3): machine-readable AI training rights reservation",
         "EU AI Act Art. 50: AI involvement disclosure",
-        "GDPR/data governance: consent and scoped disclosure",
+        ...(governance.status === "restricted-source"
+          ? ["GDPR/data governance: consent and scoped disclosure"]
+          : []),
       ],
-      riskFlags: governance.status === "restricted-source" ? ["authorisation-review", "rights-restricted"] : [],
-      reviewStatus: governance.status === "restricted-source" ? "review-required" : "reviewed",
-      note: governance.note,
+      riskFlags,
+      reviewStatus: needsReview ? "review-required" : "reviewed",
+      note:
+        governance.note ??
+        `${fileLabel}: ${governance.licenseType}; authorization ${governance.authorizationStatus}; AI training ${governance.aiTraining}.`,
     },
   };
 }
