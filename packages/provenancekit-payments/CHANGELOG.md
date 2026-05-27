@@ -1,5 +1,13 @@
 # @provenancekit/payments
 
+## 0.1.5
+
+### Patch Changes
+
+- Auto patch release
+- Updated dependencies
+  - @provenancekit/extensions@0.1.5
+
 ## 0.1.4
 
 ### Patch Changes

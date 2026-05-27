@@ -1,6 +1,6 @@
 {
   "name": "@provenancekit/contracts",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Solidity smart contracts for on-chain provenance recording. Base implementations following OpenZeppelin patterns.",
   "license": "MIT",
   "files": [
