@@ -129,6 +129,14 @@ phases:
           --data-binary @- "${ENDPOINT%/}/v1/actions/batch" | \
           jq -e '.accepted.actions == 1 and .accepted.resources == 1 and (.bundleHash | startswith("sha256:"))'
       - |
+        SMOKE_REF="sha256:$SMOKE_ID"
+        curl --fail --show-error --silent \
+          --header "Authorization: Bearer $API_KEY" \
+          "${ENDPOINT%/}/v1/resources/${SMOKE_REF}/bundle" | \
+          jq -e '(.actions | length == 1)
+            and (.resources | length == 1)
+            and (.attributions | length == 2)'
+      - |
         upload_result=$(printf 'aws-production-object-smoke' | curl --fail --show-error --silent \
           --header "Authorization: Bearer $API_KEY" \
           --form 'file=@-;filename=aws-smoke.txt;type=text/plain' \

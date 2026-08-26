@@ -197,7 +197,7 @@ export async function getBundle(
   const entities = new Map<string, Entity>();
   const resources = new Map<string, Resource>();
   const actions = new Map<string, Action>();
-  const attributions: Attribution[] = [];
+  const attributions = new Map<string, Attribution>();
 
   const visited = new Set<string>();
 
@@ -238,6 +238,17 @@ export async function getBundle(
           }
         }
 
+        if (opts.includeAttributions) {
+          const actionAttrs = await storage.getAttributionsByAction(action.id);
+          for (const attr of actionAttrs) {
+            attributions.set(attributionKey(attr), attr);
+            if (opts.includeEntities) {
+              const attrEntity = await storage.getEntity(attr.entityId);
+              if (attrEntity) entities.set(attrEntity.id, attrEntity);
+            }
+          }
+        }
+
         // Recurse into inputs
         for (const input of action.inputs) {
           await collectLineage(input.ref, depth + 1);
@@ -249,7 +260,7 @@ export async function getBundle(
     if (opts.includeAttributions) {
       const attrs = await storage.getAttributionsByResource(currentRef);
       for (const attr of attrs) {
-        attributions.push(attr);
+        attributions.set(attributionKey(attr), attr);
 
         // Collect attributed entity
         if (opts.includeEntities) {
@@ -269,8 +280,21 @@ export async function getBundle(
     entities: Array.from(entities.values()),
     resources: Array.from(resources.values()),
     actions: Array.from(actions.values()),
-    attributions,
+    attributions: Array.from(attributions.values()),
   };
+}
+
+function attributionKey(attribution: Attribution): string {
+  return (
+    attribution.id ??
+    JSON.stringify([
+      attribution.resourceRef?.ref,
+      attribution.actionId,
+      attribution.entityId,
+      attribution.role,
+      attribution.note,
+    ])
+  );
 }
 
 /**

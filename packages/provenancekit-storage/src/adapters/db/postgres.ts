@@ -579,14 +579,19 @@ export class PostgresStorage implements IProvenanceStorage {
     const rows = await this.query<ActionRow>(
       `
       SELECT * FROM ${this.t.action}
-      WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(
-          CASE
-            WHEN jsonb_typeof(outputs) = 'array' THEN outputs
-            ELSE '[]'::jsonb
-          END
-        ) AS o
-        WHERE o->>'ref' = $1
+      WHERE (
+        (jsonb_typeof(outputs) = 'array' AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(outputs) AS o
+          WHERE o->>'ref' = $1
+        ))
+        OR (jsonb_typeof(outputs) = 'object' AND outputs->>'ref' = $1)
+        OR (
+          jsonb_typeof(outputs) = 'string'
+          AND strpos(
+            regexp_replace(outputs #>> '{}', '\\s', '', 'g'),
+            '"ref":' || to_json($1::text)::text
+          ) > 0
+        )
       )
       `,
       [ref]
@@ -601,14 +606,19 @@ export class PostgresStorage implements IProvenanceStorage {
     const rows = await this.query<ActionRow>(
       `
       SELECT * FROM ${this.t.action}
-      WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(
-          CASE
-            WHEN jsonb_typeof(inputs) = 'array' THEN inputs
-            ELSE '[]'::jsonb
-          END
-        ) AS i
-        WHERE i->>'ref' = $1
+      WHERE (
+        (jsonb_typeof(inputs) = 'array' AND EXISTS (
+          SELECT 1 FROM jsonb_array_elements(inputs) AS i
+          WHERE i->>'ref' = $1
+        ))
+        OR (jsonb_typeof(inputs) = 'object' AND inputs->>'ref' = $1)
+        OR (
+          jsonb_typeof(inputs) = 'string'
+          AND strpos(
+            regexp_replace(inputs #>> '{}', '\\s', '', 'g'),
+            '"ref":' || to_json($1::text)::text
+          ) > 0
+        )
       )
       `,
       [ref]
@@ -891,8 +901,8 @@ export class PostgresStorage implements IProvenanceStorage {
       role: row.role,
       name: row.name ?? undefined,
       publicKey: row.public_key ?? undefined,
-      metadata: row.metadata ?? undefined,
-      extensions: row.extensions ?? undefined,
+      metadata: jsonObject(row.metadata),
+      extensions: jsonObject(row.extensions),
     };
   }
 
@@ -905,11 +915,11 @@ export class PostgresStorage implements IProvenanceStorage {
         size: row.size ?? undefined,
       },
       type: row.type,
-      locations: row.locations ?? [],
+      locations: jsonArray(row.locations),
       createdAt: row.created_at,
       createdBy: row.created_by,
       rootAction: row.root_action,
-      extensions: row.extensions ?? undefined,
+      extensions: jsonObject(row.extensions),
     };
   }
 
@@ -919,10 +929,10 @@ export class PostgresStorage implements IProvenanceStorage {
       type: row.type,
       performedBy: row.performed_by,
       timestamp: row.timestamp,
-      inputs: row.inputs ?? [],
-      outputs: row.outputs ?? [],
+      inputs: jsonArray<ContentReference>(row.inputs),
+      outputs: jsonArray<ContentReference>(row.outputs),
       proof: row.proof ?? undefined,
-      extensions: row.extensions ?? undefined,
+      extensions: jsonObject(row.extensions),
     };
   }
 
@@ -932,7 +942,7 @@ export class PostgresStorage implements IProvenanceStorage {
       entityId: row.entity_id,
       role: row.role as Attribution["role"],
       note: row.note ?? undefined,
-      extensions: row.extensions ?? undefined,
+      extensions: jsonObject(row.extensions),
     };
 
     if (row.resource_ref) {
@@ -959,6 +969,32 @@ export class PostgresStorage implements IProvenanceStorage {
   }
 }
 
+/** Decode JSONB rows written by clients that encoded structured values twice. */
+function decodeJson(value: unknown): unknown {
+  let decoded = value;
+  for (let pass = 0; pass < 2 && typeof decoded === "string"; pass += 1) {
+    try {
+      decoded = JSON.parse(decoded);
+    } catch {
+      break;
+    }
+  }
+  return decoded;
+}
+
+function jsonArray<T = unknown>(value: unknown): T[] {
+  const decoded = decodeJson(value);
+  if (Array.isArray(decoded)) return decoded as T[];
+  return decoded && typeof decoded === "object" ? [decoded as T] : [];
+}
+
+function jsonObject(value: unknown): Record<string, unknown> | undefined {
+  const decoded = decodeJson(value);
+  return decoded && typeof decoded === "object" && !Array.isArray(decoded)
+    ? (decoded as Record<string, unknown>)
+    : undefined;
+}
+
 /*-----------------------------------------------------------------*\
  | Row Types (internal)                                              |
 \*-----------------------------------------------------------------*/
@@ -968,8 +1004,8 @@ interface EntityRow {
   role: string;
   name: string | null;
   public_key: string | null;
-  metadata: Record<string, unknown> | null;
-  extensions: Record<string, unknown> | null;
+  metadata: unknown;
+  extensions: unknown;
 }
 
 interface ResourceRow {
@@ -978,11 +1014,11 @@ interface ResourceRow {
   integrity: string | null;
   size: number | null;
   type: string;
-  locations: Array<{ uri: string; provider?: string }> | null;
+  locations: unknown;
   created_at: string;
   created_by: string;
   root_action: string;
-  extensions: Record<string, unknown> | null;
+  extensions: unknown;
 }
 
 interface ActionRow {
@@ -990,10 +1026,10 @@ interface ActionRow {
   type: string;
   performed_by: string;
   timestamp: string;
-  inputs: ContentReference[] | null;
-  outputs: ContentReference[] | null;
+  inputs: unknown;
+  outputs: unknown;
   proof: string | null;
-  extensions: Record<string, unknown> | null;
+  extensions: unknown;
 }
 
 interface AttributionRow {
@@ -1004,7 +1040,7 @@ interface AttributionRow {
   entity_id: string;
   role: string;
   note: string | null;
-  extensions: Record<string, unknown> | null;
+  extensions: unknown;
 }
 
 interface OwnershipStateRow {
