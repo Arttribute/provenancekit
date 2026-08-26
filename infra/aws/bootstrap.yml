@@ -281,7 +281,9 @@ Resources:
       PubliclyAccessible: false
       BackupRetentionPeriod: 35
       CopyTagsToSnapshot: true
-      DeletionProtection: true
+      # Enabled after the first successful stack convergence; keeping it off
+      # during initial creation preserves automatic CloudFormation rollback.
+      DeletionProtection: false
       AutoMinorVersionUpgrade: true
       EnablePerformanceInsights: true
       PerformanceInsightsRetentionPeriod: 7
