@@ -5,6 +5,10 @@ service uses three warm tasks across multiple Availability Zones, scales on CPU,
 and is fronted by the managed Express load balancer and TLS endpoint. Images are
 immutable, scanned on push in ECR, and retained for rollback.
 
+The internet-facing Express ingress uses custom public subnets. Task ingress is
+restricted to the managed load balancer/VPC security path; PostgreSQL remains in
+separate private subnets and only accepts connections from the task/build SG.
+
 Runtime secrets live in AWS Secrets Manager and are injected by individual JSON
 key. GitHub Actions obtains short-lived AWS credentials through OIDC; no AWS
 access keys are stored in GitHub. CodeBuild runs tests/builds, applies ordered

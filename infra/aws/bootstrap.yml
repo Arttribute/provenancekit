@@ -520,7 +520,9 @@ Resources:
           - Name: OBJECT_BUCKET
             Value: !Ref ObjectBucket
           - Name: APP_SUBNETS
-            Value: !Join [",", [!Ref PrivateAppSubnetA, !Ref PrivateAppSubnetB]]
+            # Express Mode uses public custom subnets to create an
+            # internet-facing managed ALB. Tasks remain SG-restricted.
+            Value: !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
           - Name: TASK_SECURITY_GROUP
             Value: !Ref TaskSecurityGroup
           - Name: TASK_EXECUTION_ROLE_ARN
@@ -566,6 +568,6 @@ Outputs:
   ObjectBucketName:
     Value: !Ref ObjectBucket
   AppSubnetIds:
-    Value: !Join [",", [!Ref PrivateAppSubnetA, !Ref PrivateAppSubnetB]]
+    Value: !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
   TaskSecurityGroupId:
     Value: !Ref TaskSecurityGroup
