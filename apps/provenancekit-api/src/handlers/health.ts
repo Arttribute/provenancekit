@@ -27,8 +27,8 @@ const r = new Hono()
       service: "provenancekit-api",
       version: process.env.APP_VERSION ?? "development",
       storage: {
-        database: config.supabaseUrl ? "supabase" : "memory",
-        files: config.pinataJwt ? "ipfs" : "memory",
+        database: config.databaseUrl ? "postgresql" : config.supabaseUrl ? "supabase" : "memory",
+        files: config.storageProvider === "s3" ? "s3" : config.pinataJwt ? "ipfs" : "memory",
       },
       onchain: Boolean(
         config.blockchainRpcUrl &&

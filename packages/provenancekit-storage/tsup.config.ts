@@ -11,6 +11,7 @@ export default defineConfig({
     "src/adapters/db/mongodb.ts",
     "src/adapters/db/supabase.ts",
     "src/adapters/files/memory.ts",
+    "src/adapters/files/s3.ts",
     "src/adapters/files/ipfs-pinata.ts",
     "src/adapters/files/ipfs-infura.ts",
     "src/adapters/files/ipfs-local.ts",

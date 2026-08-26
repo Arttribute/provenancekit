@@ -389,12 +389,30 @@ r.post("/resources/upload", async (c) => {
   }
 
   const buffer = Buffer.from(await form.file.arrayBuffer());
-  const cid = await fileStorage.upload(buffer, {
+  const uploaded = await fileStorage.upload(buffer, {
     mimeType: form.file.type || "application/octet-stream",
     name: form.file.name || "upload",
   });
 
-  return c.json({ cid }, 201);
+  return c.json({ cid: uploaded.ref.ref, size: uploaded.size, url: uploaded.gatewayUrl }, 201);
+});
+
+// ---------------------------------------------------------------------------
+// GET /v1/resources/:ref/content
+// Streams private content through the authenticated API storage adapter.
+// ---------------------------------------------------------------------------
+r.get("/resources/:ref/content", async (c) => {
+  const ref = c.req.param("ref");
+  const { fileStorage } = getContext();
+  const content = await fileStorage.retrieve(ref);
+  c.header("Content-Type", "application/octet-stream");
+  c.header("Content-Length", String(content.length));
+  c.header("Cache-Control", "private, max-age=31536000, immutable");
+  const body = content.buffer.slice(
+    content.byteOffset,
+    content.byteOffset + content.byteLength,
+  ) as ArrayBuffer;
+  return c.body(body);
 });
 
 // ---------------------------------------------------------------------------

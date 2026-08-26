@@ -11,10 +11,12 @@
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient as RealSupabaseClient } from "@supabase/supabase-js";
 import { SupabaseStorage } from "@provenancekit/storage/adapters/db/supabase";
+import { PostgresStorage } from "@provenancekit/storage/adapters/db/postgres";
 import type { SupabaseClient as StorageSupabaseClient } from "@provenancekit/storage/adapters/db/supabase";
 import { MemoryDbStorage } from "@provenancekit/storage/adapters/db/memory";
 import { MemoryFileStorage } from "@provenancekit/storage/adapters/files/memory";
 import { PinataStorage } from "@provenancekit/storage/adapters/files/ipfs-pinata";
+import { S3Storage } from "@provenancekit/storage/adapters/files/s3";
 import type { AuthIdentity } from "./middleware/auth.js";
 import type { IProvenanceStorage } from "@provenancekit/storage";
 import type { IFileStorage } from "@provenancekit/storage/files";
@@ -36,6 +38,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import { derivePublicKey } from "@provenancekit/sdk";
 import { config } from "./config.js";
 import { runMigrations } from "./db/migrate.js";
+import postgres, { type Sql } from "postgres";
 
 /*─────────────────────────────────────────────────────────────*\
  | Attestation Provider Interface                               |
@@ -100,6 +103,9 @@ export interface AppContext {
   /** Raw Supabase client for direct queries (null when using memory adapter) */
   supabase: RealSupabaseClient | null;
 
+  /** Close the native database pool when one is configured. */
+  closeDatabase?: () => Promise<void>;
+
   /** Generate a new encryption key */
   generateKey: () => Uint8Array;
 
@@ -143,10 +149,17 @@ export async function initializeContext(): Promise<AppContext> {
 
   if (config.requireDurableStorage) {
     const missing: string[] = [];
-    if (!config.supabaseUrl || !(config.supabaseServiceKey ?? config.supabaseAnonKey)) {
-      missing.push("SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_ANON_KEY)");
+    const hasDatabase = Boolean(
+      config.databaseUrl ||
+        (config.supabaseUrl && (config.supabaseServiceKey ?? config.supabaseAnonKey)),
+    );
+    if (!hasDatabase) {
+      missing.push("DATABASE_URL (or DB_* components)");
     }
-    if (!config.pinataJwt) missing.push("PINATA_JWT");
+    const hasFiles =
+      (config.storageProvider === "s3" && Boolean(config.s3Bucket)) ||
+      (config.storageProvider === "pinata" && Boolean(config.pinataJwt));
+    if (!hasFiles) missing.push("S3_BUCKET or PINATA_JWT");
     if (missing.length > 0) {
       throw new Error(
         `Durable production storage is required; missing ${missing.join(", ")}`,
@@ -158,7 +171,7 @@ export async function initializeContext(): Promise<AppContext> {
   // Set SKIP_MIGRATIONS=true in production Cloud Run service env vars and run
   // migrations separately via a Cloud Run Job before each deployment.
   // This removes the migration round-trip (~500ms-5s) from the cold-start path.
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = config.databaseUrl;
   const skipMigrations = process.env.SKIP_MIGRATIONS === "true";
   if (databaseUrl && !skipMigrations) {
     try {
@@ -176,9 +189,26 @@ export async function initializeContext(): Promise<AppContext> {
   // Falls back to in-memory storage when Supabase is not configured (local dev)
   let supabaseClient: RealSupabaseClient | null = null;
   let dbStorage: IProvenanceStorage;
+  let postgresClient: Sql | undefined;
 
   const supabaseKey = config.supabaseServiceKey ?? config.supabaseAnonKey;
-  if (config.supabaseUrl && supabaseKey) {
+  if (config.databaseUrl) {
+    postgresClient = postgres(config.databaseUrl, {
+      ssl: "require",
+      prepare: false,
+      max: 10,
+      idle_timeout: 20,
+      connect_timeout: 10,
+      max_lifetime: 1800,
+    });
+    const query = async <T = Record<string, unknown>>(text: string, params?: unknown[]) =>
+      postgresClient!.unsafe<T[]>(text, params as never[] | undefined) as unknown as T[];
+    const postgresStorage = new PostgresStorage({ query, autoMigrate: false });
+    await query("SELECT 1");
+    await postgresStorage.initialize();
+    dbStorage = postgresStorage;
+    console.log("✓ Database storage ready (PostgreSQL)");
+  } else if (config.supabaseUrl && supabaseKey) {
     supabaseClient = createClient(config.supabaseUrl, supabaseKey);
     const supabaseStorage = new SupabaseStorage({
       // The real SupabaseClient generic return types differ from our minimal
@@ -202,7 +232,16 @@ export async function initializeContext(): Promise<AppContext> {
   // Falls back to in-memory file storage when Pinata JWT is not configured
   let fileStorage: IFileStorage;
 
-  if (config.pinataJwt) {
+  if (config.storageProvider === "s3" && config.s3Bucket) {
+    const s3 = new S3Storage({
+      bucket: config.s3Bucket,
+      region: config.s3Region,
+      prefix: config.s3Prefix,
+    });
+    await s3.initialize();
+    fileStorage = s3;
+    console.log("✓ File storage ready (Amazon S3, content-addressed)");
+  } else if (config.pinataJwt) {
     const pinata = new PinataStorage({
       jwt: config.pinataJwt,
       gateway: config.pinataGateway,
@@ -291,6 +330,7 @@ export async function initializeContext(): Promise<AppContext> {
     encryptedStorage,
     ipfsGateway: config.pinataGateway,
     supabase: supabaseClient,
+    closeDatabase: postgresClient ? () => postgresClient!.end({ timeout: 5 }) : undefined,
     generateKey,
     serverSigningKey,
     serverPublicKey,
@@ -319,6 +359,7 @@ export async function closeContext(): Promise<void> {
   if (ctx) {
     await ctx.dbStorage.close();
     await ctx.fileStorage.close();
+    await ctx.closeDatabase?.();
     ctx = null;
     projectFileStorageCache.clear();
     console.log("Context closed");

@@ -202,6 +202,18 @@ describe("ProvenanceKit API", () => {
     });
   });
 
+  describe("POST /v1/resources/upload", () => {
+    it("returns a stable content reference string", async () => {
+      const form = new FormData();
+      form.set("file", new File(["provenance"], "proof.txt", { type: "text/plain" }));
+      const response = await app.request("/v1/resources/upload", { method: "POST", body: form });
+      expect(response.status).toBe(201);
+      const body = await response.json() as Record<string, unknown>;
+      expect(typeof body.cid).toBe("string");
+      expect(body.size).toBe(10);
+    });
+  });
+
   // ─── Entity ───────────────────────────────────────────────────────────────
 
   describe("POST /entity", () => {

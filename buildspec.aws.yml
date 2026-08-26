@@ -30,10 +30,14 @@ phases:
     commands:
       - set -euo pipefail
       - SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$RUNTIME_SECRET_ARN" --query SecretString --output text --region "$AWS_REGION")
+      - DATABASE_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$DATABASE_SECRET_ARN" --query SecretString --output text --region "$AWS_REGION")
+      - DB_USER=$(jq -r .username <<<"$DATABASE_SECRET_JSON")
+      - DB_PASSWORD=$(jq -r .password <<<"$DATABASE_SECRET_JSON")
+      - DATABASE_URL=$(DB_USER="$DB_USER" DB_PASSWORD="$DB_PASSWORD" DATABASE_HOST="$DATABASE_HOST" DATABASE_PORT="$DATABASE_PORT" DATABASE_NAME="$DATABASE_NAME" node -e 'const e=encodeURIComponent; process.stdout.write(`postgresql://${e(process.env.DB_USER)}:${e(process.env.DB_PASSWORD)}@${process.env.DATABASE_HOST}:${process.env.DATABASE_PORT}/${e(process.env.DATABASE_NAME)}?sslmode=require`)')
       - |
         echo "Applying ledger-backed PostgreSQL migrations before deployment..."
         docker run --rm \
-          -e DATABASE_URL="$(jq -r .DATABASE_URL <<<"$SECRET_JSON")" \
+          -e DATABASE_URL="$DATABASE_URL" \
           -e VECTOR_DIMENSION=512 \
           "$IMAGE_URI" \
           node --input-type=module -e \
@@ -50,12 +54,19 @@ phases:
         ExecutionRoleArn="$TASK_EXECUTION_ROLE_ARN"
         TaskRoleArn="$TASK_ROLE_ARN"
         InfrastructureRoleArn="$INFRASTRUCTURE_ROLE_ARN"
+        DatabaseSecretArn="$DATABASE_SECRET_ARN"
+        DatabaseHost="$DATABASE_HOST"
+        DatabasePort="$DATABASE_PORT"
+        DatabaseName="$DATABASE_NAME"
+        ObjectBucket="$OBJECT_BUCKET"
+        AppSubnets="$APP_SUBNETS"
+        TaskSecurityGroup="$TASK_SECURITY_GROUP"
         MinTasks="${MIN_TASKS:-3}"
         MaxTasks="${MAX_TASKS:-12}"
         --region "$AWS_REGION"
       - ENDPOINT=$(aws cloudformation describe-stacks --stack-name provenancekit-api-service --query 'Stacks[0].Outputs[?OutputKey==`Endpoint`].OutputValue' --output text --region "$AWS_REGION")
       - ENDPOINT="https://${ENDPOINT#https://}"
-      - curl --fail --show-error --silent --retry 24 --retry-delay 10 --retry-all-errors "${ENDPOINT%/}/health" | jq -e '.status == "ok" and .storage.database == "supabase" and .storage.files == "ipfs"'
+      - curl --fail --show-error --silent --retry 24 --retry-delay 10 --retry-all-errors "${ENDPOINT%/}/health" | jq -e '.status == "ok" and .storage.database == "postgresql" and .storage.files == "s3"'
       - test "$(curl --silent --output /dev/null --write-out '%{http_code}' "${ENDPOINT%/}/v1/actions/batch")" = "401"
       - API_KEY=$(jq -r .API_KEYS <<<"$SECRET_JSON" | cut -d, -f1)
       - SMOKE_ID="aws-${CODEBUILD_BUILD_NUMBER}-$(date +%s)"
@@ -85,6 +96,17 @@ phases:
           --header 'Content-Type: application/json' \
           --data-binary @- "${ENDPOINT%/}/v1/actions/batch" | \
           jq -e '.accepted.actions == 1 and .accepted.resources == 1 and (.bundleHash | startswith("sha256:"))'
+      - |
+        upload_result=$(printf 'aws-production-object-smoke' | curl --fail --show-error --silent \
+          --header "Authorization: Bearer $API_KEY" \
+          --form 'file=@-;filename=aws-smoke.txt;type=text/plain' \
+          "${ENDPOINT%/}/v1/resources/upload")
+        object_ref=$(jq -r .cid <<<"$upload_result")
+        test "${object_ref#sha256:}" != "$object_ref"
+        downloaded=$(curl --fail --show-error --silent \
+          --header "Authorization: Bearer $API_KEY" \
+          "${ENDPOINT%/}/v1/resources/${object_ref}/content")
+        test "$downloaded" = "aws-production-object-smoke"
       - printf '{"endpoint":"%s","image":"%s","version":"%s"}\n' "$ENDPOINT" "$IMAGE_URI" "$APP_VERSION" > deployment.json
 
 artifacts:

@@ -14,6 +14,22 @@ Parameters:
     Type: String
   InfrastructureRoleArn:
     Type: String
+  DatabaseSecretArn:
+    Type: String
+  DatabaseHost:
+    Type: String
+  DatabasePort:
+    Type: String
+    Default: "5432"
+  DatabaseName:
+    Type: String
+    Default: provenancekit
+  ObjectBucket:
+    Type: String
+  AppSubnets:
+    Type: CommaDelimitedList
+  TaskSecurityGroup:
+    Type: String
   MinTasks:
     Type: Number
     Default: 3
@@ -33,6 +49,10 @@ Resources:
       Cpu: "2048"
       Memory: "4096"
       HealthCheckPath: /health
+      NetworkConfiguration:
+        Subnets: !Ref AppSubnets
+        SecurityGroups:
+          - !Ref TaskSecurityGroup
       PrimaryContainer:
         Image: !Ref ImageUri
         ContainerPort: 8080
@@ -53,17 +73,25 @@ Resources:
             Value: "true"
           - Name: VECTOR_DIMENSION
             Value: "512"
+          - Name: STORAGE_PROVIDER
+            Value: s3
+          - Name: S3_BUCKET
+            Value: !Ref ObjectBucket
+          - Name: S3_REGION
+            Value: !Ref AWS::Region
+          - Name: S3_PREFIX
+            Value: objects
+          - Name: DB_HOST
+            Value: !Ref DatabaseHost
+          - Name: DB_PORT
+            Value: !Ref DatabasePort
+          - Name: DB_NAME
+            Value: !Ref DatabaseName
         Secrets:
-          - Name: DATABASE_URL
-            ValueFrom: !Sub "${RuntimeSecretArn}:DATABASE_URL::"
-          - Name: SUPABASE_URL
-            ValueFrom: !Sub "${RuntimeSecretArn}:SUPABASE_URL::"
-          - Name: SUPABASE_SERVICE_KEY
-            ValueFrom: !Sub "${RuntimeSecretArn}:SUPABASE_SERVICE_KEY::"
-          - Name: PINATA_JWT
-            ValueFrom: !Sub "${RuntimeSecretArn}:PINATA_JWT::"
-          - Name: PINATA_GATEWAY
-            ValueFrom: !Sub "${RuntimeSecretArn}:PINATA_GATEWAY::"
+          - Name: DB_USER
+            ValueFrom: !Sub "${DatabaseSecretArn}:username::"
+          - Name: DB_PASSWORD
+            ValueFrom: !Sub "${DatabaseSecretArn}:password::"
           - Name: API_KEYS
             ValueFrom: !Sub "${RuntimeSecretArn}:API_KEYS::"
           - Name: MANAGEMENT_API_KEY

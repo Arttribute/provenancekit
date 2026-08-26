@@ -43,6 +43,10 @@
       "import": "./dist/adapters/files/memory.js",
       "types": "./dist/adapters/files/memory.d.ts"
     },
+    "./adapters/files/s3": {
+      "import": "./dist/adapters/files/s3.js",
+      "types": "./dist/adapters/files/s3.d.ts"
+    },
     "./adapters/files/ipfs-pinata": {
       "import": "./dist/adapters/files/ipfs-pinata.js",
       "types": "./dist/adapters/files/ipfs-pinata.d.ts"
@@ -74,6 +78,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.890.0"
   },
   "peerDependencies": {
     "@provenancekit/eaa-types": "workspace:*"

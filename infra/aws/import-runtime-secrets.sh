@@ -42,9 +42,8 @@ for (const rawLine of readFileSync(process.env.SOURCE_ENV, "utf8").split(/\r?\n/
 }
 
 const required = [
-  "DATABASE_URL", "SUPABASE_URL", "SUPABASE_SERVICE_KEY",
-  "PINATA_JWT", "PINATA_GATEWAY", "MANAGEMENT_API_KEY",
-  "SERVER_SIGNING_KEY", "BLOCKCHAIN_RPC_URL", "BLOCKCHAIN_CHAIN_ID",
+  "MANAGEMENT_API_KEY", "SERVER_SIGNING_KEY",
+  "BLOCKCHAIN_RPC_URL", "BLOCKCHAIN_CHAIN_ID",
   "BLOCKCHAIN_CHAIN_NAME", "BLOCKCHAIN_CONTRACT_ADDRESS", "BLOCKCHAIN_PRIVATE_KEY",
 ];
 const missing = required.filter((key) => !parsed[key]);

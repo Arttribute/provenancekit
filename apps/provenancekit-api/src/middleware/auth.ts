@@ -127,9 +127,9 @@ export function createDrizzleKeyProvider(): AuthProvider {
       .limit(1);
 
     if (!row) {
-      throw new ProvenanceKitError("Unauthorized", "Invalid API key", {
-        recovery: "Check your API key is correct and has not been deleted",
-      });
+      // Allow a configured static provider later in the chain to handle
+      // platform integration keys without weakening project-key checks.
+      return null;
     }
 
     if (row.revokedAt) {

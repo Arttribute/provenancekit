@@ -69,6 +69,231 @@ Resources:
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 7
 
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.44.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: provenancekit-production
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.44.0.0/24
+      MapPublicIpOnLaunch: true
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.44.1.0/24
+      MapPublicIpOnLaunch: true
+  PrivateAppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.44.10.0/24
+  PrivateAppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.44.11.0/24
+  PrivateDbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.44.20.0/24
+  PrivateDbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.44.21.0/24
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  NatEipA:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  NatEipB:
+    Type: AWS::EC2::EIP
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipA.AllocationId
+      SubnetId: !Ref PublicSubnetA
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatEipB.AllocationId
+      SubnetId: !Ref PublicSubnetB
+  PrivateAppRouteTableA:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  PrivateAppRouteTableB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+  PrivateAppDefaultRouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateAppRouteTableA
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayA
+  PrivateAppDefaultRouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateAppRouteTableB
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayB
+  PrivateAppSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnetA
+      RouteTableId: !Ref PrivateAppRouteTableA
+  PrivateAppSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateAppSubnetB
+      RouteTableId: !Ref PrivateAppRouteTableB
+
+  TaskSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ProvenanceKit API tasks; ingress is limited to the service VPC.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 10.44.0.0/16
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL ingress from ProvenanceKit application tasks and CodeBuild only.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          SourceSecurityGroupId: !Ref TaskSecurityGroup
+
+  ObjectBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub provenancekit-objects-${AWS::AccountId}-${AWS::Region}
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  DatabaseSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: provenancekit/database/production
+      Description: Generated PostgreSQL master credentials for ProvenanceKit production.
+      GenerateSecretString:
+        SecretStringTemplate: '{"username":"provenancekit_admin"}'
+        GenerateStringKey: password
+        PasswordLength: 40
+        ExcludePunctuation: true
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Private database subnets for ProvenanceKit.
+      SubnetIds:
+        - !Ref PrivateDbSubnetA
+        - !Ref PrivateDbSubnetB
+
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: provenancekit-production
+      Engine: postgres
+      EngineVersion: "16.15"
+      DBInstanceClass: db.t4g.small
+      DBName: provenancekit
+      MasterUsername: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:username}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:${DatabaseSecret}:SecretString:password}}'
+      AllocatedStorage: "50"
+      MaxAllocatedStorage: 500
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: true
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 35
+      CopyTagsToSnapshot: true
+      DeletionProtection: true
+      AutoMinorVersionUpgrade: true
+      EnablePerformanceInsights: true
+      PerformanceInsightsRetentionPeriod: 7
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DatabaseSecurityGroup
+      Tags:
+        - Key: Project
+          Value: provenancekit
+        - Key: Environment
+          Value: production
+
   RuntimeSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -101,7 +326,9 @@ Resources:
             Statement:
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref RuntimeSecret
+                Resource:
+                  - !Ref RuntimeSecret
+                  - !Ref DatabaseSecret
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -114,6 +341,20 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: sts:AssumeRole
+      Policies:
+        - PolicyName: ContentAddressedObjectStorage
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !GetAtt ObjectBucket.Arn
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:GetObjectVersion
+                Resource: !Sub ${ObjectBucket.Arn}/*
 
   InfrastructureRole:
     Type: AWS::IAM::Role
@@ -192,6 +433,13 @@ Resources:
                   - cloudformation:GetTemplate
                   - cloudformation:GetTemplateSummary
                   - cloudwatch:DescribeAlarms
+                  - ec2:CreateNetworkInterface
+                  - ec2:DescribeDhcpOptions
+                  - ec2:DescribeNetworkInterfaces
+                  - ec2:DeleteNetworkInterface
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeVpcs
                   - ecs:CreateCluster
                   - ecs:RegisterTaskDefinition
                   - ecs:CreateExpressGatewayService
@@ -213,7 +461,15 @@ Resources:
                 Resource: !Sub ${SourceBucket.Arn}/provenancekit/*
               - Effect: Allow
                 Action: secretsmanager:GetSecretValue
-                Resource: !Ref RuntimeSecret
+                Resource:
+                  - !Ref RuntimeSecret
+                  - !Ref DatabaseSecret
+              - Effect: Allow
+                Action: ec2:CreateNetworkInterfacePermission
+                Resource: !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*
+                Condition:
+                  StringEquals:
+                    ec2:AuthorizedService: codebuild.amazonaws.com
               - Effect: Allow
                 Action:
                   - ecr:BatchCheckLayerAvailability
@@ -253,12 +509,33 @@ Resources:
             Value: !Ref ApiRepository
           - Name: RUNTIME_SECRET_ARN
             Value: !Ref RuntimeSecret
+          - Name: DATABASE_SECRET_ARN
+            Value: !Ref DatabaseSecret
+          - Name: DATABASE_HOST
+            Value: !GetAtt Database.Endpoint.Address
+          - Name: DATABASE_PORT
+            Value: !GetAtt Database.Endpoint.Port
+          - Name: DATABASE_NAME
+            Value: provenancekit
+          - Name: OBJECT_BUCKET
+            Value: !Ref ObjectBucket
+          - Name: APP_SUBNETS
+            Value: !Join [",", [!Ref PrivateAppSubnetA, !Ref PrivateAppSubnetB]]
+          - Name: TASK_SECURITY_GROUP
+            Value: !Ref TaskSecurityGroup
           - Name: TASK_EXECUTION_ROLE_ARN
             Value: !GetAtt TaskExecutionRole.Arn
           - Name: TASK_ROLE_ARN
             Value: !GetAtt TaskRole.Arn
           - Name: INFRASTRUCTURE_ROLE_ARN
             Value: !GetAtt InfrastructureRole.Arn
+      VpcConfig:
+        VpcId: !Ref Vpc
+        Subnets:
+          - !Ref PrivateAppSubnetA
+          - !Ref PrivateAppSubnetB
+        SecurityGroupIds:
+          - !Ref TaskSecurityGroup
       TimeoutInMinutes: 60
 
 Outputs:
@@ -280,3 +557,15 @@ Outputs:
     Value: !GetAtt TaskRole.Arn
   InfrastructureRoleArn:
     Value: !GetAtt InfrastructureRole.Arn
+  DatabaseSecretArn:
+    Value: !Ref DatabaseSecret
+  DatabaseHost:
+    Value: !GetAtt Database.Endpoint.Address
+  DatabasePort:
+    Value: !GetAtt Database.Endpoint.Port
+  ObjectBucketName:
+    Value: !Ref ObjectBucket
+  AppSubnetIds:
+    Value: !Join [",", [!Ref PrivateAppSubnetA, !Ref PrivateAppSubnetB]]
+  TaskSecurityGroupId:
+    Value: !Ref TaskSecurityGroup

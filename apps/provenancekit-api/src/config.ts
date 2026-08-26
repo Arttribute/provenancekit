@@ -7,6 +7,16 @@
 import { z } from "zod";
 import "dotenv/config";
 
+function resolveDatabaseUrl(): string | undefined {
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
+  const { DB_HOST, DB_PORT = "5432", DB_NAME, DB_USER, DB_PASSWORD } = process.env;
+  if (!DB_HOST || !DB_NAME || !DB_USER || !DB_PASSWORD) return undefined;
+  return `postgresql://${encodeURIComponent(DB_USER)}:${encodeURIComponent(DB_PASSWORD)}@${DB_HOST}:${DB_PORT}/${encodeURIComponent(DB_NAME)}?sslmode=require`;
+}
+
+const databaseUrl = resolveDatabaseUrl();
+if (databaseUrl && !process.env.DATABASE_URL) process.env.DATABASE_URL = databaseUrl;
+
 /*─────────────────────────────────────────────────────────────*\
  | Configuration Schema                                         |
 \*─────────────────────────────────────────────────────────────*/
@@ -18,6 +28,13 @@ const ConfigSchema = z.object({
 
   /** Refuse to boot with process-local persistence in production. */
   requireDurableStorage: z.boolean().default(false),
+
+  // Portable database and object-storage adapters
+  databaseUrl: z.string().url().optional(),
+  storageProvider: z.enum(["s3", "pinata", "memory"]).default("memory"),
+  s3Bucket: z.string().min(3).optional(),
+  s3Region: z.string().min(3).default("eu-west-1"),
+  s3Prefix: z.string().default("objects"),
 
   // Authentication
   /** API keys (comma-separated). When set, all non-health endpoints require a Bearer token. */
@@ -96,6 +113,11 @@ export function loadConfig(): Config {
       process.env.REQUIRE_DURABLE_STORAGE === "true" ||
       (process.env.REQUIRE_DURABLE_STORAGE !== "false" &&
         process.env.NODE_ENV === "production"),
+    databaseUrl,
+    storageProvider: process.env.STORAGE_PROVIDER,
+    s3Bucket: process.env.S3_BUCKET,
+    s3Region: process.env.S3_REGION ?? process.env.AWS_REGION,
+    s3Prefix: process.env.S3_PREFIX,
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
     supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,

@@ -11,7 +11,9 @@ access keys are stored in GitHub. CodeBuild runs tests/builds, applies ordered
 PostgreSQL migrations before deploy, creates an immutable image, deploys via
 CloudFormation, and performs authenticated persistence smoke tests.
 
-Production refuses to start when Supabase/PostgreSQL or IPFS storage is absent.
+Production refuses to start when PostgreSQL or object storage is absent. The
+default AWS deployment uses private, encrypted, Multi-AZ RDS PostgreSQL with
+35-day point-in-time recovery and a private, encrypted, versioned S3 bucket.
 On-chain anchoring remains an explicit request-level option; normal ingestion is
 off-chain and does not incur a transaction.
 
@@ -50,6 +52,6 @@ Set the `Production` GitHub environment variables from the bootstrap outputs:
    Cloud Run service is already absent, so rollback uses the previous immutable
    ECR image or CloudFormation service revision—not GCP.
 
-The database and IPFS providers are external plugins, not GCP resources. They
-remain in place during the compute cutover to avoid a risky simultaneous data
-migration. A later storage-provider migration can use the same adapter boundary.
+The former Supabase project and GCP Cloud Run service were already unavailable,
+so there was no reachable production dataset to copy. The Pinata and Supabase
+adapters remain supported plugins, while the production defaults are AWS-native.
