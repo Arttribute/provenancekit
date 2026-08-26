@@ -32,7 +32,7 @@ Parameters:
     Type: String
   MinTasks:
     Type: Number
-    Default: 3
+    Default: 2
   MaxTasks:
     Type: Number
     Default: 12

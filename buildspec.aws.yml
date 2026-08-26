@@ -61,7 +61,7 @@ phases:
         ObjectBucket="$OBJECT_BUCKET"
         AppSubnets="$APP_SUBNETS"
         TaskSecurityGroup="$TASK_SECURITY_GROUP"
-        MinTasks="${MIN_TASKS:-3}"
+        MinTasks="${MIN_TASKS:-2}"
         MaxTasks="${MAX_TASKS:-12}"
         --region "$AWS_REGION"
       - ENDPOINT=$(aws cloudformation describe-stacks --stack-name provenancekit-api-service --query 'Stacks[0].Outputs[?OutputKey==`Endpoint`].OutputValue' --output text --region "$AWS_REGION")

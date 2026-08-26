@@ -1,7 +1,7 @@
 # ProvenanceKit AWS production
 
 ProvenanceKit production runs in `eu-west-1` on Amazon ECS Express Mode. The
-service uses three warm tasks across multiple Availability Zones, scales on CPU,
+service uses two warm tasks across multiple Availability Zones, scales on CPU,
 and is fronted by the managed Express load balancer and TLS endpoint. Images are
 immutable, scanned on push in ECR, and retained for rollback.
 
@@ -20,6 +20,11 @@ default AWS deployment uses private, encrypted, Multi-AZ RDS PostgreSQL with
 35-day point-in-time recovery and a private, encrypted, versioned S3 bucket.
 On-chain anchoring remains an explicit request-level option; normal ingestion is
 off-chain and does not incur a transaction.
+
+Two tasks are the safe live baseline under the account's current Fargate vCPU
+quota. A quota increase to 24 vCPUs has been requested; set `MIN_TASKS=3` in
+CodeBuild after approval to restore the preferred three-AZ baseline without a
+template change.
 
 ## Bootstrap
 
