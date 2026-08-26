@@ -580,7 +580,12 @@ export class PostgresStorage implements IProvenanceStorage {
       `
       SELECT * FROM ${this.t.action}
       WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(outputs) AS o
+        SELECT 1 FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(outputs) = 'array' THEN outputs
+            ELSE '[]'::jsonb
+          END
+        ) AS o
         WHERE o->>'ref' = $1
       )
       `,
@@ -597,7 +602,12 @@ export class PostgresStorage implements IProvenanceStorage {
       `
       SELECT * FROM ${this.t.action}
       WHERE EXISTS (
-        SELECT 1 FROM jsonb_array_elements(inputs) AS i
+        SELECT 1 FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(inputs) = 'array' THEN inputs
+            ELSE '[]'::jsonb
+          END
+        ) AS i
         WHERE i->>'ref' = $1
       )
       `,

@@ -22,6 +22,8 @@ phases:
     commands:
       - pnpm --filter './packages/*' --filter '!@provenancekit/contracts' run build
       - pnpm --filter provenancekit-api run build
+      - pnpm --filter @provenancekit/storage test
+      - pnpm --filter provenancekit-api test
       - pnpm deploy --filter provenancekit-api --prod --legacy apps/provenancekit-api/standalone
       - cp -R apps/provenancekit-api/dist apps/provenancekit-api/standalone/dist
       - docker build --pull --platform linux/amd64 -f apps/provenancekit-api/Dockerfile -t "$IMAGE_URI" apps/provenancekit-api
