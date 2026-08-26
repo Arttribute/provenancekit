@@ -14,6 +14,8 @@ phases:
   pre_build:
     commands:
       - set -euo pipefail
+      - SERVICE_STACK_NAME="${SERVICE_STACK_NAME:-provenancekit-api-service-aws}"
+      - SERVICE_NAME="${SERVICE_NAME:-provenancekit-api-production-aws}"
       - APP_VERSION="${CODEBUILD_RESOLVED_SOURCE_VERSION:-manual}-${CODEBUILD_BUILD_NUMBER}"
       - IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${APP_VERSION}"
       - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
@@ -66,10 +68,11 @@ phases:
           'import("./dist/src/db/migrate.js").then((m) => m.runMigrations(process.env.DATABASE_URL, 512))'
       - >-
         aws cloudformation deploy
-        --stack-name provenancekit-api-service
+        --stack-name "$SERVICE_STACK_NAME"
         --template-file infra/aws/service.yml
         --capabilities CAPABILITY_NAMED_IAM
         --parameter-overrides
+        ServiceName="$SERVICE_NAME"
         ImageUri="$IMAGE_URI"
         AppVersion="$APP_VERSION"
         RuntimeSecretArn="$RUNTIME_SECRET_ARN"
@@ -86,7 +89,7 @@ phases:
         MinTasks="${MIN_TASKS:-2}"
         MaxTasks="${MAX_TASKS:-12}"
         --region "$AWS_REGION"
-      - ENDPOINT=$(aws cloudformation describe-stacks --stack-name provenancekit-api-service --query 'Stacks[0].Outputs[?OutputKey==`Endpoint`].OutputValue' --output text --region "$AWS_REGION")
+      - ENDPOINT=$(aws cloudformation describe-stacks --stack-name "$SERVICE_STACK_NAME" --query 'Stacks[0].Outputs[?OutputKey==`Endpoint`].OutputValue' --output text --region "$AWS_REGION")
       - ENDPOINT="https://${ENDPOINT#https://}"
       - curl --fail --show-error --silent --retry 24 --retry-delay 10 --retry-all-errors "${ENDPOINT%/}/health" | jq -e '.status == "ok" and .storage.database == "postgresql" and .storage.files == "s3"'
       - test "$(curl --silent --output /dev/null --write-out '%{http_code}' "${ENDPOINT%/}/v1/actions/batch")" = "401"

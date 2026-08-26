@@ -2,6 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: ProvenanceKit production API on Amazon ECS Express Mode.
 
 Parameters:
+  ServiceName:
+    Type: String
+    Default: provenancekit-api-production-aws
   ImageUri:
     Type: String
   AppVersion:
@@ -41,7 +44,7 @@ Resources:
   ApiService:
     Type: AWS::ECS::ExpressGatewayService
     Properties:
-      ServiceName: provenancekit-api-production
+      ServiceName: !Ref ServiceName
       Cluster: default
       ExecutionRoleArn: !Ref ExecutionRoleArn
       TaskRoleArn: !Ref TaskRoleArn
