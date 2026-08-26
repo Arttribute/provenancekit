@@ -1,0 +1,92 @@
+version: 0.2
+
+env:
+  shell: bash
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+    commands:
+      - set -euo pipefail
+      - corepack enable
+      - corepack prepare pnpm@10.12.1 --activate
+  pre_build:
+    commands:
+      - set -euo pipefail
+      - APP_VERSION="${CODEBUILD_RESOLVED_SOURCE_VERSION:-manual}-${CODEBUILD_BUILD_NUMBER}"
+      - IMAGE_URI="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPOSITORY}:${APP_VERSION}"
+      - aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+      - pnpm install --frozen-lockfile
+  build:
+    commands:
+      - pnpm --filter './packages/*' --filter '!@provenancekit/contracts' run build
+      - pnpm --filter provenancekit-api run build
+      - pnpm deploy --filter provenancekit-api --prod --legacy apps/provenancekit-api/standalone
+      - cp -R apps/provenancekit-api/dist apps/provenancekit-api/standalone/dist
+      - docker build --platform linux/amd64 -f apps/provenancekit-api/Dockerfile -t "$IMAGE_URI" apps/provenancekit-api
+      - docker push "$IMAGE_URI"
+  post_build:
+    commands:
+      - set -euo pipefail
+      - SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$RUNTIME_SECRET_ARN" --query SecretString --output text --region "$AWS_REGION")
+      - |
+        echo "Applying ledger-backed PostgreSQL migrations before deployment..."
+        docker run --rm \
+          -e DATABASE_URL="$(jq -r .DATABASE_URL <<<"$SECRET_JSON")" \
+          -e VECTOR_DIMENSION=512 \
+          "$IMAGE_URI" \
+          node --input-type=module -e \
+          'import("./dist/src/db/migrate.js").then((m) => m.runMigrations(process.env.DATABASE_URL, 512))'
+      - >-
+        aws cloudformation deploy
+        --stack-name provenancekit-api-service
+        --template-file infra/aws/service.yml
+        --capabilities CAPABILITY_NAMED_IAM
+        --parameter-overrides
+        ImageUri="$IMAGE_URI"
+        AppVersion="$APP_VERSION"
+        RuntimeSecretArn="$RUNTIME_SECRET_ARN"
+        ExecutionRoleArn="$TASK_EXECUTION_ROLE_ARN"
+        TaskRoleArn="$TASK_ROLE_ARN"
+        InfrastructureRoleArn="$INFRASTRUCTURE_ROLE_ARN"
+        MinTasks="${MIN_TASKS:-3}"
+        MaxTasks="${MAX_TASKS:-12}"
+        --region "$AWS_REGION"
+      - ENDPOINT=$(aws cloudformation describe-stacks --stack-name provenancekit-api-service --query 'Stacks[0].Outputs[?OutputKey==`Endpoint`].OutputValue' --output text --region "$AWS_REGION")
+      - ENDPOINT="https://${ENDPOINT#https://}"
+      - curl --fail --show-error --silent --retry 24 --retry-delay 10 --retry-all-errors "${ENDPOINT%/}/health" | jq -e '.status == "ok" and .storage.database == "supabase" and .storage.files == "ipfs"'
+      - test "$(curl --silent --output /dev/null --write-out '%{http_code}' "${ENDPOINT%/}/v1/actions/batch")" = "401"
+      - API_KEY=$(jq -r .API_KEYS <<<"$SECRET_JSON" | cut -d, -f1)
+      - SMOKE_ID="aws-${CODEBUILD_BUILD_NUMBER}-$(date +%s)"
+      - |
+        jq -n --arg id "$SMOKE_ID" --arg ts "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)" '{
+          bundle: {
+            context: "https://provenancekit.com/context/v2",
+            entities: [
+              {id: ("user:" + $id), role: "human", name: "AWS production smoke test"},
+              {id: ("agent:" + $id), role: "ai", name: "ProvenanceKit AWS deploy verifier"}
+            ],
+            actions: [{
+              id: ("action:" + $id), type: "transform", performedBy: ("agent:" + $id),
+              timestamp: $ts, inputs: [], outputs: [{ref: ("sha256:" + $id), scheme: "hash"}]
+            }],
+            resources: [{
+              address: {ref: ("sha256:" + $id), scheme: "hash"}, type: "text", locations: [],
+              createdAt: $ts, createdBy: ("agent:" + $id), rootAction: ("action:" + $id)
+            }],
+            attributions: [
+              {actionId: ("action:" + $id), entityId: ("agent:" + $id), role: "creator"},
+              {actionId: ("action:" + $id), entityId: ("user:" + $id), role: "contributor"}
+            ]
+          }
+        }' | curl --fail --show-error --silent \
+          --header "Authorization: Bearer $API_KEY" \
+          --header 'Content-Type: application/json' \
+          --data-binary @- "${ENDPOINT%/}/v1/actions/batch" | \
+          jq -e '.accepted.actions == 1 and .accepted.resources == 1 and (.bundleHash | startswith("sha256:"))'
+      - printf '{"endpoint":"%s","image":"%s","version":"%s"}\n' "$ENDPOINT" "$IMAGE_URI" "$APP_VERSION" > deployment.json
+
+artifacts:
+  files:
+    - deployment.json

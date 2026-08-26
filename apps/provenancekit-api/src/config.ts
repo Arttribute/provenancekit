@@ -16,6 +16,9 @@ const ConfigSchema = z.object({
   port: z.coerce.number().default(3001),
   nodeEnv: z.enum(["development", "production", "test"]).default("development"),
 
+  /** Refuse to boot with process-local persistence in production. */
+  requireDurableStorage: z.boolean().default(false),
+
   // Authentication
   /** API keys (comma-separated). When set, all non-health endpoints require a Bearer token. */
   apiKeys: z.string().optional(),
@@ -89,6 +92,10 @@ export function loadConfig(): Config {
   const result = ConfigSchema.safeParse({
     port: process.env.PORT,
     nodeEnv: process.env.NODE_ENV,
+    requireDurableStorage:
+      process.env.REQUIRE_DURABLE_STORAGE === "true" ||
+      (process.env.REQUIRE_DURABLE_STORAGE !== "false" &&
+        process.env.NODE_ENV === "production"),
     supabaseUrl: process.env.SUPABASE_URL,
     supabaseAnonKey: process.env.SUPABASE_ANON_KEY,
     supabaseServiceKey: process.env.SUPABASE_SERVICE_KEY,

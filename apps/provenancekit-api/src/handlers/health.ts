@@ -1,6 +1,7 @@
 // health.ts
 import { Hono } from "hono";
 import { openApiSpec } from "../openapi.js";
+import { config } from "../config.js";
 
 const SCALAR_UI_HTML = `<!DOCTYPE html>
 <html>
@@ -20,6 +21,23 @@ const SCALAR_UI_HTML = `<!DOCTYPE html>
 
 const r = new Hono()
   .get("/", (c) => c.text("ok"))
+  .get("/health", (c) =>
+    c.json({
+      status: "ok",
+      service: "provenancekit-api",
+      version: process.env.APP_VERSION ?? "development",
+      storage: {
+        database: config.supabaseUrl ? "supabase" : "memory",
+        files: config.pinataJwt ? "ipfs" : "memory",
+      },
+      onchain: Boolean(
+        config.blockchainRpcUrl &&
+          config.blockchainContractAddress &&
+          config.blockchainPrivateKey,
+      ),
+    }),
+  )
+  .get("/ready", (c) => c.json({ status: "ready" }))
   .get("/openapi.json", (c) => c.json(openApiSpec))
   .get("/docs", (c) => c.html(SCALAR_UI_HTML));
 

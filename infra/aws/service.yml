@@ -1,0 +1,100 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: ProvenanceKit production API on Amazon ECS Express Mode.
+
+Parameters:
+  ImageUri:
+    Type: String
+  AppVersion:
+    Type: String
+  RuntimeSecretArn:
+    Type: String
+  ExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+  InfrastructureRoleArn:
+    Type: String
+  MinTasks:
+    Type: Number
+    Default: 3
+  MaxTasks:
+    Type: Number
+    Default: 12
+
+Resources:
+  ApiService:
+    Type: AWS::ECS::ExpressGatewayService
+    Properties:
+      ServiceName: provenancekit-api-production
+      Cluster: default
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      InfrastructureRoleArn: !Ref InfrastructureRoleArn
+      Cpu: "2048"
+      Memory: "4096"
+      HealthCheckPath: /health
+      PrimaryContainer:
+        Image: !Ref ImageUri
+        ContainerPort: 8080
+        Environment:
+          - Name: NODE_ENV
+            Value: production
+          - Name: PORT
+            Value: "8080"
+          - Name: APP_VERSION
+            Value: !Ref AppVersion
+          - Name: REQUIRE_DURABLE_STORAGE
+            Value: "true"
+          - Name: SKIP_MIGRATIONS
+            Value: "true"
+          - Name: PROOF_POLICY
+            Value: enforce
+          - Name: VALIDATE_INPUTS
+            Value: "true"
+          - Name: VECTOR_DIMENSION
+            Value: "512"
+        Secrets:
+          - Name: DATABASE_URL
+            ValueFrom: !Sub "${RuntimeSecretArn}:DATABASE_URL::"
+          - Name: SUPABASE_URL
+            ValueFrom: !Sub "${RuntimeSecretArn}:SUPABASE_URL::"
+          - Name: SUPABASE_SERVICE_KEY
+            ValueFrom: !Sub "${RuntimeSecretArn}:SUPABASE_SERVICE_KEY::"
+          - Name: PINATA_JWT
+            ValueFrom: !Sub "${RuntimeSecretArn}:PINATA_JWT::"
+          - Name: PINATA_GATEWAY
+            ValueFrom: !Sub "${RuntimeSecretArn}:PINATA_GATEWAY::"
+          - Name: API_KEYS
+            ValueFrom: !Sub "${RuntimeSecretArn}:API_KEYS::"
+          - Name: MANAGEMENT_API_KEY
+            ValueFrom: !Sub "${RuntimeSecretArn}:MANAGEMENT_API_KEY::"
+          - Name: SERVER_SIGNING_KEY
+            ValueFrom: !Sub "${RuntimeSecretArn}:SERVER_SIGNING_KEY::"
+          - Name: BLOCKCHAIN_RPC_URL
+            ValueFrom: !Sub "${RuntimeSecretArn}:BLOCKCHAIN_RPC_URL::"
+          - Name: BLOCKCHAIN_CHAIN_ID
+            ValueFrom: !Sub "${RuntimeSecretArn}:BLOCKCHAIN_CHAIN_ID::"
+          - Name: BLOCKCHAIN_CHAIN_NAME
+            ValueFrom: !Sub "${RuntimeSecretArn}:BLOCKCHAIN_CHAIN_NAME::"
+          - Name: BLOCKCHAIN_CONTRACT_ADDRESS
+            ValueFrom: !Sub "${RuntimeSecretArn}:BLOCKCHAIN_CONTRACT_ADDRESS::"
+          - Name: BLOCKCHAIN_PRIVATE_KEY
+            ValueFrom: !Sub "${RuntimeSecretArn}:BLOCKCHAIN_PRIVATE_KEY::"
+      ScalingTarget:
+        MinTaskCount: !Ref MinTasks
+        MaxTaskCount: !Ref MaxTasks
+        AutoScalingMetric: AVERAGE_CPU
+        AutoScalingTargetValue: 60
+      Tags:
+        - Key: Project
+          Value: provenancekit
+        - Key: Environment
+          Value: production
+        - Key: DataClassification
+          Value: provenance
+
+Outputs:
+  Endpoint:
+    Value: !GetAtt ApiService.Endpoint
+  ServiceArn:
+    Value: !GetAtt ApiService.ServiceArn

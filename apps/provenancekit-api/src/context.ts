@@ -141,6 +141,19 @@ export async function initializeContext(): Promise<AppContext> {
 
   console.log("Initializing ProvenanceKit API context...");
 
+  if (config.requireDurableStorage) {
+    const missing: string[] = [];
+    if (!config.supabaseUrl || !(config.supabaseServiceKey ?? config.supabaseAnonKey)) {
+      missing.push("SUPABASE_URL and SUPABASE_SERVICE_KEY (or SUPABASE_ANON_KEY)");
+    }
+    if (!config.pinataJwt) missing.push("PINATA_JWT");
+    if (missing.length > 0) {
+      throw new Error(
+        `Durable production storage is required; missing ${missing.join(", ")}`,
+      );
+    }
+  }
+
   // 0. Run database migrations (idempotent; skipped when DATABASE_URL is absent)
   // Set SKIP_MIGRATIONS=true in production Cloud Run service env vars and run
   // migrations separately via a Cloud Run Job before each deployment.

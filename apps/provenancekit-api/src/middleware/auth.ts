@@ -180,7 +180,7 @@ export function createSupabaseKeyProvider(_supabase: SupabaseClient): AuthProvid
 \*─────────────────────────────────────────────────────────────*/
 
 /** Paths that never require authentication */
-const PUBLIC_PATHS = new Set(["/"]);
+const PUBLIC_PATHS = new Set(["/", "/health", "/ready", "/openapi.json", "/docs"]);
 
 export interface AuthMiddlewareOptions {
   /** Exact paths that bypass authentication. */

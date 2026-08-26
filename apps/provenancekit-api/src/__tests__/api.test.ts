@@ -98,6 +98,14 @@ describe("ProvenanceKit API", () => {
       expect(await res.text()).toBe("ok");
     });
 
+    it("GET /health reports service readiness", async () => {
+      const res = await app.request("/health");
+      expect(res.status).toBe(200);
+      const body = await res.json() as Record<string, unknown>;
+      expect(body.status).toBe("ok");
+      expect(body.service).toBe("provenancekit-api");
+    });
+
     it("GET /openapi.json returns valid OpenAPI spec", async () => {
       const res = await app.request("/openapi.json");
       expect(res.status).toBe(200);
