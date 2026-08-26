@@ -227,6 +227,13 @@ export const ActivityPayload = z.object({
 
   /** Whether to encrypt the file */
   encrypt: z.boolean().default(false),
+
+  /**
+   * Explicit request to anchor this activity on-chain. Off by default even
+   * when the API has blockchain credentials, so infrastructure configuration
+   * never silently changes a caller's privacy/cost posture.
+   */
+  onchain: z.boolean().default(false),
 });
 
 export type ActivityPayload = z.infer<typeof ActivityPayload>;
@@ -538,7 +545,7 @@ export async function createActivity(
   // projectId from auth claims is authoritative when using Supabase-backed keys.
   // It overrides anything the caller sends in the body, ensuring project isolation.
   const authProjectId = authIdentity?.claims?.["projectId"] as string | undefined;
-  const { entity: ent, action: act, resourceType, resourceExtensions, sessionId, attribution: attr, encrypt } = parsed.data;
+  const { entity: ent, action: act, resourceType, resourceExtensions, sessionId, attribution: attr, encrypt, onchain } = parsed.data;
   const projectId = authProjectId ?? parsed.data.projectId;
 
   if (!ent.role?.trim()) {
@@ -1036,7 +1043,7 @@ export async function createActivity(
   const { blockchain } = getContext();
   let txHash: string | undefined;
 
-  if (blockchain) {
+  if (blockchain && onchain) {
     try {
       const hash = await blockchain.walletClient.writeContract({
         address: blockchain.contractAddress,

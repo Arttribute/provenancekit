@@ -177,6 +177,27 @@ export interface FileOpts {
     };
   };
   sessionId?: string;
+  /** Ask the configured API to anchor this activity. Defaults to false. */
+  onchain?: boolean;
+}
+
+export interface RecordBatchResult {
+  batchId: string;
+  bundleHash: string;
+  accepted: {
+    entities: number;
+    actions: number;
+    resources: number;
+    attributions: number;
+  };
+  onchain?: {
+    txHash: string;
+    chainId?: number;
+    chainName?: string;
+    contractAddress?: string;
+    status: 'submitted';
+  };
+  warning?: string;
 }
 
 export interface UploadOptions {
@@ -484,6 +505,21 @@ export class ProvenanceKit {
   }) {
     const r = await this.api.postJSON<{ id: string }>("/entity", e);
     return r.id;
+  }
+
+  /**
+   * Record a complete EAA bundle with one HTTP request. This is the preferred
+   * path for agent trajectories: callers can buffer locally and export after
+   * the user-visible response has completed.
+   */
+  recordBatch(
+    bundle: ProvenanceBundle,
+    opts: { onchain?: boolean } = {}
+  ): Promise<RecordBatchResult> {
+    return this.api.postJSON<RecordBatchResult>('/v1/actions/batch', {
+      bundle,
+      onchain: opts.onchain ?? false,
+    });
   }
 
   /*─────────────────────────────────────────────────────────────*\

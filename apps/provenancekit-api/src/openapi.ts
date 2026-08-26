@@ -156,8 +156,10 @@ export const openApiSpec = {
       },
       ProvenanceBundle: {
         type: "object",
+        required: ["context", "entities", "resources", "actions", "attributions"],
         properties: {
-          resource: { $ref: "#/components/schemas/Resource" },
+          context: { type: "string" },
+          resources: { type: "array", items: { $ref: "#/components/schemas/Resource" } },
           actions: { type: "array", items: { $ref: "#/components/schemas/Action" } },
           entities: { type: "array", items: { $ref: "#/components/schemas/Entity" } },
           attributions: { type: "array", items: { $ref: "#/components/schemas/Attribution" } },
@@ -376,6 +378,50 @@ export const openApiSpec = {
         },
       },
     },
+    "/v1/actions/batch": {
+      post: {
+        tags: ["V1 — Actions"],
+        summary: "Record an EAA provenance bundle in one request",
+        operationId: "v1RecordActionBatch",
+        description: "Idempotently ingests entities, actions, resources and attributions. On-chain anchoring is opt-in and records one bundle digest.",
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["bundle"],
+                properties: {
+                  bundle: { $ref: "#/components/schemas/ProvenanceBundle" },
+                  onchain: { type: "boolean", default: false },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          "201": {
+            description: "Bundle accepted",
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    batchId: { type: "string" },
+                    bundleHash: { type: "string" },
+                    accepted: { type: "object" },
+                    onchain: { type: "object", nullable: true },
+                    warning: { type: "string", nullable: true },
+                  },
+                },
+              },
+            },
+          },
+          "400": { description: "Invalid EAA bundle" },
+          "401": { description: "Unauthorized" },
+        },
+      },
+    },
     "/v1/resources/upload": {
       post: {
         tags: ["V1 — Resources"],
@@ -496,6 +542,7 @@ export const openApiSpec = {
                   resourceType: { type: "string", enum: ["text", "image", "audio", "video", "code", "dataset", "model", "other"] },
                   extensions: { type: "string", description: "JSON-encoded extensions (e.g. ext:ai@1.0.0 data)" },
                   embedC2pa: { type: "string", enum: ["true", "false"], description: "Embed C2PA manifest in supported media files" },
+                  onchain: { type: "string", enum: ["true", "false"], default: "false", description: "Explicitly submit an on-chain anchor" },
                 },
               },
             },

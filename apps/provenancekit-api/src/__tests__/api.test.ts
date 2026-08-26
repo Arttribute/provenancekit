@@ -116,6 +116,84 @@ describe("ProvenanceKit API", () => {
     });
   });
 
+  describe("POST /v1/actions/batch", () => {
+    const bundle = {
+      context: "https://provenancekit.com/context/v2",
+      entities: [
+        { id: "user:alice", role: "human", name: "Alice" },
+        { id: "agent:writer", role: "ai", name: "Writer" },
+      ],
+      actions: [
+        {
+          id: "run-1:event-1",
+          type: "transform",
+          performedBy: "agent:writer",
+          timestamp: "2026-08-26T10:00:00.000Z",
+          inputs: [],
+          outputs: [{ ref: "sha256:abc", scheme: "hash" }],
+        },
+      ],
+      resources: [
+        {
+          address: { ref: "sha256:abc", scheme: "hash" },
+          type: "text",
+          locations: [],
+          createdAt: "2026-08-26T10:00:00.000Z",
+          createdBy: "agent:writer",
+          rootAction: "run-1:event-1",
+        },
+      ],
+      attributions: [
+        {
+          actionId: "run-1:event-1",
+          entityId: "agent:writer",
+          role: "creator",
+        },
+        {
+          actionId: "run-1:event-1",
+          entityId: "user:alice",
+          role: "contributor",
+        },
+      ],
+    };
+
+    it("ingests an EAA bundle in one request and is retry-safe", async () => {
+      const first = await app.request("/v1/actions/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundle }),
+      });
+      expect(first.status).toBe(201);
+      const firstBody = await first.json() as Record<string, any>;
+      expect(firstBody.accepted.actions).toBe(1);
+      expect(firstBody.accepted.resources).toBe(1);
+      expect(firstBody.bundleHash).toMatch(/^sha256:/);
+
+      const retry = await app.request("/v1/actions/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundle }),
+      });
+      expect(retry.status).toBe(201);
+      const retryBody = await retry.json() as Record<string, any>;
+      expect(retryBody.batchId).toBe(firstBody.batchId);
+      expect(retryBody.accepted.actions).toBe(0);
+      expect(retryBody.accepted.resources).toBe(0);
+    });
+
+    it("keeps on-chain anchoring explicit and reports an unavailable sink", async () => {
+      const response = await app.request("/v1/actions/batch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bundle, onchain: true }),
+      });
+      expect(response.status).toBe(201);
+      const body = await response.json() as Record<string, any>;
+      expect(body.onchain).toBeUndefined();
+      expect(body.warning).toContain("no blockchain sink");
+    });
+  });
+
   // ─── Entity ───────────────────────────────────────────────────────────────
 
   describe("POST /entity", () => {

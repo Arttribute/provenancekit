@@ -14,8 +14,19 @@
  */
 
 import { Hono } from "hono";
+import { createHash } from "node:crypto";
 import { v4 as uuidv4 } from "uuid";
-import type { Action, Attribution, ContentReference } from "@provenancekit/eaa-types";
+import {
+  ProvenanceBundle as ProvenanceBundleSchema,
+  generateAttributionId,
+  type Action,
+  type Attribution,
+  type ContentReference,
+  type Entity,
+  type ProvenanceBundle,
+  type Resource,
+} from "@provenancekit/eaa-types";
+import { withOnchain } from "@provenancekit/extensions";
 import {
   upsertEntity,
   type CreateEntityInput,
@@ -25,6 +36,43 @@ import { ProvenanceKitError } from "../errors.js";
 import { getContext } from "../context.js";
 
 const r = new Hono();
+
+type IngestBundle = ProvenanceBundle & {
+  entities: Array<Entity & { id: string }>;
+  actions: Array<Action & { id: string; performedBy: string }>;
+  resources: Array<
+    Resource & {
+      address: ContentReference & { ref: string };
+      createdBy: string;
+    }
+  >;
+  attributions: Attribution[];
+};
+type IngestAction = IngestBundle["actions"][number];
+type IngestResource = IngestBundle["resources"][number];
+
+const REGISTRY_WRITE_ABI = [
+  {
+    type: "function",
+    name: "recordActionAndRegisterOutputs",
+    inputs: [
+      { name: "actionType", type: "string" },
+      { name: "inputs", type: "string[]" },
+      { name: "outputs", type: "string[]" },
+      { name: "resourceType", type: "string" },
+    ],
+    outputs: [{ name: "actionId", type: "bytes32" }],
+    stateMutability: "nonpayable",
+  },
+] as const;
+
+function bundleHash(bundle: ProvenanceBundle): string {
+  return `sha256:${createHash("sha256").update(JSON.stringify(bundle)).digest("hex")}`;
+}
+
+function uniqueBy<T>(items: T[], key: (item: T) => string): T[] {
+  return [...new Map(items.map((item) => [key(item), item])).values()];
+}
 
 // ---------------------------------------------------------------------------
 // POST /v1/entities
@@ -162,6 +210,168 @@ r.post("/actions", async (c) => {
       resource: { cid: primaryCid },
     },
     201
+  );
+});
+
+// ---------------------------------------------------------------------------
+// POST /v1/actions/batch
+// Body: { bundle: ProvenanceBundle, onchain?: boolean }
+//
+// Ingests a complete EAA bundle with one network round-trip. Database writes
+// are de-duplicated and grouped by dependency order. On-chain anchoring is a
+// separate explicit boolean and commits the bundle digest once, not one tx per
+// event.
+// ---------------------------------------------------------------------------
+r.post("/actions/batch", async (c) => {
+  const raw = (await c.req.json().catch(() => ({}))) as {
+    bundle?: unknown;
+    onchain?: boolean;
+  };
+  const parsed = ProvenanceBundleSchema.safeParse(raw.bundle);
+  if (!parsed.success) {
+    throw new ProvenanceKitError("ValidationError", "Invalid provenance bundle", {
+      details: parsed.error.flatten(),
+    });
+  }
+
+  // Zod's runtime schema currently exposes a partial-looking inferred type;
+  // successful strict parsing guarantees the public EAA bundle contract.
+  const bundle = parsed.data as IngestBundle;
+  const digest = bundleHash(bundle);
+  const batchId = `pkbatch:${digest.slice("sha256:".length, "sha256:".length + 24)}`;
+  const { dbStorage, blockchain } = getContext();
+  const entities = uniqueBy(bundle.entities, (entity) => entity.id);
+  const actions = uniqueBy(bundle.actions, (action) => action.id);
+  const resources = uniqueBy(bundle.resources, (resource) => resource.address.ref);
+  const attributions = uniqueBy(
+    bundle.attributions.map((attribution) => ({
+      ...attribution,
+      id:
+        attribution.id ??
+        generateAttributionId({
+          resourceRef: attribution.resourceRef,
+          actionId: attribution.actionId,
+          entityId: attribution.entityId,
+          role: attribution.role,
+          note: attribution.note,
+          extensions: attribution.extensions,
+        }),
+    })),
+    (attribution) => attribution.id!,
+  );
+
+  await Promise.all(entities.map((entity) => dbStorage.upsertEntity(entity)));
+
+  const newActions = (
+    await Promise.all(
+      actions.map(async (action) =>
+        (await dbStorage.getAction(action.id)) ? undefined : action,
+      ),
+    )
+  ).filter((action): action is IngestAction => Boolean(action));
+  await Promise.all(newActions.map((action) => dbStorage.createAction(action)));
+  const actionWrites = newActions.length;
+
+  const newResources = (
+    await Promise.all(
+      resources.map(async (resource) =>
+        (await dbStorage.resourceExists(resource.address.ref)) ? undefined : resource,
+      ),
+    )
+  ).filter((resource): resource is IngestResource => Boolean(resource));
+  await Promise.all(
+    newResources.map(async (resource) => {
+      await dbStorage.createResource(resource);
+      await dbStorage.initOwnershipState(resource.address.ref, resource.createdBy);
+    }),
+  );
+  const resourceWrites = newResources.length;
+
+  let attributionWrites = 0;
+  // A repeated batch has no new actions/resources, so its deterministic
+  // attributions were already inserted as part of the same successful write.
+  if (actionWrites > 0 || resourceWrites > 0) {
+    await Promise.all(
+      attributions.map((attribution) => dbStorage.createAttribution(attribution)),
+    );
+    attributionWrites = attributions.length;
+  }
+
+  let onchain:
+    | {
+        txHash: string;
+        chainId: number;
+        chainName: string;
+        contractAddress: string;
+        status: "submitted";
+      }
+    | undefined;
+  let warning: string | undefined;
+
+  if (raw.onchain) {
+    if (!blockchain) {
+      warning = "On-chain anchoring was requested but no blockchain sink is configured";
+    } else {
+      const txHash = await blockchain.walletClient.writeContract({
+        address: blockchain.contractAddress,
+        abi: REGISTRY_WRITE_ABI,
+        functionName: "recordActionAndRegisterOutputs",
+        args: ["aggregate", [], [digest], "other"],
+        account: blockchain.walletClient.account ?? null,
+        chain: blockchain.walletClient.chain,
+      });
+      onchain = {
+        txHash,
+        chainId: blockchain.chainId,
+        chainName: blockchain.chainName,
+        contractAddress: blockchain.contractAddress,
+        status: "submitted",
+      };
+
+      // Receipt waiting and action decoration are deliberately detached from
+      // the response. Every action receives the same bundle-level anchor.
+      blockchain.publicClient
+        .waitForTransactionReceipt({ hash: txHash })
+        .then(async (receipt) => {
+          await Promise.all(
+            actions.map((action) => {
+              const anchored = withOnchain(action, {
+                chainId: blockchain.chainId,
+                chainName: blockchain.chainName,
+                blockNumber: Number(receipt.blockNumber),
+                transactionHash: receipt.transactionHash,
+                contractAddress: blockchain.contractAddress,
+                confirmed: receipt.status === "success",
+              });
+              return dbStorage.updateAction(action.id, {
+                extensions: anchored.extensions,
+              });
+            }),
+          );
+        })
+        .catch((error) =>
+          console.error(
+            `[batch:onchain] confirmation failed for ${txHash}:`,
+            error instanceof Error ? error.message : error,
+          ),
+        );
+    }
+  }
+
+  return c.json(
+    {
+      batchId,
+      bundleHash: digest,
+      accepted: {
+        entities: entities.length,
+        actions: actionWrites,
+        resources: resourceWrites,
+        attributions: attributionWrites,
+      },
+      onchain,
+      warning,
+    },
+    201,
   );
 });
 
