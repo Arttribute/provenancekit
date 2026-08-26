@@ -26,12 +26,28 @@ phases:
       - cp -R apps/provenancekit-api/dist apps/provenancekit-api/standalone/dist
       - docker build --pull --platform linux/amd64 -f apps/provenancekit-api/Dockerfile -t "$IMAGE_URI" apps/provenancekit-api
       - docker push "$IMAGE_URI"
-      - aws ecr wait image-scan-complete --repository-name "$ECR_REPOSITORY" --image-id imageTag="$APP_VERSION" --region "$AWS_REGION"
+      - |
+        scan_status=""
+        for attempt in $(seq 1 30); do
+          scan_json=$(aws ecr describe-image-scan-findings \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-id imageTag="$APP_VERSION" \
+            --region "$AWS_REGION" 2>/dev/null || true)
+          scan_status=$(jq -r '.imageScanStatus.status // empty' <<<"$scan_json")
+          if [ "$scan_status" = "COMPLETE" ]; then break; fi
+          if [ "$scan_status" = "FAILED" ]; then
+            jq -r '.imageScanStatus.description' <<<"$scan_json" >&2
+            exit 1
+          fi
+          sleep 5
+        done
+        test "$scan_status" = "COMPLETE"
       - CRITICAL_FINDINGS=$(aws ecr describe-image-scan-findings --repository-name "$ECR_REPOSITORY" --image-id imageTag="$APP_VERSION" --region "$AWS_REGION" --query 'imageScanFindings.findingSeverityCounts.CRITICAL' --output text)
       - test "${CRITICAL_FINDINGS:-0}" = "None" || test "${CRITICAL_FINDINGS:-0}" = "0"
   post_build:
     commands:
       - set -euo pipefail
+      - test "${CODEBUILD_BUILD_SUCCEEDING:-0}" = "1"
       - SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$RUNTIME_SECRET_ARN" --query SecretString --output text --region "$AWS_REGION")
       - DATABASE_SECRET_JSON=$(aws secretsmanager get-secret-value --secret-id "$DATABASE_SECRET_ARN" --query SecretString --output text --region "$AWS_REGION")
       - DB_USER=$(jq -r .username <<<"$DATABASE_SECRET_JSON")
