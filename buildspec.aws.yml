@@ -33,10 +33,17 @@ phases:
       - |
         scan_status=""
         for attempt in $(seq 1 30); do
-          scan_json=$(aws ecr describe-image-scan-findings \
+          if ! scan_json=$(aws ecr describe-image-scan-findings \
             --repository-name "$ECR_REPOSITORY" \
             --image-id imageTag="$APP_VERSION" \
-            --region "$AWS_REGION" 2>/dev/null || true)
+            --region "$AWS_REGION" 2>&1); then
+            if grep -Eq 'ScanNotFoundException|ImageNotFoundException' <<<"$scan_json"; then
+              sleep 5
+              continue
+            fi
+            printf '%s\n' "$scan_json" >&2
+            exit 1
+          fi
           scan_status=$(jq -r '.imageScanStatus.status // empty' <<<"$scan_json")
           if [ "$scan_status" = "COMPLETE" ]; then break; fi
           if [ "$scan_status" = "FAILED" ]; then
